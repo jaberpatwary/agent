@@ -1,6 +1,6 @@
 name: news-worker
 
-# Runs the RSS fetch -> cluster -> agentic rewrite -> publish pipeline on a
+# Runs one pass of the agentic news desk (internal/agentic) on a
 # schedule, as a free alternative to a Render background worker (Render's
 # free web service has DISABLE_BACKGROUND_WORKER=true — see render.yaml and
 # docs/FREE_HOSTING.md). Stays a no-op until the NEWS_WORKER_ENABLED
@@ -26,7 +26,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Run one feed/rewrite pass
+      - name: Run one agentic desk pass
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           # Needed because config.Load() validates these in production, even

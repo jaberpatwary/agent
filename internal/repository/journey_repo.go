@@ -3,6 +3,8 @@ package repository
 import (
 	"time"
 
+	"github.com/google/uuid"
+
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -21,6 +23,7 @@ type JourneyRepository interface {
 	List(status string, limit, offset int) ([]domain.NewsJourney, int64, error)
 	// Lookup returns the journey rows for the given source URLs, keyed by URL.
 	Lookup(urls []string) (map[string]domain.NewsJourney, error)
+	ByArticleID(id uuid.UUID) (*domain.NewsJourney, error)
 }
 
 type journeyRepository struct {
@@ -93,4 +96,14 @@ func (r *journeyRepository) Lookup(urls []string) (map[string]domain.NewsJourney
 		out[j.SourceURL] = j
 	}
 	return out, nil
+}
+
+// ByArticleID finds the journey that produced an article (nil if none).
+func (r *journeyRepository) ByArticleID(id uuid.UUID) (*domain.NewsJourney, error) {
+	var j domain.NewsJourney
+	err := r.db.Where("article_id = ?", id).Order("updated_at DESC").First(&j).Error
+	if err != nil {
+		return nil, err
+	}
+	return &j, nil
 }

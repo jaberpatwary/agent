@@ -5,13 +5,16 @@ import (
 	"log"
 	"time"
 
+	"bangla-news-aggregator/internal/agentic"
 	"bangla-news-aggregator/internal/config"
 	"bangla-news-aggregator/internal/cron"
 	"bangla-news-aggregator/internal/repository"
+	"bangla-news-aggregator/internal/rss"
 )
 
-// news-worker performs one feed polling pass and exits. It is intended for
-// scheduled runners such as GitHub Actions, separate from the web process.
+// news-worker runs one pass of the agentic news desk and exits. It is
+// intended for scheduled runners such as GitHub Actions, separate from the
+// web process (which can also be triggered by n8n at /api/agent/run).
 func main() {
 	cfg := config.Load()
 
@@ -25,20 +28,28 @@ func main() {
 	}
 	defer sqlDB.Close()
 
+	feedRepo := repository.NewFeedRepository(db)
+	settingsRepo := repository.NewSettingsRepository(db)
+	journeyRepo := repository.NewJourneyRepository(db)
 	worker := cron.NewWorker(
 		cfg,
-		repository.NewFeedRepository(db),
+		feedRepo,
 		repository.NewArticleRepository(db),
 		repository.NewAIUsageRepository(db),
-		repository.NewSettingsRepository(db),
+		settingsRepo,
 		repository.NewSeenURLRepository(db),
 	)
+	worker.SetJourneyRepo(journeyRepo)
+
+	desk := agentic.NewDesk(worker, repository.NewAgentRepository(db), journeyRepo, settingsRepo, feedRepo,
+		agentic.GoogleNewsSearch(nil), agentic.PageReader(rss.NewClient()))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 9*time.Minute)
 	defer cancel()
-	worker.RunOnce(ctx)
-	if err := ctx.Err(); err != nil && err != context.Canceled {
-		log.Fatalf("[news-worker] run did not finish: %v", err)
+	run, err := desk.RunOnce(ctx, "news-worker")
+	if err != nil {
+		log.Fatalf("[news-worker] %v", err)
 	}
-	log.Println("[news-worker] scheduled feed pass completed")
+	log.Printf("[news-worker] agent run %s: status=%s processed=%d/%d tokens=%d %s",
+		run.ID, run.Status, run.Processed, run.Candidates, run.Tokens, run.Error)
 }

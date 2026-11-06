@@ -14,10 +14,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"bangla-news-aggregator/internal/agentic"
 	"bangla-news-aggregator/internal/config"
 	"bangla-news-aggregator/internal/cron"
 	"bangla-news-aggregator/internal/handler"
 	"bangla-news-aggregator/internal/repository"
+	"bangla-news-aggregator/internal/rss"
 	"bangla-news-aggregator/internal/usecase"
 )
 
@@ -67,10 +69,17 @@ func main() {
 	// ---- HTTP handlers & router ----
 	publicH := handler.NewPublicHandler(articleUC, cfg.PublicBaseURL)
 	adminH := handler.NewAdminHandler(authUC, articleUC, feedUC, settingsUC, usageUC, worker, cfg.JWTExpiry)
+	// ---- Agentic news desk (see internal/agentic) ----
+	journeyRepo := repository.NewJourneyRepository(db)
+	desk := agentic.NewDesk(worker, repository.NewAgentRepository(db), journeyRepo, settingsRepo, feedRepo,
+		agentic.GoogleNewsSearch(nil), agentic.PageReader(rss.NewClient()))
+	adminH.SetAgent(desk, journeyRepo)
+
 	var n8nH *handler.N8NHandler
 	if cfg.N8NAPIKey != "" {
 		n8nH = handler.NewN8NHandler(worker, cfg.N8NAPIKey)
-		log.Println("[main] n8n API enabled at /api/n8n")
+		n8nH.SetDesk(desk)
+		log.Println("[main] n8n API enabled at /api/n8n and /api/agent")
 	}
 	router := handler.NewRouter(authUC, publicH, adminH, n8nH, cfg.ImageStorageDir)
 	if controlToken := os.Getenv("AUTONEWS_CONTROL_TOKEN"); controlToken != "" {

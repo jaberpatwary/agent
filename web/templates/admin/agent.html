@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>এজেন্ট ডেস্ক — অ্যাডমিন</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .agent-grid { display:grid; grid-template-columns: 1.2fr 1fr; gap:20px; align-items:start; }
+    .panel { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:18px 20px; }
+    .panel h2 { margin:0 0 12px; font-size:17px; }
+    .live { display:inline-flex; align-items:center; gap:8px; font-weight:600; }
+    .dot { width:10px; height:10px; border-radius:50%; background:#9ca3af; }
+    .dot.on { background:#16a34a; box-shadow:0 0 0 4px rgba(22,163,74,.18); animation:blink 1.4s infinite; }
+    @keyframes blink { 50% { opacity:.45; } }
+    .field { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0; border-bottom:1px dashed #eee; }
+    .field:last-of-type { border-bottom:0; }
+    .field small { display:block; color:#6b7280; font-weight:400; margin-top:2px; }
+    .field input[type=number] { width:120px; padding:6px 8px; border:1px solid #d1d5db; border-radius:6px; }
+    .flow { margin:0; padding-left:18px; color:#374151; line-height:1.9; }
+    .runs td, .runs th { font-size:13px; vertical-align:top; }
+    .note { color:#6b7280; font-size:12px; max-width:420px; }
+    @media (max-width: 1000px) { .agent-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body class="admin-body">
+  <div class="admin-shell">
+    {{ template "admin_sidebar" . }}
+    <div class="admin-main">
+      <div class="toolbar">
+        <h1>🤖 এজেন্ট ডেস্ক</h1>
+        <form method="POST" action="/admin/agent/run">
+          <input type="hidden" name="_csrf" value="{{ .CSRFToken }}">
+          <button class="btn btn-primary" type="submit" {{ if .Status.Running }}disabled{{ end }}>▶ এখনই এজেন্ট চালান</button>
+        </form>
+      </div>
+
+      {{ if .Saved }}<div class="alert alert-success">সেটিংস সংরক্ষণ হয়েছে।</div>{{ end }}
+      {{ if eq .Started "busy" }}<div class="alert alert-error">এজেন্ট এখন কাজ করছে — শেষ হলে আবার চালান।</div>
+      {{ else if .Started }}<div class="alert alert-success">এজেন্ট চালু হয়েছে। কয়েক মিনিট পর এই পাতা রিফ্রেশ করুন।</div>{{ end }}
+
+      <div class="agent-grid">
+        <div>
+          <div class="panel">
+            <h2>অবস্থা</h2>
+            <div class="live"><span class="dot {{ if .Status.Running }}on{{ end }}"></span>
+              {{ if .Status.Running }}কাজ করছে: {{ .Status.Current }}{{ else }}অপেক্ষায় — n8n প্রতি ১৫ মিনিটে চালায়{{ end }}</div>
+          </div>
+
+          <div class="panel" style="margin-top:20px;">
+            <h2>সাম্প্রতিক রান</h2>
+            <table class="runs">
+              <thead><tr><th>শুরু</th><th>কে চালাল</th><th>অবস্থা</th><th>খবর</th><th>টোকেন</th><th>সম্পাদক এজেন্টের সিদ্ধান্ত</th></tr></thead>
+              <tbody>
+              {{ range .Status.Recent }}
+                <tr>
+                  <td>{{ dhakaClock .StartedAt "02 Jan 15:04" }}</td>
+                  <td>{{ .Trigger }}</td>
+                  <td><span class="status-pill">{{ .Status }}</span>{{ if .Error }}<div class="note">{{ .Error }}</div>{{ end }}</td>
+                  <td>{{ .Processed }} / {{ .Candidates }}</td>
+                  <td>{{ .Tokens }}</td>
+                  <td class="note">{{ .PlanNote }}</td>
+                </tr>
+              {{ else }}
+                <tr><td colspan="6" class="empty-state">এখনও কোনো রান হয়নি</td></tr>
+              {{ end }}
+              </tbody>
+            </table>
+            <p class="note" style="margin-top:10px;">প্রতিটি খবরে এজেন্ট কী ভাবল ও কী করল — <a href="/admin/journey">নিউজ জার্নি</a> থেকে খবরের “ট্রেস” দেখুন।</p>
+          </div>
+        </div>
+
+        <div>
+          <form class="panel" method="POST" action="/admin/agent/settings">
+            <input type="hidden" name="_csrf" value="{{ .CSRFToken }}">
+            <h2>নিয়ন্ত্রণ ও সীমা</h2>
+            <label class="field"><span>এজেন্ট চালু<small>বন্ধ করলে কোনো রানই কাজ করবে না (ইমার্জেন্সি স্টপ)</small></span>
+              <input type="checkbox" name="enabled" {{ if .Settings.Enabled }}checked{{ end }}></label>
+            <label class="field"><span>নিজে প্রকাশ করতে পারবে<small>বন্ধ করলে সব খবর আপনার অনুমোদনের অপেক্ষায় থাকবে। সংবেদনশীল বিভাগ সবসময়ই অনুমোদন চায়।</small></span>
+              <input type="checkbox" name="autopublish" {{ if .Settings.Autopublish }}checked{{ end }}></label>
+            <label class="field"><span>প্রতি খবরে সর্বোচ্চ ধাপ<small>এজেন্ট এর বেশি সিদ্ধান্ত নিতে পারবে না</small></span>
+              <input type="number" name="max_turns" min="4" max="40" value="{{ .Settings.MaxTurns }}"></label>
+            <label class="field"><span>প্রতি রানে খবর<small>প্রতিবার কয়টি খবর নিয়ে কাজ করবে</small></span>
+              <input type="number" name="stories_per_run" min="1" max="5" value="{{ .Settings.StoriesPerRun }}"></label>
+            <label class="field"><span>প্রতি খবরে টোকেন সীমা<small>এর বেশি খরচ হলে এজেন্ট থামবে</small></span>
+              <input type="number" name="story_budget" min="20000" step="10000" value="{{ .Settings.StoryBudget }}"></label>
+            <button class="btn btn-primary" type="submit" style="margin-top:12px;">সংরক্ষণ</button>
+          </form>
+
+          <div class="panel" style="margin-top:20px;">
+            <h2>এজেন্ট কীভাবে কাজ করে</h2>
+            <ol class="flow">
+              <li><b>সম্পাদক এজেন্ট</b> নতুন খবরগুলো দেখে ঠিক করে কোনটা আগে করবে।</li>
+              <li><b>রিপোর্টার এজেন্ট</b> নিজে ঠিক করে কোন টুল চালাবে: খবর খোঁজা, পেজ পড়া, আর্কাইভ দেখা।</li>
+              <li>প্রমাণ দেখে যাচাইয়ের রায় দেয়, তারপর পুরো খবর নিজের ভাষায় লেখে।</li>
+              <li>রিভিউ ব্যর্থ হলে নিজেই ঠিক করে আবার জমা দেয় (সর্বোচ্চ ৪ বার)।</li>
+              <li>শেষে নিজে সিদ্ধান্ত নেয়: প্রকাশ, সম্পাদকের জন্য রাখা, বাতিল, পুরনো খবর আপডেট — বা আপনাকে প্রশ্ন।</li>
+              <li>আপনার অনুমোদন/বাতিল ও উত্তর তার স্মৃতিতে যায় — পরের খবরে কাজে লাগায়।</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
