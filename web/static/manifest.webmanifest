@@ -1,0 +1,20 @@
+{
+  "name": "বাংলা নিউজ — সর্বশেষ সংবাদ",
+  "short_name": "বাংলা নিউজ",
+  "description": "দেশ ও বিশ্বের সর্বশেষ খবর, প্রতি মুহূর্তে হালনাগাদ।",
+  "lang": "bn",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f4ef",
+  "theme_color": "#c8102e",
+  "icons": [
+    { "src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "সংরক্ষিত খবর", "url": "/saved" },
+    { "name": "বাংলাদেশ", "url": "/?category=bangladesh" },
+    { "name": "খেলা", "url": "/?category=sports" }
+  ]
+}

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>পাতাটি পাওয়া যায়নি | বাংলা নিউজ</title>
+  <meta name="robots" content="noindex">
+  {{ template "portal_assets" . }}
+</head>
+<body>
+  {{ template "portal_header" . }}
+  <main class="page">
+    <div class="wrap error-box">
+      <div class="code">৪০৪</div>
+      <h1>দুঃখিত, পাতাটি খুঁজে পাওয়া যায়নি</h1>
+      <p>{{ with .message }}{{ . }}{{ else }}লিংকটি ভুল হতে পারে, অথবা খবরটি সরিয়ে নেওয়া হয়েছে।{{ end }}</p>
+      <a href="/" class="btn-primary">প্রথম পাতায় ফিরুন</a>
+    </div>
+  </main>
+  {{ template "portal_footer" . }}
+  {{ template "portal_scripts" . }}
+</body>
+</html>

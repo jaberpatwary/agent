@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>নিউজ জার্নি — অ্যাডমিন</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .jr-steps { display:flex; flex-direction:column; gap:3px; font-size:12px; }
+    .jr-steps .muted { color:#9ca3af; }
+    .jr-reason { font-size:12px; color:#6b7280; margin-top:2px; max-width:320px; }
+    .jr-fake { color:#b91c1c; font-weight:600; }
+    .jr-real { color:#047857; font-weight:600; }
+    .jr-src a { display:block; font-size:12px; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .status-pending { background:#e0e7ff; color:#3730a3; }
+    .status-rejected { background:#fee2e2; color:#991b1b; }
+    .status-suspected_fake { background:#fef3c7; color:#92400e; }
+    .status-duplicate { background:#f3f4f6; color:#4b5563; }
+  </style>
+</head>
+<body>
+  <div class="admin-shell">
+    {{ template "admin_sidebar" . }}
+
+    <div class="admin-main">
+      <div class="toolbar">
+        <h1>নিউজ জার্নি ({{ .Total }})</h1>
+        <div>
+          <a href="/admin/journey" class="btn btn-sm btn-primary">সব</a>
+          <a href="/admin/journey?status=pending" class="btn btn-sm btn-primary">⏳ চলমান</a>
+          <a href="/admin/journey?status=published" class="btn btn-sm btn-primary">✅ প্রকাশিত</a>
+          <a href="/admin/journey?status=pending_review" class="btn btn-sm btn-primary">👀 পর্যালোচনা</a>
+          <a href="/admin/journey?status=suspected_fake" class="btn btn-sm btn-primary">⚠ ফেক সন্দেহ — সিদ্ধান্ত দিন</a>
+          <a href="/admin/journey?status=rejected" class="btn btn-sm btn-primary">⛔ বাতিল</a>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr><th>খবর</th><th>স্ট্যাটাস</th><th>ফেক চেক</th><th>অন্য সোর্স</th><th>সময়রেখা</th><th>অ্যাকশন</th></tr>
+        </thead>
+        <tbody>
+          {{ range .Rows }}
+          <tr>
+            <td>
+              <a href="{{ .SourceURL }}" target="_blank" rel="noopener">{{ .OriginalTitle }}</a>
+              <div class="jr-reason">{{ .SourceName }} · {{ .Category }} · <code>{{ .NewsID }}</code></div>
+              {{ if .RewrittenTitle }}<div class="jr-reason">✍ {{ .RewrittenTitle }}</div>{{ end }}
+            </td>
+            <td><span class="status-pill status-{{ .PublishedStatus }}">{{ .PublishedStatus }}</span></td>
+            <td>
+              {{ if eq .FakeCheckStatus "fake" }}<span class="jr-fake">ফেক</span>
+              {{ else if eq .FakeCheckStatus "real" }}<span class="jr-real">সত্য</span>
+              {{ else }}<span class="muted">—</span>{{ end }}
+              {{ if .ForceReal }}<div class="jr-reason">অ্যাডমিন ওভাররাইড</div>{{ end }}
+              {{ if .FakeCheckReason }}<div class="jr-reason">{{ .FakeCheckReason }}</div>{{ end }}
+            </td>
+            <td class="jr-src">
+              {{ if .CrossCheckAt }}<strong>{{ .CrossCheckCount }} টি</strong>{{ else }}<span class="muted">—</span>{{ end }}
+              {{ range .Sources }}<a href="{{ .URL }}" target="_blank" rel="noopener" title="{{ .URL }}">{{ if .Name }}{{ .Name }}{{ else }}{{ .URL }}{{ end }}</a>{{ end }}
+            </td>
+            <td>
+              <div class="jr-steps">
+                <span>📥 এলো: {{ dhakaClock .ReceivedAt "02 Jan 15:04" }}</span>
+                {{ if .FakeCheckAt }}<span>🔍 ফেক চেক: {{ dhakaClock .FakeCheckAt "15:04" }}</span>{{ else }}<span class="muted">🔍 ফেক চেক: —</span>{{ end }}
+                {{ if .CrossCheckAt }}<span>🌐 সোর্স চেক: {{ dhakaClock .CrossCheckAt "15:04" }}</span>{{ else }}<span class="muted">🌐 সোর্স চেক: —</span>{{ end }}
+                {{ if .RewrittenAt }}<span>✍ রিরাইট: {{ dhakaClock .RewrittenAt "15:04" }}</span>{{ else }}<span class="muted">✍ রিরাইট: —</span>{{ end }}
+                {{ if .PublishedAt }}<span>✅ সেভ: {{ dhakaClock .PublishedAt "15:04" }}</span>{{ else }}<span class="muted">✅ সেভ: —</span>{{ end }}
+              </div>
+            </td>
+            <td>
+              {{ if .ArticleID }}<a class="btn btn-sm btn-primary" href="/article/{{ .ArticleID }}" target="_blank">খবর দেখুন</a>{{ end }}
+              {{ if eq .PublishedStatus "suspected_fake" }}
+              <form method="POST" action="/admin/journey/{{ .NewsID }}/reject" style="display:inline;" onsubmit="return confirm('খবরটি ফেক হিসেবে বাতিল করবেন?');">
+                <input type="hidden" name="_csrf" value="{{ $.CSRFToken }}">
+                <button class="btn btn-sm btn-danger" type="submit">হ্যাঁ, ফেক — বাতিল</button>
+              </form>
+              {{ end }}
+              {{ if or (eq .PublishedStatus "rejected") (eq .PublishedStatus "suspected_fake") }}
+              <form method="POST" action="/admin/journey/{{ .NewsID }}/requeue" style="display:inline;" onsubmit="return confirm('এটা ফেক না — আবার প্রসেস করতে চান?');">
+                <input type="hidden" name="_csrf" value="{{ $.CSRFToken }}">
+                <button class="btn btn-sm btn-primary" type="submit">ফেক নয়, আবার চালাও</button>
+              </form>
+              {{ end }}
+            </td>
+          </tr>
+          {{ else }}
+          <tr><td colspan="6" class="empty-state">এখনও কোনো খবর n8n দিয়ে আসেনি</td></tr>
+          {{ end }}
+        </tbody>
+      </table>
+
+      <div style="text-align:center; margin: 24px 0;">
+        {{ if gt .Page 1 }}
+          <a class="btn btn-primary" href="/admin/journey?page={{ sub .Page 1 }}&status={{ .Status }}">&laquo; আগের</a>
+        {{ end }}
+        {{ if .HasNext }}
+          <a class="btn btn-primary" href="/admin/journey?page={{ add .Page 1 }}&status={{ .Status }}">পরের &raquo;</a>
+        {{ end }}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

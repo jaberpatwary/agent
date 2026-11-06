@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: bangla-news-aggregator
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: PORT
+        value: 8080
+      - key: DISABLE_BACKGROUND_WORKER
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_DEFAULT_USER
+        value: admin
+      - key: ADMIN_DEFAULT_PASS
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.8-flash
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: openrouter/free
+      - key: SAMBANOVA_API_KEY
+        sync: false
+      - key: SAMBANOVA_MODEL
+        value: Meta-Llama-3.3-70B-Instruct
+      - key: COHERE_API_KEY
+        sync: false
+      - key: COHERE_MODEL
+        value: command-a-03-2025
+      - key: CRON_INTERVAL
+        value: 10m
+      - key: FEED_WORKER_COUNT
+        value: 5
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: IMAGE_STORAGE_DIR
+        value: ""
+      - key: AI_DAILY_TOKEN_BUDGET
+        value: "0"

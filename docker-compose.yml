@@ -1,0 +1,90 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      DATABASE_URL: "postgres://postgres:postgres@db:5432/bangla_news?sslmode=disable"
+      JWT_SECRET: "${JWT_SECRET:-dev-secret-change-me}"
+      JWT_EXPIRY: "24h"
+      GROQ_API_KEY: "${GROQ_API_KEY:-}"
+      GROQ_MODEL: "${GROQ_MODEL:-llama-3.1-8b-instant}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      GEMINI_MODEL: "${GEMINI_MODEL:-gemini-3.5-flash}"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+      OPENROUTER_MODEL: "${OPENROUTER_MODEL:-openrouter/free}"
+      SAMBANOVA_API_KEY: "${SAMBANOVA_API_KEY:-}"
+      SAMBANOVA_MODEL: "${SAMBANOVA_MODEL:-Meta-Llama-3.3-70B-Instruct}"
+      COHERE_API_KEY: "${COHERE_API_KEY:-}"
+      COHERE_MODEL: "${COHERE_MODEL:-command-a-03-2025}"
+      # AI gateway used by n8n (POST /api/n8n/ai): provider order is in internal/ai/gateway.go.
+      GEMINI_FALLBACK_MODEL: "${GEMINI_FALLBACK_MODEL:-gemini-3.1-flash-lite}"
+      N8N_GROQ_MODEL: "${N8N_GROQ_MODEL:-openai/gpt-oss-120b}"
+      N8N_CHECK_MODEL: "${N8N_CHECK_MODEL:-openai/gpt-oss-20b}"
+      CLOUDFLARE_API_TOKEN: "${CLOUDFLARE_API_TOKEN:-}"
+      CLOUDFLARE_ACCOUNT_ID: "${CLOUDFLARE_ACCOUNT_ID:-}"
+      CLOUDFLARE_MODEL: "${CLOUDFLARE_MODEL:-@cf/openai/gpt-oss-120b}"
+      CRON_INTERVAL: "10m"
+      FEED_WORKER_COUNT: "5"
+      # n8n does the AI rewrite now, so the built-in Go worker is off by default.
+      DISABLE_BACKGROUND_WORKER: "${DISABLE_BACKGROUND_WORKER:-true}"
+      # Shared secret for /api/n8n/* (set in .env). Empty disables that API.
+      N8N_API_KEY: "${N8N_API_KEY:-}"
+      APP_ENV: "development"
+      ADMIN_DEFAULT_USER: "${ADMIN_DEFAULT_USER:-admin}"
+      ADMIN_DEFAULT_PASS: "${ADMIN_DEFAULT_PASS:-admin123}"
+    volumes:
+      # Cached news photos (served at /img). A volume so rebuilds don't wipe them.
+      - images:/app/data/images
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: bangla_news
+    ports:
+      # Host 5433 so it doesn't clash with a locally installed Postgres on 5432.
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.46.6
+    ports:
+      - "5678:5678"
+    environment:
+      GENERIC_TIMEZONE: "Asia/Dhaka"
+      TZ: "Asia/Dhaka"
+      N8N_SECURE_COOKIE: "false" # plain http on localhost
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      # The bundled workflow reads its keys via $env, which n8n 2.x blocks by default.
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      AUTONEWS_API_URL: "http://app:8080"
+      AUTONEWS_API_KEY: "${N8N_API_KEY:-}"
+      GROQ_API_KEY: "${GROQ_API_KEY:-}"
+      N8N_GROQ_MODEL: "${N8N_GROQ_MODEL:-openai/gpt-oss-120b}"
+      # Cheaper model for the fake check and web-search source check.
+      N8N_CHECK_MODEL: "${N8N_CHECK_MODEL:-openai/gpt-oss-20b}"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n:/files:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  n8n_data:
+  images:
