@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"bangla-news-aggregator/internal/agentic"
 	"bangla-news-aggregator/internal/ai"
 	"bangla-news-aggregator/internal/cron"
 	"bangla-news-aggregator/internal/repository"
@@ -22,6 +23,7 @@ import (
 type N8NHandler struct {
 	worker *cron.Worker
 	apiKey string
+	desk   *agentic.Desk
 }
 
 func NewN8NHandler(worker *cron.Worker, apiKey string) *N8NHandler {

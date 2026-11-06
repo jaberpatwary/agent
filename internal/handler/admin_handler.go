@@ -12,8 +12,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"bangla-news-aggregator/internal/agentic"
 	"bangla-news-aggregator/internal/cron"
 	"bangla-news-aggregator/internal/domain"
+	"bangla-news-aggregator/internal/repository"
 	"bangla-news-aggregator/internal/usecase"
 )
 
@@ -25,6 +27,8 @@ type AdminHandler struct {
 	settingsUC usecase.SettingsUsecase
 	usageUC    usecase.AIUsageUsecase
 	worker     *cron.Worker
+	desk       *agentic.Desk
+	journeys   repository.JourneyRepository
 	cookieTTL  time.Duration
 }
 
@@ -131,6 +135,11 @@ func (h *AdminHandler) UpdateArticleStatus(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	h.recordArticleDecision(id, status, c.PostForm("reason"))
+	if back := c.PostForm("back"); strings.HasPrefix(back, "/admin/") {
+		c.Redirect(http.StatusFound, back)
+		return
+	}
 	c.Redirect(http.StatusFound, "/admin/articles")
 }
 
@@ -194,9 +203,14 @@ func (h *AdminHandler) ToggleFeed(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/admin/feeds")
 }
 
-// RunCronNow triggers an immediate, synchronous pipeline run (useful for
-// testing from the admin UI without waiting for the next hourly tick).
+// RunCronNow starts the agentic desk right away (the dashboard's "fetch now"
+// button). Falls back to the legacy fixed pipeline only if no desk is wired.
 func (h *AdminHandler) RunCronNow(c *gin.Context) {
+	if h.desk != nil {
+		h.desk.Start("admin")
+		c.Redirect(http.StatusFound, "/admin/agent?started=dashboard")
+		return
+	}
 	// Use a background context, not the request's: the request context is
 	// cancelled as soon as this handler returns, which would kill the run.
 	go h.worker.RunOnce(context.Background())
@@ -336,6 +350,7 @@ func (h *AdminHandler) RejectJourney(c *gin.Context) {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"message": "বাতিল করা যায়নি"})
 		return
 	}
+	h.recordJourneyDecision(c.Param("id"), "rejected", c.PostForm("reason"))
 	c.Redirect(http.StatusFound, "/admin/journey?status=suspected_fake")
 }
 
@@ -345,5 +360,6 @@ func (h *AdminHandler) RequeueJourney(c *gin.Context) {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"message": "আবার চালু করা যায়নি"})
 		return
 	}
+	h.recordJourneyDecision(c.Param("id"), "requeued", c.PostForm("reason"))
 	c.Redirect(http.StatusFound, "/admin/journey")
 }

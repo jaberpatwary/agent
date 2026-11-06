@@ -312,6 +312,9 @@ func NewRouter(
 		n8n.POST("/articles", n8nH.CreateArticle)
 		n8n.PUT("/journey", n8nH.UpdateJourney)
 		n8n.POST("/ai", n8nH.AI)
+		agentAPI := r.Group("/api/agent", n8nH.RequireAPIKey())
+		agentAPI.POST("/run", n8nH.AgentRun)
+		agentAPI.GET("/status", n8nH.AgentStatus)
 	}
 
 	// ---- Admin auth routes (unprotected) ----
@@ -333,6 +336,11 @@ func NewRouter(
 		protected.GET("/journey", adminH.JourneyPage)
 		protected.POST("/journey/:id/requeue", adminH.RequeueJourney)
 		protected.POST("/journey/:id/reject", adminH.RejectJourney)
+		protected.GET("/journey/:id/trace", adminH.JourneyTrace)
+		protected.POST("/journey/:id/answer", adminH.AnswerAgent)
+		protected.GET("/agent", adminH.AgentPage)
+		protected.POST("/agent/settings", adminH.AgentSettings)
+		protected.POST("/agent/run", adminH.AgentRunNow)
 		protected.POST("/cron/run", adminH.RunCronNow)
 
 		protected.GET("/articles", adminH.ArticlesList)

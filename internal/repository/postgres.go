@@ -31,6 +31,10 @@ func NewPostgresDB(cfg *config.Config) (*gorm.DB, error) {
 		&domain.AppSetting{},
 		&domain.SeenSourceURL{},
 		&domain.NewsJourney{},
+		&domain.AgentRun{},
+		&domain.AgentStep{},
+		&domain.EditorFeedback{},
+		&domain.ArticleVersion{},
 	); err != nil {
 		return nil, err
 	}

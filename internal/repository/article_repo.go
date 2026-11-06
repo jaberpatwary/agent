@@ -28,6 +28,7 @@ type ArticleRepository interface {
 	IncrementViews(id uuid.UUID) error
 	MostRead(since time.Time, limit int) ([]domain.Article, error)
 	RecentTags(limit int) ([]string, error)
+	UpdateStory(id uuid.UUID, title, content, summary, tags string) error
 }
 
 type articleRepository struct {
@@ -226,4 +227,12 @@ func (r *articleRepository) RecentTags(limit int) ([]string, error) {
 	err := r.db.Model(&domain.Article{}).Where("status = ? AND tags <> ''", "published").
 		Order("published_at DESC").Limit(limit).Pluck("tags", &tags).Error
 	return tags, err
+}
+
+// UpdateStory replaces an article's text (used when the agent updates a
+// developing story with new facts; the old text is kept as an ArticleVersion).
+func (r *articleRepository) UpdateStory(id uuid.UUID, title, content, summary, tags string) error {
+	return r.db.Model(&domain.Article{}).Where("id = ?", id).Updates(map[string]any{
+		"title": title, "content": content, "summary": summary, "tags": tags, "updated_at": time.Now(),
+	}).Error
 }

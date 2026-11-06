@@ -207,3 +207,8 @@ func imageWidth(path string) (int, bool) {
 	}
 	return cfg.Width, true
 }
+
+// CheckURL reports whether a URL is safe for this server to fetch (http(s),
+// not localhost, not a private or metadata address). Shared with the agent's
+// read_page tool.
+func CheckURL(raw string) error { return rejectUnsafeURL(raw) }

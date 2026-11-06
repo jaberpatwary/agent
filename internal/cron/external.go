@@ -117,7 +117,7 @@ func (w *Worker) PendingItems(ctx context.Context, limit int) ([]PendingItem, er
 			}
 		}
 		j, tracked := journeys[item.Link]
-		if tracked && (j.PublishedStatus == "rejected" || j.PublishedStatus == "suspected_fake") {
+		if tracked && (j.PublishedStatus == "rejected" || j.PublishedStatus == "suspected_fake" || j.PublishedStatus == "needs_editor") {
 			continue
 		}
 		exists, err := w.articleRepo.ExistsByTitleAndDate(item.Title, item.Published)
@@ -193,6 +193,10 @@ type ExternalArticle struct {
 	OriginalTitle   string `json:"original_title"`
 	OriginalContent string `json:"original_content"`
 
+	// ForceReview holds the story for an editor with this reason, even if
+	// the review rules would have published it (the agent chose to hold).
+	ForceReview string `json:"force_review"`
+
 	// Optional AI usage accounting, shown on /admin/ai-usage.
 	AIProvider string `json:"ai_provider"`
 	AIModel    string `json:"ai_model"`
@@ -245,6 +249,10 @@ func (w *Worker) SaveExternal(ctx context.Context, in ExternalArticle) (*domain.
 	}
 	_, sensitive := w.loadRunSettings()
 	decision := decideReview(category, sensitive, factCheck, false)
+	if note := strings.TrimSpace(in.ForceReview); note != "" {
+		decision.status = "pending_review"
+		decision.reason = strings.TrimPrefix(decision.reason+" | "+note, " | ")
+	}
 
 	summary := strings.TrimSpace(in.Summary)
 	if summary == "" {

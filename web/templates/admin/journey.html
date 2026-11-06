@@ -15,6 +15,9 @@
     .status-pending { background:#e0e7ff; color:#3730a3; }
     .status-rejected { background:#fee2e2; color:#991b1b; }
     .status-suspected_fake { background:#fef3c7; color:#92400e; }
+    .status-needs_editor { background:#ffedd5; color:#9a3412; }
+    .status-updated { background:#dbeafe; color:#1e40af; }
+    .jr-agent { font-size:12px; color:#374151; margin-top:4px; max-width:340px; }
     .status-duplicate { background:#f3f4f6; color:#4b5563; }
   </style>
 </head>
@@ -30,6 +33,7 @@
           <a href="/admin/journey?status=pending" class="btn btn-sm btn-primary">⏳ চলমান</a>
           <a href="/admin/journey?status=published" class="btn btn-sm btn-primary">✅ প্রকাশিত</a>
           <a href="/admin/journey?status=pending_review" class="btn btn-sm btn-primary">👀 পর্যালোচনা</a>
+          <a href="/admin/journey?status=needs_editor" class="btn btn-sm btn-primary">🙋 এজেন্টের প্রশ্ন</a>
           <a href="/admin/journey?status=suspected_fake" class="btn btn-sm btn-primary">⚠ ফেক সন্দেহ — সিদ্ধান্ত দিন</a>
           <a href="/admin/journey?status=rejected" class="btn btn-sm btn-primary">⛔ বাতিল</a>
         </div>
@@ -69,7 +73,10 @@
               </div>
             </td>
             <td>
+              <a class="btn btn-sm btn-primary" href="/admin/journey/{{ .NewsID }}/trace">🧭 ট্রেস{{ if .AgentSteps }} ({{ .AgentSteps }}){{ end }}</a>
               {{ if .ArticleID }}<a class="btn btn-sm btn-primary" href="/article/{{ .ArticleID }}" target="_blank">খবর দেখুন</a>{{ end }}
+              {{ if eq .PublishedStatus "needs_editor" }}<div class="jr-agent">🙋 {{ .AgentQuestion }}</div>{{ end }}
+              {{ if .AgentSummary }}<div class="jr-agent">🤖 {{ .AgentSummary }}</div>{{ end }}
               {{ if eq .PublishedStatus "suspected_fake" }}
               <form method="POST" action="/admin/journey/{{ .NewsID }}/reject" style="display:inline;" onsubmit="return confirm('খবরটি ফেক হিসেবে বাতিল করবেন?');">
                 <input type="hidden" name="_csrf" value="{{ $.CSRFToken }}">

@@ -128,7 +128,7 @@ type NewsJourney struct {
 	OriginalTitle   string    `gorm:"type:text" json:"original_title"`
 	OriginalContent string    `gorm:"type:text" json:"original_content"`
 	ReceivedAt      time.Time `gorm:"index" json:"received_at"`
-	PublishedStatus string    `gorm:"type:varchar(20);index" json:"published_status"` // pending | suspected_fake | rejected | published | pending_review | duplicate
+	PublishedStatus string    `gorm:"type:varchar(20);index" json:"published_status"` // pending | needs_editor | suspected_fake | rejected | published | pending_review | duplicate | updated
 	ForceReal       bool      `gorm:"default:false" json:"force_real"`                // admin overrode a "fake" verdict; the next run must not reject it again
 
 	FakeCheckStatus string     `gorm:"type:varchar(10)" json:"fake_check_status"` // real | fake
@@ -145,5 +145,71 @@ type NewsJourney struct {
 
 	ArticleID   *uuid.UUID `gorm:"type:uuid" json:"article_id"`
 	PublishedAt *time.Time `json:"published_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+
+	// Agentic desk fields.
+	AgentQuestion string    `gorm:"type:text" json:"agent_question"` // the agent asked an editor before deciding
+	EditorAnswer  string    `gorm:"type:text" json:"editor_answer"`  // the editor's reply, given to the agent on the next attempt
+	AgentSummary  string    `gorm:"type:text" json:"agent_summary"`  // the agent's own note on what it decided and why
+	AgentSteps    int       `json:"agent_steps"`
+	AgentTokens   int       `json:"agent_tokens"`
+	Attempts      int       `json:"attempts"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+// AgentRun is one scheduled (or manual) pass of the agentic news desk.
+type AgentRun struct {
+	ID         uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
+	Trigger    string     `gorm:"type:varchar(30)" json:"trigger"` // n8n | admin | api
+	Status     string     `gorm:"type:varchar(20);index" json:"status"`
+	PlanNote   string     `gorm:"type:text" json:"plan_note"` // the editor agent's reasoning for what it chose to cover
+	Candidates int        `json:"candidates"`
+	Processed  int        `json:"processed"`
+	Tokens     int        `json:"tokens"`
+	Error      string     `gorm:"type:text" json:"error"`
+	StartedAt  time.Time  `gorm:"index" json:"started_at"`
+	FinishedAt *time.Time `json:"finished_at"`
+}
+
+// AgentStep is one step of the agent's work on a story — the model's turn
+// (its note and the tools it chose) or a tool's result — so an editor can
+// see exactly how the agent reached its decision.
+type AgentStep struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	RunID     uuid.UUID `gorm:"type:uuid;index" json:"run_id"`
+	NewsID    string    `gorm:"type:varchar(40);index" json:"news_id"`
+	Step      int       `json:"step"`
+	Kind      string    `gorm:"type:varchar(20)" json:"kind"` // plan | thought | tool | result | final | error
+	Tool      string    `gorm:"type:varchar(60)" json:"tool"`
+	Input     string    `gorm:"type:text" json:"input"`
+	Output    string    `gorm:"type:text" json:"output"`
+	Provider  string    `gorm:"type:varchar(30)" json:"provider"`
+	Model     string    `gorm:"type:varchar(80)" json:"model"`
+	Tokens    int       `json:"tokens"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// EditorFeedback records a human decision on the agent's work. The agent
+// reads the most recent ones as long-term memory before each story.
+type EditorFeedback struct {
+	ID         uint       `gorm:"primaryKey" json:"id"`
+	NewsID     string     `gorm:"type:varchar(40);index" json:"news_id"`
+	ArticleID  *uuid.UUID `gorm:"type:uuid" json:"article_id"`
+	Action     string     `gorm:"type:varchar(30)" json:"action"` // published | archived | rejected | requeued | answered
+	Reason     string     `gorm:"type:text" json:"reason"`
+	Title      string     `gorm:"type:text" json:"title"`
+	SourceName string     `gorm:"type:varchar(255);index" json:"source_name"`
+	CreatedAt  time.Time  `gorm:"index" json:"created_at"`
+}
+
+// ArticleVersion keeps the previous text of an article the agent updated
+// when a developing story gained new facts.
+type ArticleVersion struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	ArticleID uuid.UUID `gorm:"type:uuid;index" json:"article_id"`
+	Version   int       `json:"version"`
+	Title     string    `gorm:"type:text" json:"title"`
+	Content   string    `gorm:"type:text" json:"content"`
+	Summary   string    `gorm:"type:text" json:"summary"`
+	Note      string    `gorm:"type:text" json:"note"` // what changed and why
+	CreatedAt time.Time `json:"created_at"`
 }

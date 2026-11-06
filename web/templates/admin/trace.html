@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>এজেন্ট ট্রেস — অ্যাডমিন</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .head { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px 20px; margin-bottom:18px; }
+    .head h2 { margin:0 0 6px; font-size:18px; }
+    .meta { color:#6b7280; font-size:13px; }
+    .ask { background:#fff7ed; border:1px solid #fed7aa; border-radius:12px; padding:16px 20px; margin-bottom:18px; }
+    .ask textarea { width:100%; min-height:80px; padding:10px; border:1px solid #d1d5db; border-radius:8px; font:inherit; }
+    .timeline { position:relative; padding-left:26px; }
+    .timeline::before { content:""; position:absolute; left:9px; top:6px; bottom:6px; width:2px; background:#e5e7eb; }
+    .st { position:relative; background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:10px 14px; margin-bottom:10px; }
+    .st::before { content:""; position:absolute; left:-22px; top:14px; width:12px; height:12px; border-radius:50%; background:#9ca3af; border:2px solid #fff; box-shadow:0 0 0 1px #d1d5db; }
+    .st.thought::before { background:#6366f1; } .st.tool::before { background:#0ea5e9; } .st.result::before { background:#10b981; }
+    .st.final::before { background:#c8102e; } .st.error::before { background:#f59e0b; } .st.plan::before { background:#8b5cf6; }
+    .st .kind { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:#6b7280; }
+    .st.final { border-color:#fecaca; background:#fff5f5; }
+    .st pre { white-space:pre-wrap; word-break:break-word; margin:6px 0 0; font-size:12.5px; line-height:1.55; max-height:320px; overflow:auto; background:#f9fafb; padding:8px 10px; border-radius:6px; }
+    .st details summary { cursor:pointer; color:#2563eb; font-size:12.5px; margin-top:4px; }
+    .by { float:right; font-size:11.5px; color:#9ca3af; }
+  </style>
+</head>
+<body class="admin-body">
+  <div class="admin-shell">
+    {{ template "admin_sidebar" . }}
+    <div class="admin-main">
+      <div class="toolbar">
+        <h1>🧭 এজেন্ট ট্রেস</h1>
+        <a class="btn btn-secondary" href="/admin/journey">← নিউজ জার্নি</a>
+      </div>
+
+      <div class="head">
+        <h2>{{ .J.OriginalTitle }}</h2>
+        <div class="meta">{{ .J.SourceName }} · {{ .J.Category }} · অবস্থা: <span class="status-pill status-{{ .J.PublishedStatus }}">{{ .J.PublishedStatus }}</span>
+          · চেষ্টা: {{ .J.Attempts }} · ধাপ: {{ .J.AgentSteps }} · টোকেন: {{ .J.AgentTokens }}
+          {{ if .J.ArticleID }} · <a href="/article/{{ .J.ArticleID }}" target="_blank">খবর দেখুন</a>{{ end }}</div>
+        {{ if .J.AgentSummary }}<p style="margin:10px 0 0;"><b>এজেন্টের সিদ্ধান্ত:</b> {{ .J.AgentSummary }}</p>{{ end }}
+      </div>
+
+      {{ if eq .J.PublishedStatus "needs_editor" }}
+      <form class="ask" method="POST" action="/admin/journey/{{ .J.NewsID }}/answer">
+        <input type="hidden" name="_csrf" value="{{ .CSRFToken }}">
+        <b>🙋 এজেন্টের প্রশ্ন:</b>
+        <p style="margin:6px 0 10px;">{{ .J.AgentQuestion }}</p>
+        <textarea name="answer" placeholder="আপনার উত্তর বা নির্দেশনা লিখুন — এজেন্ট পরের রানে এটা মেনে কাজ করবে" required></textarea>
+        <button class="btn btn-primary" type="submit" style="margin-top:8px;">উত্তর দিন ও আবার চালাতে দিন</button>
+      </form>
+      {{ end }}
+
+      <div class="timeline">
+        {{ range .Steps }}
+        <div class="st {{ .Kind }}">
+          <span class="by">{{ dhakaClock .CreatedAt "15:04:05" }}{{ if .Model }} · {{ .Provider }} {{ .Model }}{{ end }}{{ if .Tokens }} · {{ .Tokens }} টোকেন{{ end }}</span>
+          {{ if eq .Kind "thought" }}<div class="kind">🧠 এজেন্ট ভাবল{{ if .Input }} → চালাবে: {{ .Input }}{{ end }}</div>{{ if .Output }}<pre>{{ .Output }}</pre>{{ end }}
+          {{ else if eq .Kind "tool" }}<div class="kind">🔧 টুল চালাল: {{ .Tool }}</div><details><summary>ইনপুট দেখুন</summary><pre>{{ .Input }}</pre></details>
+          {{ else if eq .Kind "result" }}<div class="kind">📥 ফলাফল: {{ .Tool }}</div><details {{ if lt (len .Output) 400 }}open{{ end }}><summary>ফলাফল দেখুন</summary><pre>{{ .Output }}</pre></details>
+          {{ else if eq .Kind "final" }}<div class="kind">✅ চূড়ান্ত সিদ্ধান্ত: {{ .Tool }}</div><pre>{{ .Output }}</pre>
+          {{ else if eq .Kind "error" }}<div class="kind">⚠ সমস্যা</div><pre>{{ .Output }}</pre>
+          {{ else }}<div class="kind">{{ .Kind }} {{ .Tool }}</div><pre>{{ .Output }}</pre>{{ end }}
+        </div>
+        {{ else }}
+        <p class="empty-state">এই খবরে এজেন্ট এখনও কাজ করেনি।</p>
+        {{ end }}
+      </div>
+    </div>
+  </div>
+</body>
+</html>
