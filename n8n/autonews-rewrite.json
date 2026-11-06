@@ -1,0 +1,685 @@
+{
+  "name": "AutoNews: verify, cross-check & rewrite (Groq)",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Dhaka"
+  },
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Every 15 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        -100
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "Run manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Get pending news",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.AUTONEWS_API_URL }}/api/n8n/pending",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "1"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.AUTONEWS_API_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 300000
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "Split items",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "fieldToSplitOut": "items",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "name": "Send to admin panel",
+      "position": [
+        720,
+        0
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $env.AUTONEWS_API_URL }}/api/n8n/journey",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.AUTONEWS_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ news_id: $json.news_id, stage: 'received', source_url: $json.source_url, source_name: $json.source_name, category: $json.category, original_title: $json.title, original_content: $json.content }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0006-4000-8000-000000000006",
+      "name": "Agent 1: Fake news check",
+      "position": [
+        960,
+        0
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AUTONEWS_API_URL }}/api/n8n/ai",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.AUTONEWS_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ task: 'fake_check', max_tokens: 1500, json: false, search: true, system: \"তুমি একজন অভিজ্ঞ fact-checker। নিচের news টা বিশ্লেষণ করে বলো এটা fake news কিনা।\\n\\nআজকের তারিখ: \" + $now.setZone('Asia/Dhaka').toFormat('yyyy-MM-dd') + \"। খবরটি একটি পরিচিত সংবাদমাধ্যমের RSS feed থেকে এসেছে।\\n\\nখুব গুরুত্বপূর্ণ: তোমার নিজের প্রশিক্ষণের তথ্য পুরোনো — এরপর নির্বাচন, সরকার পরিবর্তন, নতুন নিয়োগ ঘটে থাকতে পারে। তাই নিজের স্মৃতির ওপর ভরসা করে রায় দেবে না। ওয়েব সার্চ করে যাচাই করো:\\n১. মূল দাবিটি (কে, কী, কোথায়, কবে) নিয়ে ইন্টারনেটে খোঁজো — অন্য নির্ভরযোগ্য সংবাদমাধ্যম একই কথা বলছে কিনা।\\n২. কোনো ফ্যাক্ট-চেক সাইট (যেমন রিউমর স্ক্যানার, বাংলাফ্যাক্ট, AFP ফ্যাক্ট চেক) এটাকে ভুয়া বলেছে কিনা দেখো।\\n৩. খবরে উল্লেখ করা কারো পদ (প্রধানমন্ত্রী, মন্ত্রী ইত্যাদি) নিয়ে সন্দেহ হলে সেটাও সার্চ করে বর্তমান অবস্থা দেখো।\\n\\nরায়ের নিয়ম:\\n- is_fake = true দেবে কেবল তখন, যখন সার্চে স্পষ্ট প্রমাণ পাও যে দাবিটি মিথ্যা (ফ্যাক্ট-চেক সাইট ভুয়া বলেছে, বা একাধিক নির্ভরযোগ্য সূত্র উল্টো কথা বলছে), অথবা লেখাটি স্পষ্টতই ব্যঙ্গাত্মক বা প্রাকৃতিক নিয়মে অসম্ভব।\\n- অন্য নির্ভরযোগ্য সংবাদমাধ্যমেও খবরটি পেলে is_fake = false।\\n- কিছুই খুঁজে না পেলে বা নিশ্চিত হতে না পারলে is_fake = false দাও, এবং reason-এ লেখো যে যাচাই করা যায়নি।\\n\\nশেষে শুধু এই JSON দাও, বাংলায় (অন্য কিছু নয়): {\\\"is_fake\\\": true/false, \\\"reason\\\": \\\"কী খুঁজে পেলে তার ভিত্তিতে ১-৩ বাক্যে কারণ\\\"}\", user: 'সংবাদমাধ্যম: ' + $('Split items').item.json.source_name + '\\nশিরোনাম: ' + $('Split items').item.json.title + '\\n\\nবিষয়বস্তু:\\n' + String($('Split items').item.json.content).replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').slice(0, 3000) }) }}",
+        "options": {
+          "timeout": 180000
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0007-4000-8000-000000000007",
+      "name": "Parse fake check",
+      "position": [
+        1200,
+        0
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "// Agent 1 result -> { is_fake, reason }. If the AI call failed, the item is\n// dropped here and retried next run (it is never rejected because of an error).\n\nfunction parseJson(text) {\n  if (typeof text !== 'string') return null;\n  let t = text.trim().replace(/^```(json)?/i, '').replace(/```$/, '').trim();\n  const start = t.indexOf('{');\n  const end = t.lastIndexOf('}');\n  if (start === -1 || end < start) return null;\n  try { return JSON.parse(t.slice(start, end + 1)); } catch (e) { return null; }\n}\nfunction minChars(html) {\n  return Math.round(plain(html).length * 0.85);\n}\nfunction plain(html, max) {\n  const t = String(html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\\s+/g, ' ').trim();\n  return max && t.length > max ? t.slice(0, max) + '…' : t;\n}\n\nconst out = [];\nconst items = $input.all();\nfor (let i = 0; i < items.length; i++) {\n  const src = $('Split items').itemMatching(i).json;\n  const res = items[i].json;\n  const verdict = parseJson(res?.choices?.[0]?.message?.content);\n  if (!verdict || typeof verdict.is_fake !== 'boolean') {\n    console.log('Fake check failed, will retry next run:', src.source_url, JSON.stringify(res?.error ?? res).slice(0, 300));\n    continue;\n  }\n  let isFake = verdict.is_fake;\n  let reason = String(verdict.reason || '');\n  if (src.force_real && isFake) {\n    isFake = false;\n    reason = 'অ্যাডমিন আগে এটাকে সত্য বলে চিহ্নিত করেছেন। AI এর মত ছিল: ' + reason;\n  }\n  out.push({ json: { news_id: src.news_id, is_fake: isFake, reason }, pairedItem: { item: i } });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0008-4000-8000-000000000008",
+      "name": "Log: fake check",
+      "position": [
+        1440,
+        0
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $env.AUTONEWS_API_URL }}/api/n8n/journey",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.AUTONEWS_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ news_id: $('Parse fake check').item.json.news_id, stage: 'fake_check', is_fake: $('Parse fake check').item.json.is_fake, reason: $('Parse fake check').item.json.reason }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0009-4000-8000-000000000009",
+      "name": "Is fake?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1680,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b7e1c2d3-0000-4000-8000-00000000f001",
+              "leftValue": "={{ $('Parse fake check').item.json.is_fake }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0010-4000-8000-000000000010",
+      "name": "Reject: mark fake",
+      "position": [
+        1920,
+        220
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $env.AUTONEWS_API_URL }}/api/n8n/journey",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.AUTONEWS_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ news_id: $('Parse fake check').item.json.news_id, stage: 'rejected', reason: $('Parse fake check').item.json.reason }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0011-4000-8000-000000000011",
+      "name": "Agent 2: Source cross-check",
+      "position": [
+        1920,
+        -100
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AUTONEWS_API_URL }}/api/n8n/ai",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.AUTONEWS_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ task: 'cross_check', max_tokens: 2500, json: false, search: true, system: \"তুমি একজন অনুসন্ধানী সংবাদ গবেষক। ওয়েব সার্চ করে খুঁজে বের করো এই খবরটি নিয়ে ইন্টারনেটে অন্য কোন কোন নির্ভরযোগ্য সংবাদমাধ্যম লিখেছে, এবং তাদের লেখায় মূল খবরের বাইরে কী অতিরিক্ত তথ্য আছে। শুধু সত্যিই খুঁজে পাওয়া পাতা দেবে — কোনো URL বানাবে না। মূল সংবাদমাধ্যমের নিজের লিংক বাদ দেবে। সর্বোচ্চ ৫টি সূত্র।\\n\\nশেষে শুধু এই JSON দাও (অন্য কিছু নয়):\\n{\\\"sources\\\": [{\\\"name\\\": \\\"সংবাদমাধ্যমের নাম\\\", \\\"url\\\": \\\"https://...\\\", \\\"extra_info\\\": \\\"এই সূত্রে থাকা অতিরিক্ত তথ্য, বাংলায় ১-৩ বাক্যে\\\"}]}\", user: 'খবর: ' + $('Split items').item.json.title + '\\nমূল সংবাদমাধ্যম: ' + $('Split items').item.json.source_name + ' (' + $('Split items').item.json.source_url + ')\\n\\nসংক্ষেপ: ' + String($('Split items').item.json.content).replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').slice(0, 600) }) }}",
+        "options": {
+          "timeout": 180000
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0012-4000-8000-000000000012",
+      "name": "Parse sources",
+      "position": [
+        2160,
+        -100
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "// Agent 2 result -> list of other outlets + the extra facts they reported,\n// merged with the copies of this story the portal itself found in other RSS\n// feeds. Search failing is not fatal: the story continues with what we have.\n// Also builds the rewrite & enrich prompt for the next node.\n\nfunction parseJson(text) {\n  if (typeof text !== 'string') return null;\n  let t = text.trim().replace(/^```(json)?/i, '').replace(/```$/, '').trim();\n  const start = t.indexOf('{');\n  const end = t.lastIndexOf('}');\n  if (start === -1 || end < start) return null;\n  try { return JSON.parse(t.slice(start, end + 1)); } catch (e) { return null; }\n}\nfunction minChars(html) {\n  return Math.round(plain(html).length * 0.85);\n}\nfunction plain(html, max) {\n  const t = String(html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\\s+/g, ' ').trim();\n  return max && t.length > max ? t.slice(0, max) + '…' : t;\n}\n\nconst out = [];\nconst items = $input.all();\nfor (let i = 0; i < items.length; i++) {\n  const src = $('Split items').itemMatching(i).json;\n  const res = items[i].json;\n  const found = parseJson(res?.choices?.[0]?.message?.content);\n  if (!found) console.log('Source search returned nothing usable for', src.source_url, JSON.stringify(res?.error ?? '').slice(0, 300));\n\n  const sources = [];\n  const seen = new Set([src.source_url]);\n  for (const s of (Array.isArray(found?.sources) ? found.sources : [])) {\n    const url = String(s?.url || '').trim();\n    if (!/^https?:\\/\\//.test(url) || seen.has(url)) continue;\n    seen.add(url);\n    sources.push({ name: String(s.name || '').trim(), url, extra_info: String(s.extra_info || '').trim() });\n  }\n  for (const url of (src.related_urls || [])) {\n    if (seen.has(url)) continue;\n    seen.add(url);\n    let host = url;\n    try { host = new URL(url).hostname.replace(/^www\\./, ''); } catch (e) {}\n    sources.push({ name: host, url, extra_info: '' });\n  }\n\n  const extras = sources.filter(s => s.extra_info);\n  const extraText = extras.length\n    ? extras.map((s, n) => `${n + 1}. ${s.name || s.url}: ${s.extra_info}`).join('\\n')\n    : '(অন্য কোনো সূত্র থেকে অতিরিক্ত তথ্য পাওয়া যায়নি — শুধু মূল খবরের তথ্য ব্যবহার করো)';\n\n  const system = `তুমি \"বাংলা নিউজ\" পোর্টালের একজন অভিজ্ঞ বাংলা সংবাদ সম্পাদক ও প্রতিবেদক। তোমার কাছে একটি খবরের তথ্য এবং আরও কিছু অতিরিক্ত তথ্য আছে। এগুলো দিয়ে তুমি পোর্টালের নিজস্ব একটি পূর্ণাঙ্গ প্রতিবেদন লিখবে — সম্পূর্ণ নিজের ভাষায়, নিজের গঠনে। পাঠক যেন বুঝতে না পারে যে এটা অন্য কোনো পত্রিকার লেখা থেকে তৈরি।\n\nসম্পাদকীয় স্টাইল (house style), অক্ষরে অক্ষরে মেনে চলো:\n${src.house_style}\n\nলেখার গঠন (নিজের মতো করে সাজাবে):\n- প্রথম অনুচ্ছেদ (ইন্ট্রো): সবচেয়ে গুরুত্বপূর্ণ খবর — কে, কী, কোথায়, কখন — দুই-তিন বাক্যে।\n- এরপর ঘটনার বিস্তারিত, গুরুত্ব অনুযায়ী সাজিয়ে।\n- সংশ্লিষ্ট ব্যক্তিদের বক্তব্য (যিনি বলেছেন তাঁর নাম/পদসহ)।\n- শেষে প্রেক্ষাপট বা পটভূমি, যদি তথ্যে থাকে।\n- খবর লম্বা হলে মাঝে মাঝে <h3> উপশিরোনাম দিতে পারো।\n- মূল লেখার অনুচ্ছেদের ক্রম হুবহু অনুসরণ করবে না।\n\nকঠোর নিয়ম (কখনো ভঙ্গ করবে না):\n১. পূর্ণাঙ্গ খবর: মূল খবরের প্রতিটি তথ্য, সংখ্যা, নাম, তারিখ, স্থান ও বক্তব্য রাখবে — কিছুই বাদ দেবে না, সংক্ষেপ করবে না। লেখা মূল খবরের চেয়ে ছোট হবে না।\n২. হুবহু কপি নয়: মূল লেখার কোনো বাক্য হুবহু বা প্রায় হুবহু রাখবে না। প্রতিটি বাক্য নতুন শব্দচয়ন ও নতুন বাক্যগঠনে লিখবে। শুধু কারো সরাসরি উক্তি (উদ্ধৃতি চিহ্নের ভেতরের কথা) অপরিবর্তিত রাখা যাবে।\n৩. কোনো সংবাদমাধ্যমের নাম থাকবে না: কোনো পত্রিকা, টিভি, অনলাইন পোর্টাল বা ওয়েবসাইটের নাম, লিংক বা \"অমুক পত্রিকা জানিয়েছে / অমুককে বলেন\" জাতীয় কথা লিখবে না। প্রতিবেদকের নাম, \"নিজস্ব প্রতিবেদক\", \"স্টাফ রিপোর্টার\", \"|| ওয়েবসাইট.কম\", \"আরও পড়ুন\", বিজ্ঞাপন — এসব বাদ দেবে। ব্যক্তির বক্তব্য লিখবে এভাবে: \"তিনি বলেন\", \"পুলিশ জানিয়েছে\"।\n৪. শুধু মূল খবর এবং \"অতিরিক্ত তথ্য\" অংশে যা আছে তা-ই লিখবে — নিজে থেকে কোনো তথ্য, সংখ্যা, নাম, উক্তি বা ঘটনা বানাবে না।\n৫. তথ্যে গরমিল থাকলে নিজে একটা বেছে নেবে না — \"বিভিন্ন সূত্রে ভিন্ন তথ্য পাওয়া গেছে\" লিখে দুটোই জানাবে, অথবা অংশটি বাদ দেবে।\n৬. নিজের কোনো মন্তব্য, মতামত বা বিশ্লেষণ যোগ করবে না।\n৭. শুধু অনুরোধকৃত JSON ফরম্যাটে উত্তর দেবে — কোনো ভূমিকা বা মার্কডাউন ছাড়া।`;\n\n  const prompt = `মূল শিরোনাম: ${src.title}\n\nমূল বিষয়বস্তু (${plain(src.content).length} অক্ষর):\n${plain(src.content, 9000)}\n\nদৈর্ঘ্য: body-র লেখা অবশ্যই অন্তত ${minChars(src.content)} অক্ষরের হবে (মূলের প্রায় সমান)। ছোট করে সারাংশ বানাবে না — প্রতিটি অনুচ্ছেদের সব তথ্য নিজের ভাষায় বিস্তারিত লিখবে।\n\nঅতিরিক্ত তথ্য:\n${extraText}\n\nনিচের কাঠামোয়, শুধুমাত্র বৈধ JSON আকারে উত্তর দাও:\n{\n  \"title\": \"নতুন, নিজের ভাষায় লেখা আকর্ষণীয় কিন্তু সঠিক শিরোনাম (মূল শিরোনামের হুবহু নয়)\",\n  \"body\": \"নিজের ভাষায় ও নিজের গঠনে লেখা পূর্ণাঙ্গ সংবাদ, প্রতিটি অনুচ্ছেদ <p> ট্যাগে, দরকার হলে <h3> উপশিরোনাম\",\n  \"summary\": \"৩-৪ বাক্যের সংক্ষিপ্ত সারাংশ (plain text)\",\n  \"tags\": [\"৩ থেকে ৫টি ছোট, নির্দিষ্ট বিষয়ভিত্তিক ট্যাগ\"]\n}`;\n\n  out.push({\n    json: { news_id: src.news_id, sources: sources.map(s => ({ name: s.name, url: s.url })), extra_text: extraText, enrich_system: system, enrich_prompt: prompt },\n    pairedItem: { item: i },\n  });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0013-4000-8000-000000000013",
+      "name": "Log: cross-check",
+      "position": [
+        2400,
+        -100
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $env.AUTONEWS_API_URL }}/api/n8n/journey",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.AUTONEWS_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ news_id: $('Parse sources').item.json.news_id, stage: 'cross_check', sources: $('Parse sources').item.json.sources }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0014-4000-8000-000000000014",
+      "name": "AI rewrite & enrich",
+      "position": [
+        2640,
+        -100
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AUTONEWS_API_URL }}/api/n8n/ai",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.AUTONEWS_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ task: 'rewrite', max_tokens: 5000, json: true, search: false, system: $('Parse sources').item.json.enrich_system, user: $('Parse sources').item.json.enrich_prompt }) }}",
+        "options": {
+          "timeout": 180000
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0015-4000-8000-000000000015",
+      "name": "Build review prompt",
+      "position": [
+        2880,
+        -100
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "// Parse the enriched rewrite and build the self-review prompt, which checks\n// the draft against the original AND the extra sources.\n\nfunction parseJson(text) {\n  if (typeof text !== 'string') return null;\n  let t = text.trim().replace(/^```(json)?/i, '').replace(/```$/, '').trim();\n  const start = t.indexOf('{');\n  const end = t.lastIndexOf('}');\n  if (start === -1 || end < start) return null;\n  try { return JSON.parse(t.slice(start, end + 1)); } catch (e) { return null; }\n}\nfunction minChars(html) {\n  return Math.round(plain(html).length * 0.85);\n}\nfunction plain(html, max) {\n  const t = String(html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\\s+/g, ' ').trim();\n  return max && t.length > max ? t.slice(0, max) + '…' : t;\n}\n\nconst out = [];\nconst items = $input.all();\nfor (let i = 0; i < items.length; i++) {\n  const src = $('Split items').itemMatching(i).json;\n  const ctx = $('Parse sources').itemMatching(i).json;\n  const res = items[i].json;\n  const draft = parseJson(res?.choices?.[0]?.message?.content);\n  if (!draft || !draft.title || !draft.body) {\n    console.log('Rewrite failed, will retry next run:', src.source_url, JSON.stringify(res?.error ?? res).slice(0, 300));\n    continue;\n  }\n  const review = `তুমি এখন একজন কঠোর সম্পাদক, যে সহকারীর লেখা একটি খসড়া যাচাই করছ।\n\nমূল শিরোনাম: ${src.title}\n\nমূল বিষয়বস্তু (${plain(src.content).length} অক্ষর):\n${plain(src.content, 9000)}\n\nঅতিরিক্ত তথ্য (শুধু এগুলোই মূল খবরের বাইরে গ্রহণযোগ্য):\n${ctx.extra_text}\n\nসহকারীর খসড়া (JSON, body ${plain(draft.body).length} অক্ষর):\n${JSON.stringify(draft)}\n\n${plain(draft.body).length < minChars(src.content)\n  ? '⚠ খসড়াটি ছোট: body মাত্র ' + plain(draft.body).length + ' অক্ষর, কিন্তু অন্তত ' + minChars(src.content) + ' অক্ষর হতে হবে। মূল খবরের যে তথ্য, বক্তব্য ও বিবরণ বাদ পড়েছে সেগুলো নিজের ভাষায় যোগ করে লেখাটি পূর্ণাঙ্গ করো।'\n  : 'দৈর্ঘ্য ঠিক আছে (অন্তত ' + minChars(src.content) + ' অক্ষর) — ছোট করবে না।'}\n\nচেকলিস্ট — প্রতিটি সমস্যা ঠিক করে দাও:\n- পূর্ণাঙ্গ কিনা: মূল খবরের কোনো তথ্য, সংখ্যা, নাম, তারিখ, স্থান বা বক্তব্য বাদ পড়েছে? খসড়া কি মূলের চেয়ে অনেক ছোট? তাহলে বাদ পড়া তথ্য যোগ করে পূর্ণাঙ্গ করো।\n- হুবহু কপি কিনা: মূল লেখার কোনো বাক্য হুবহু বা প্রায় হুবহু রয়ে গেছে? থাকলে নতুন শব্দ ও নতুন গঠনে লেখো (উদ্ধৃতি চিহ্নের ভেতরের সরাসরি উক্তি ছাড়া)।\n- সংবাদমাধ্যমের নাম: কোনো পত্রিকা/টিভি/ওয়েবসাইটের নাম, লিংক, প্রতিবেদকের নাম, \"নিজস্ব প্রতিবেদক\", \"আরও পড়ুন\" আছে? থাকলে মুছে দাও।\n- বানানো তথ্য: মূল খবরে বা অতিরিক্ত তথ্যে নেই এমন কিছু আছে? থাকলে বাদ দাও।\n- গঠন: ইন্ট্রোতে মূল খবর আছে, তারপর বিস্তারিত, বক্তব্য, প্রেক্ষাপট — এভাবে গোছানো? ভাষা সম্পাদকীয় স্টাইল মানছে, ব্যাকরণ ঠিক?\n- body ঠিকমতো <p> (দরকারে <h3>) ট্যাগে ভাগ করা আছে?\n\nসংশোধিত চূড়ান্ত সংস্করণ একই JSON কাঠামোয় দাও — শুধু বৈধ JSON:\n{\"title\": \"...\", \"body\": \"...\", \"summary\": \"...\", \"tags\": [\"...\"]}`;\n  out.push({\n    json: { news_id: src.news_id, draft, review_prompt: review, draft_tokens: res?.usage?.total_tokens ?? 0, model: res?.model ?? '' },\n    pairedItem: { item: i },\n  });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0016-4000-8000-000000000016",
+      "name": "Log: rewritten",
+      "position": [
+        3120,
+        -100
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $env.AUTONEWS_API_URL }}/api/n8n/journey",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.AUTONEWS_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ news_id: $('Build review prompt').item.json.news_id, stage: 'rewritten', rewritten_title: $('Build review prompt').item.json.draft.title, rewritten_content: $('Build review prompt').item.json.draft.body }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0017-4000-8000-000000000017",
+      "name": "AI self-review",
+      "position": [
+        3360,
+        -100
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AUTONEWS_API_URL }}/api/n8n/ai",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.AUTONEWS_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ task: 'review', max_tokens: 5000, json: true, search: false, system: $('Parse sources').item.json.enrich_system, user: $('Build review prompt').item.json.review_prompt }) }}",
+        "options": {
+          "timeout": 180000
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0018-4000-8000-000000000018",
+      "name": "Prepare article",
+      "position": [
+        3600,
+        -100
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "// Take the reviewed version (or the draft, if review failed) and shape the\n// payload for POST /api/n8n/articles. news_id makes the portal mark the\n// journey row as published.\n\nfunction parseJson(text) {\n  if (typeof text !== 'string') return null;\n  let t = text.trim().replace(/^```(json)?/i, '').replace(/```$/, '').trim();\n  const start = t.indexOf('{');\n  const end = t.lastIndexOf('}');\n  if (start === -1 || end < start) return null;\n  try { return JSON.parse(t.slice(start, end + 1)); } catch (e) { return null; }\n}\nfunction minChars(html) {\n  return Math.round(plain(html).length * 0.85);\n}\nfunction plain(html, max) {\n  const t = String(html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\\s+/g, ' ').trim();\n  return max && t.length > max ? t.slice(0, max) + '…' : t;\n}\n\nconst out = [];\nconst items = $input.all();\nfor (let i = 0; i < items.length; i++) {\n  const src = $('Split items').itemMatching(i).json;\n  const prev = $('Build review prompt').itemMatching(i).json;\n  const ctx = $('Parse sources').itemMatching(i).json;\n  const res = items[i].json;\n  let final = parseJson(res?.choices?.[0]?.message?.content);\n  if (!final || !final.title || !final.body) final = prev.draft;\n  out.push({\n    json: {\n      news_id: src.news_id,\n      source_url: src.source_url,\n      related_urls: ctx.sources.map(s => s.url).filter(u => (src.related_urls || []).includes(u)),\n      title: final.title,\n      body: final.body,\n      summary: final.summary ?? '',\n      tags: Array.isArray(final.tags) ? final.tags : [],\n      image_url: src.image_url,\n      source_name: src.source_name,\n      category: src.category,\n      published_at: src.published_at,\n      original_title: src.title,\n      original_content: src.content,\n    },\n    pairedItem: { item: i },\n  });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0019-4000-8000-000000000019",
+      "name": "Save to portal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3840,
+        -100
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AUTONEWS_API_URL }}/api/n8n/articles",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.AUTONEWS_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 15 minutes": {
+      "main": [
+        [
+          {
+            "node": "Get pending news",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run manually": {
+      "main": [
+        [
+          {
+            "node": "Get pending news",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get pending news": {
+      "main": [
+        [
+          {
+            "node": "Split items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split items": {
+      "main": [
+        [
+          {
+            "node": "Send to admin panel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to admin panel": {
+      "main": [
+        [
+          {
+            "node": "Agent 1: Fake news check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 1: Fake news check": {
+      "main": [
+        [
+          {
+            "node": "Parse fake check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse fake check": {
+      "main": [
+        [
+          {
+            "node": "Log: fake check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log: fake check": {
+      "main": [
+        [
+          {
+            "node": "Is fake?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is fake?": {
+      "main": [
+        [
+          {
+            "node": "Reject: mark fake",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Agent 2: Source cross-check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 2: Source cross-check": {
+      "main": [
+        [
+          {
+            "node": "Parse sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse sources": {
+      "main": [
+        [
+          {
+            "node": "Log: cross-check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log: cross-check": {
+      "main": [
+        [
+          {
+            "node": "AI rewrite & enrich",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI rewrite & enrich": {
+      "main": [
+        [
+          {
+            "node": "Build review prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build review prompt": {
+      "main": [
+        [
+          {
+            "node": "Log: rewritten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log: rewritten": {
+      "main": [
+        [
+          {
+            "node": "AI self-review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI self-review": {
+      "main": [
+        [
+          {
+            "node": "Prepare article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare article": {
+      "main": [
+        [
+          {
+            "node": "Save to portal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

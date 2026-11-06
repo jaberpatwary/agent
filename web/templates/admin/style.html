@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI সম্পাদকীয় স্টাইল — বাংলা নিউজ</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="admin-body">
+  {{ template "admin_sidebar" . }}
+  <main class="admin-main">
+    <h1>AI সম্পাদকীয় স্টাইল (House Style)</h1>
+    <p style="color:#666; max-width:640px; margin-bottom:1rem;">
+      প্রতিটি নতুন খবর প্রকাশের আগে, এজেন্ট প্রথমে একটি খসড়া (draft) লেখে এবং তারপর
+      মূল খবরের সাথে মিলিয়ে নিজে তা যাচাই (self-review) করে, যাতে মূল তথ্যের বাইরে কিছু
+      যোগ না হয়ে যায়। নিচের নির্দেশনা অনুযায়ী এজেন্ট লেখার সুর/স্টাইল ঠিক করবে।
+      পরিবর্তন সংরক্ষণ করার সাথে সাথে পরবর্তী ক্রন রান (cron run) থেকেই তা প্রযোজ্য হবে —
+      কোনো রিডিপ্লয় লাগবে না।
+    </p>
+    {{ if .Error }}<div class="alert alert-error">{{ .Error }}</div>{{ end }}
+    {{ if .Success }}<div class="alert alert-success">{{ .Success }}</div>{{ end }}
+    <form method="post" action="/admin/style" class="admin-form">
+      <input type="hidden" name="_csrf" value="{{ .CSRFToken }}">
+      <label>
+        স্টাইল নির্দেশনা (বাংলায় লিখুন — টোন, বাক্যের দৈর্ঘ্য, কোন শব্দ এড়িয়ে চলতে হবে ইত্যাদি)
+        <textarea name="style" rows="10" required minlength="10" maxlength="4000" style="width:100%; font-family:inherit;">{{ .Style }}</textarea>
+      </label>
+      <label style="margin-top:1rem; display:block;">
+        সংবেদনশীল বিভাগ (কমা দিয়ে আলাদা করুন) — এই বিভাগের নতুন খবর অটো-পাবলিশ না হয়ে
+        "পর্যালোচনা প্রয়োজন" স্ট্যাটাসে জমা থাকবে, আপনি ম্যানুয়ালি অনুমোদন না করা পর্যন্ত সাইটে দেখাবে না।
+        সম্ভাব্য মান: bangladesh, international, business, sports, technology, entertainment, general
+        <input type="text" name="sensitive_categories" value="{{ .SensitiveCSV }}" style="width:100%; font-family:inherit;">
+      </label>
+      <button type="submit" class="btn btn-primary">সংরক্ষণ করুন</button>
+    </form>
+  </main>
+</body>
+</html>

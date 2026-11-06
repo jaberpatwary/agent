@@ -1,0 +1,317 @@
+{{/* Shared pieces of the public portal: <head> assets, header, footer, scripts, card helpers. */}}
+
+{{ define "portal_assets" }}
+  <meta name="theme-color" content="#c8102e">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@500;600;700;800&display=swap">
+  <link rel="stylesheet" href="/static/css/portal.css?v=3">
+  <script>
+    /* Apply the saved theme before first paint so there is no light/dark flash. */
+    (function () {
+      try {
+        var t = localStorage.getItem('bn-theme');
+        if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
+{{ end }}
+
+{{ define "portal_header" }}
+{{ $cat := "" }}{{ with .Category }}{{ $cat = . }}{{ end }}
+<div class="topbar">
+  <div class="wrap topbar-inner">
+    <span class="topbar-date">{{ todayBanglaDate }}<span class="topbar-sep" aria-hidden="true">·</span><span class="topbar-bangla">{{ banglaCalendar now }}</span></span>
+    <span class="topbar-live"><span class="pulse"></span> লাইভ আপডেট</span>
+    <button class="icon-btn theme-toggle" type="button" data-theme-toggle aria-label="লাইট/ডার্ক মোড বদলান">
+      <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>
+      <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
+    </button>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap masthead-inner">
+    <button class="icon-btn menu-btn" type="button" data-menu-toggle aria-label="বিভাগ মেনু" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <a href="/" class="brand" aria-label="বাংলা নিউজ — প্রথম পাতা">
+      <span class="brand-mark" aria-hidden="true">ব</span>
+      <span class="brand-name">বাংলা<span>নিউজ</span></span>
+    </a>
+    <div class="masthead-actions">
+      <a href="/saved" class="icon-btn saved-link {{ if eq $cat "__saved" }}is-active{{ end }}" aria-label="সংরক্ষিত খবর">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg>
+        <span class="badge" data-saved-count hidden>০</span>
+      </a>
+      <button class="search-trigger" type="button" data-search-open aria-label="সংবাদ খুঁজুন">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <span>খুঁজুন</span><kbd>/</kbd>
+      </button>
+    </div>
+  </div>
+</header>
+
+<nav class="catnav" aria-label="সংবাদ বিভাগ" data-catnav>
+  <div class="wrap catnav-inner">
+    <a href="/" {{ if eq $cat "" }}class="active" aria-current="page"{{ end }}>প্রথম পাতা</a>
+    <a href="/?category=bangladesh" {{ if eq $cat "bangladesh" }}class="active" aria-current="page"{{ end }}>বাংলাদেশ</a>
+    <a href="/?category=international" {{ if eq $cat "international" }}class="active" aria-current="page"{{ end }}>বিশ্ব</a>
+    <a href="/?category=business" {{ if eq $cat "business" }}class="active" aria-current="page"{{ end }}>ব্যবসা</a>
+    <a href="/?category=sports" {{ if eq $cat "sports" }}class="active" aria-current="page"{{ end }}>খেলা</a>
+    <a href="/?category=entertainment" {{ if eq $cat "entertainment" }}class="active" aria-current="page"{{ end }}>বিনোদন</a>
+    <a href="/?category=technology" {{ if eq $cat "technology" }}class="active" aria-current="page"{{ end }}>প্রযুক্তি</a>
+    <a href="/?category=general" {{ if eq $cat "general" }}class="active" aria-current="page"{{ end }}>সাধারণ</a>
+    <a href="/saved" class="catnav-saved {{ if eq $cat "__saved" }}active{{ end }}">সংরক্ষিত</a>
+  </div>
+</nav>
+
+<div class="search-overlay" data-search-overlay hidden>
+  <div class="search-panel" role="dialog" aria-modal="true" aria-label="সংবাদ খুঁজুন">
+    <form action="/" method="get" class="search-form" autocomplete="off">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" name="q" {{ with .Query }}value="{{ . }}"{{ end }} placeholder="শিরোনাম, ব্যক্তি বা বিষয় লিখুন…" data-search-input aria-controls="suggest-list">
+      <button type="submit" class="btn-primary">খুঁজুন</button>
+    </form>
+    <ul class="suggest" id="suggest-list" data-suggest hidden></ul>
+    <p class="search-hint">লিখতে থাকুন — মিলে যাওয়া খবর এখানেই দেখাবে · Esc চাপলে বন্ধ</p>
+  </div>
+</div>
+{{ end }}
+
+{{/* Bookmark toggle for an article (domain.Article). */}}
+{{ define "save_btn" }}
+<button type="button" class="save-btn" data-save data-id="{{ .ID }}" data-title="{{ .Title }}" data-img="{{ .ImageURL }}" data-cat="{{ categoryLabel .Category }}" aria-label="খবরটি সংরক্ষণ করুন" aria-pressed="false">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg>
+</button>
+{{ end }}
+
+{{/* Photo with a category-coloured placeholder if it fails to load. */}}
+{{ define "media" }}
+<span class="media cat-{{ .Category }}">
+  {{ if .ImageURL }}<img src="{{ .ImageURL }}" alt="{{ .Title }}" loading="lazy" decoding="async" onerror="bnImgFail(this)">{{ end }}
+  <span class="media-fallback" aria-hidden="true">{{ categoryLabel .Category }}</span>
+</span>
+{{ end }}
+
+{{/* Linked photo with a bookmark button on top. */}}
+{{ define "card_media" }}
+<div class="card-media">
+  <a href="/article/{{ .ID }}" tabindex="-1" aria-hidden="true">{{ template "media" . }}</a>
+  {{ template "save_btn" . }}
+</div>
+{{ end }}
+
+{{ define "portal_footer" }}
+<button type="button" class="to-top" data-to-top aria-label="উপরে যান">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+<div class="toast" data-toast role="status" aria-live="polite"></div>
+<footer class="footer">
+  <div class="wrap footer-grid">
+    <div class="footer-about">
+      <a href="/" class="brand brand-footer">
+        <span class="brand-mark" aria-hidden="true">ব</span>
+        <span class="brand-name">বাংলা<span>নিউজ</span></span>
+      </a>
+      <p>দেশ ও বিশ্বের সর্বশেষ খবর, যাচাই করে, সহজ ভাষায়। প্রতি মুহূর্তে হালনাগাদ।</p>
+      <button type="button" class="install-btn" data-install hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>অ্যাপ হিসেবে ইনস্টল করুন
+      </button>
+    </div>
+    <div>
+      <h4>বিভাগ</h4>
+      <ul>
+        <li><a href="/?category=bangladesh">বাংলাদেশ</a></li>
+        <li><a href="/?category=international">বিশ্ব</a></li>
+        <li><a href="/?category=business">ব্যবসা</a></li>
+        <li><a href="/?category=sports">খেলা</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>আরও</h4>
+      <ul>
+        <li><a href="/?category=entertainment">বিনোদন</a></li>
+        <li><a href="/?category=technology">প্রযুক্তি</a></li>
+        <li><a href="/?category=general">সাধারণ</a></li>
+        <li><a href="/saved">সংরক্ষিত খবর</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="wrap footer-bottom">
+    <span>© বাংলা নিউজ। সর্বস্বত্ব সংরক্ষিত।</span>
+    <span>বাংলা নিউজ ডেস্ক</span>
+  </div>
+</footer>
+{{ end }}
+
+{{ define "portal_scripts" }}
+<script>
+  var BN = window.BN || {};
+  BN.digits = function (n) { return String(n).replace(/[0-9]/g, function (d) { return '০১২৩৪৫৬৭৮৯'[d]; }); };
+  BN.toast = function (msg) {
+    var t = document.querySelector('[data-toast]');
+    if (!t) return;
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(BN._toastTimer);
+    BN._toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2400);
+  };
+
+  /* A photo that fails to load is replaced by the card's own placeholder. */
+  function bnImgFail(img) {
+    var box = img.closest('.media');
+    if (box) box.classList.add('is-empty');
+    img.remove();
+  }
+
+  /* Theme toggle */
+  (function () {
+    var root = document.documentElement;
+    var btn = document.querySelector('[data-theme-toggle]');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var dark = root.getAttribute('data-theme') === 'dark' ||
+        (!root.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var next = dark ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('bn-theme', next); } catch (e) {}
+    });
+  })();
+
+  /* Mobile category menu */
+  (function () {
+    var btn = document.querySelector('[data-menu-toggle]');
+    var nav = document.querySelector('[data-catnav]');
+    if (!btn || !nav) return;
+    btn.addEventListener('click', function () {
+      var open = nav.classList.toggle('open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  })();
+
+  /* Bookmarks (kept in this browser only) */
+  BN.saved = {
+    key: 'bn-saved',
+    all: function () { try { return JSON.parse(localStorage.getItem(this.key)) || []; } catch (e) { return []; } },
+    write: function (list) { try { localStorage.setItem(this.key, JSON.stringify(list.slice(0, 200))); } catch (e) {} },
+    has: function (id) { return this.all().some(function (x) { return x.id === id; }); },
+    toggle: function (item) {
+      var list = this.all();
+      var i = list.findIndex(function (x) { return x.id === item.id; });
+      if (i >= 0) { list.splice(i, 1); this.write(list); return false; }
+      item.savedAt = Date.now();
+      list.unshift(item);
+      this.write(list);
+      return true;
+    }
+  };
+  BN.syncSaved = function () {
+    var count = BN.saved.all().length;
+    document.querySelectorAll('[data-saved-count]').forEach(function (b) {
+      b.textContent = BN.digits(count);
+      b.hidden = count === 0;
+    });
+    document.querySelectorAll('[data-save]').forEach(function (btn) {
+      var on = BN.saved.has(btn.getAttribute('data-id'));
+      btn.classList.toggle('is-saved', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  };
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-save]');
+    if (!btn) return;
+    e.preventDefault();
+    var on = BN.saved.toggle({
+      id: btn.getAttribute('data-id'),
+      title: btn.getAttribute('data-title'),
+      img: btn.getAttribute('data-img'),
+      cat: btn.getAttribute('data-cat')
+    });
+    BN.syncSaved();
+    BN.toast(on ? 'খবরটি সংরক্ষণ করা হয়েছে' : 'সংরক্ষিত তালিকা থেকে সরানো হয়েছে');
+  });
+  BN.syncSaved();
+
+  /* Search overlay with live suggestions */
+  (function () {
+    var overlay = document.querySelector('[data-search-overlay]');
+    var input = document.querySelector('[data-search-input]');
+    var list = document.querySelector('[data-suggest]');
+    if (!overlay || !input || !list) return;
+    function open() { overlay.hidden = false; setTimeout(function () { input.focus(); input.select(); }, 30); }
+    function close() { overlay.hidden = true; }
+    document.querySelectorAll('[data-search-open]').forEach(function (b) { b.addEventListener('click', open); });
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') close();
+      if (e.key === '/' && overlay.hidden && !/input|textarea/i.test(document.activeElement.tagName)) { e.preventDefault(); open(); }
+    });
+    var timer, seq = 0;
+    function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+    input.addEventListener('input', function () {
+      clearTimeout(timer);
+      var q = input.value.trim();
+      if (q.length < 2) { list.hidden = true; list.innerHTML = ''; return; }
+      timer = setTimeout(function () {
+        var my = ++seq;
+        fetch('/api/suggest?q=' + encodeURIComponent(q), { cache: 'no-store' })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (my !== seq) return;
+            var items = (d && d.items) || [];
+            if (!items.length) { list.innerHTML = '<li class="suggest-empty">কোনো খবর মেলেনি — Enter চাপলে পুরো খোঁজ</li>'; list.hidden = false; return; }
+            list.innerHTML = items.map(function (it) {
+              return '<li><a href="/article/' + esc(it.id) + '">' +
+                (it.image ? '<img src="' + esc(it.image) + '" alt="" loading="lazy">' : '<span class="suggest-ph"></span>') +
+                '<span><strong>' + esc(it.title) + '</strong><small>' + esc(it.category) + ' · ' + esc(it.ago) + '</small></span></a></li>';
+            }).join('');
+            list.hidden = false;
+          })
+          .catch(function () {});
+      }, 180);
+    });
+  })();
+
+  /* Back to top */
+  (function () {
+    var btn = document.querySelector('[data-to-top]');
+    if (!btn) return;
+    window.addEventListener('scroll', function () { btn.classList.toggle('show', window.scrollY > 900); }, { passive: true });
+    btn.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  })();
+
+  /* Installable app (PWA) */
+  (function () {
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
+    }
+    var deferred = null;
+    var btn = document.querySelector('[data-install]');
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      deferred = e;
+      if (btn) btn.hidden = false;
+    });
+    if (btn) btn.addEventListener('click', function () {
+      if (!deferred) return;
+      deferred.prompt();
+      deferred.userChoice.finally(function () { deferred = null; btn.hidden = true; });
+    });
+  })();
+
+  /* Fade cards in as they scroll into view. */
+  (function () {
+    var els = document.querySelectorAll('.reveal');
+    if (!('IntersectionObserver' in window)) { els.forEach(function (e) { e.classList.add('in'); }); return; }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
+    }, { rootMargin: '0px 0px -40px 0px' });
+    els.forEach(function (e) { io.observe(e); });
+    BN.observeReveal = function (root) { root.querySelectorAll('.reveal:not(.in)').forEach(function (e) { io.observe(e); }); };
+  })();
+</script>
+{{ end }}

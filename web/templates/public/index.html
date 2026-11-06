@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ if .Query }}“{{ .Query }}” — খোঁজার ফলাফল | {{ else if .Category }}{{ categoryLabel .Category }} | {{ end }}বাংলা নিউজ — সর্বশেষ সংবাদ</title>
+  <meta name="description" content="দেশ ও বিশ্বের সর্বশেষ খবর — রাজনীতি, ব্যবসা, খেলা, বিনোদন, প্রযুক্তি। প্রতি মুহূর্তে হালনাগাদ।">
+  {{ if .CanonicalURL }}<link rel="canonical" href="{{ .CanonicalURL }}">{{ end }}
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="বাংলা নিউজ">
+  <meta property="og:title" content="বাংলা নিউজ — সর্বশেষ সংবাদ">
+  <meta property="og:description" content="দেশ ও বিশ্বের সর্বশেষ খবর, প্রতি মুহূর্তে হালনাগাদ।">
+  {{ if .CanonicalURL }}<meta property="og:url" content="{{ .CanonicalURL }}">{{ end }}
+  <meta name="twitter:card" content="summary">
+  {{ template "portal_assets" . }}
+</head>
+<body>
+  {{ template "portal_header" . }}
+
+  {{ if .Articles }}
+  <div class="ticker" aria-label="সর্বশেষ শিরোনাম">
+    <div class="wrap ticker-inner">
+      <span class="ticker-label"><span class="pulse"></span>সর্বশেষ</span>
+      <div class="ticker-track">
+        <div class="ticker-move">
+          {{ range $i, $a := .Articles }}{{ if lt $i 10 }}<a href="/article/{{ $a.ID }}">{{ $a.Title }}</a>{{ end }}{{ end }}
+        </div>
+      </div>
+    </div>
+  </div>
+  {{ end }}
+
+  {{ if .Trending }}
+  <div class="trending" aria-label="আলোচিত বিষয়">
+    <div class="wrap trending-inner">
+      <span class="trending-label">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg>আলোচিত
+      </span>
+      <div class="trending-list">
+        {{ range .Trending }}<a href="/?q={{ . | urlquery }}">#{{ . }}</a>{{ end }}
+      </div>
+    </div>
+  </div>
+  {{ end }}
+
+  <main class="page" data-latest="{{ if .Articles }}{{ (index .Articles 0).ID }}{{ end }}">
+    <div class="wrap">
+
+    {{ if not .Articles }}
+      <div class="empty">
+        <div class="big">{{ if .Query }}“{{ .Query }}” — কোনো খবর পাওয়া যায়নি{{ else }}এই বিভাগে এখনও কোনো খবর নেই{{ end }}</div>
+        <p>অন্য শব্দে খুঁজে দেখুন, অথবা <a href="/" style="color:var(--brand)">প্রথম পাতায় ফিরে যান</a>।</p>
+      </div>
+
+    {{ else if .Sections }}
+      {{/* ================= FRONT PAGE ================= */}}
+      <section class="lead-grid">
+        {{ with index .Articles 0 }}
+        <div class="lead-main reveal">
+          <a href="/article/{{ .ID }}" class="lead-link">
+            {{ template "media" . }}
+            <div class="lead-overlay">
+              <span class="chip">{{ categoryLabel .Category }}</span>
+              <h2>{{ .Title }}</h2>
+              {{ if .Summary }}<p>{{ stripHTML .Summary }}</p>{{ end }}
+              <span class="time">{{ banglaTimeAgo .PublishedAt }} · {{ banglaDigits (printf "%d" (readMinutes .Content)) }} মিনিটে পড়ুন</span>
+            </div>
+          </a>
+          {{ template "save_btn" . }}
+        </div>
+        {{ end }}
+
+        <div class="lead-side">
+          {{ range $i, $a := .Articles }}{{ if and (ge $i 1) (le $i 2) }}
+          <article class="card reveal cat-{{ $a.Category }}">
+            {{ template "card_media" $a }}
+            <span class="chip">{{ categoryLabel $a.Category }}</span>
+            <h3 class="headline"><a href="/article/{{ $a.ID }}">{{ $a.Title }}</a></h3>
+            <span class="time">{{ banglaTimeAgo $a.PublishedAt }}</span>
+          </article>
+          {{ end }}{{ end }}
+        </div>
+
+        <aside class="latest reveal" aria-label="সর্বশেষ খবর">
+          <h2 class="latest-head"><span class="pulse"></span>এইমাত্র</h2>
+          <ol>
+            {{ range $i, $a := .Articles }}{{ if and (ge $i 3) (le $i 9) }}
+            <li>
+              <span class="time">{{ banglaTimeAgo $a.PublishedAt }}</span>
+              <a href="/article/{{ $a.ID }}">{{ $a.Title }}</a>
+            </li>
+            {{ end }}{{ end }}
+          </ol>
+        </aside>
+      </section>
+
+      {{ if gt (len .Articles) 10 }}
+      <section class="section">
+        <div class="section-head"><h2>শীর্ষ সংবাদ</h2></div>
+        <div class="grid-4">
+          {{ range $i, $a := .Articles }}{{ if ge $i 10 }}
+          <article class="card reveal cat-{{ $a.Category }}">
+            {{ template "card_media" $a }}
+            <span class="chip">{{ categoryLabel $a.Category }}</span>
+            <h3 class="headline"><a href="/article/{{ $a.ID }}">{{ $a.Title }}</a></h3>
+            <span class="time">{{ banglaTimeAgo $a.PublishedAt }}</span>
+          </article>
+          {{ end }}{{ end }}
+        </div>
+      </section>
+      {{ end }}
+    </div>
+
+      {{ if ge (len .MostRead) 3 }}
+      <section class="band" aria-label="সর্বাধিক পঠিত">
+        <div class="wrap">
+          <div class="band-head">
+            <h2><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c2 4 6 5 6 10a6 6 0 0 1-12 0c0-3 2-4 2-7 2 1 3 3 4 4 0-3-1-5 0-7Z"/></svg>সর্বাধিক পঠিত</h2>
+            <div class="band-nav">
+              <button type="button" class="icon-btn" data-scroll="-1" aria-label="আগের">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+              <button type="button" class="icon-btn" data-scroll="1" aria-label="পরের">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></button>
+            </div>
+          </div>
+          <div class="rail" data-rail>
+            {{ range $i, $a := .MostRead }}
+            <a href="/article/{{ $a.ID }}" class="rail-card">
+              {{ template "media" $a }}
+              <span class="rail-num">{{ banglaDigits (printf "%d" (add $i 1)) }}</span>
+              <span class="rail-body">
+                <span class="chip">{{ categoryLabel $a.Category }}</span>
+                <span class="rail-title">{{ $a.Title }}</span>
+                <span class="time">{{ banglaDigits (printf "%d" $a.Views) }} বার পড়া হয়েছে</span>
+              </span>
+            </a>
+            {{ end }}
+          </div>
+        </div>
+      </section>
+      {{ end }}
+
+    <div class="wrap">
+      {{ range .Sections }}
+      <section class="section cat-{{ .Key }}">
+        <div class="section-head">
+          <h2>{{ .Label }}</h2>
+          <a href="/?category={{ .Key }}">সব খবর <span aria-hidden="true">→</span></a>
+        </div>
+        <div class="cat-block">
+          {{ with index .Articles 0 }}
+          <article class="card card-lg reveal">
+            {{ template "card_media" . }}
+            <h3 class="headline"><a href="/article/{{ .ID }}">{{ .Title }}</a></h3>
+            {{ if .Summary }}<p class="excerpt">{{ stripHTML .Summary }}</p>{{ end }}
+            <span class="time">{{ banglaTimeAgo .PublishedAt }}</span>
+          </article>
+          {{ end }}
+          <div class="cat-list">
+            {{ range $i, $a := .Articles }}{{ if ge $i 1 }}
+            <article class="row-card reveal">
+              <a href="/article/{{ $a.ID }}">{{ template "media" $a }}</a>
+              <div>
+                <h4 class="headline"><a href="/article/{{ $a.ID }}">{{ $a.Title }}</a></h4>
+                <span class="time">{{ banglaTimeAgo $a.PublishedAt }}</span>
+              </div>
+            </article>
+            {{ end }}{{ end }}
+          </div>
+        </div>
+      </section>
+      {{ end }}
+
+      {{ if .HasMore }}
+      <nav class="pager" aria-label="আরও খবর">
+        <a href="/?page=2">আরও খবর দেখুন <span aria-hidden="true">→</span></a>
+      </nav>
+      {{ end }}
+
+    {{ else }}
+      {{/* ================= LISTING / SEARCH ================= */}}
+      <header class="listing-hero {{ if .Category }}cat-{{ .Category }}{{ end }}">
+        <h1>{{ if .Query }}“{{ .Query }}”{{ else if .Category }}{{ categoryLabel .Category }}{{ else }}সর্বশেষ সংবাদ{{ end }}</h1>
+        <p>{{ if .Query }}খোঁজার ফলাফল: {{ end }}{{ banglaDigits (printf "%d" .Total) }}টি খবর</p>
+      </header>
+
+      <div class="listing-grid" data-listing>
+        {{ range .Articles }}
+        <article class="card reveal cat-{{ .Category }}">
+          {{ template "card_media" . }}
+          <span class="chip">{{ categoryLabel .Category }}</span>
+          <h3 class="headline"><a href="/article/{{ .ID }}">{{ .Title }}</a></h3>
+          {{ if .Summary }}<p class="excerpt">{{ stripHTML .Summary }}</p>{{ end }}
+          <span class="time">{{ banglaTimeAgo .PublishedAt }} · {{ banglaDigits (printf "%d" (readMinutes .Content)) }} মিনিটে পড়ুন</span>
+        </article>
+        {{ end }}
+      </div>
+
+      <nav class="pager" aria-label="পাতা বদলান" data-pager>
+        {{ if gt .Page 1 }}<a href="/?page={{ sub .Page 1 }}{{ if .Category }}&amp;category={{ .Category }}{{ end }}{{ if .Query }}&amp;q={{ .Query | urlquery }}{{ end }}"><span aria-hidden="true">←</span> আগের পাতা</a>{{ end }}
+        {{ if .HasMore }}<a href="/?page={{ add .Page 1 }}{{ if .Category }}&amp;category={{ .Category }}{{ end }}{{ if .Query }}&amp;q={{ .Query | urlquery }}{{ end }}" data-next>আরও খবর <span aria-hidden="true">↓</span></a>{{ end }}
+      </nav>
+    {{ end }}
+
+    </div>
+  </main>
+
+  <button type="button" class="fresh" data-fresh>নতুন খবর এসেছে — দেখুন ↑</button>
+
+  {{ template "portal_footer" . }}
+  {{ template "portal_scripts" . }}
+  <script>
+    /* "Most read" rail arrows */
+    (function () {
+      var rail = document.querySelector('[data-rail]');
+      if (!rail) return;
+      document.querySelectorAll('[data-scroll]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          rail.scrollBy({ left: parseInt(b.getAttribute('data-scroll'), 10) * rail.clientWidth * 0.8, behavior: 'smooth' });
+        });
+      });
+    })();
+
+    /* Listing pages: "more" loads the next page in place instead of navigating. */
+    (function () {
+      var grid = document.querySelector('[data-listing]');
+      var pager = document.querySelector('[data-pager]');
+      if (!grid || !pager) return;
+      pager.addEventListener('click', function (e) {
+        var next = e.target.closest('[data-next]');
+        if (!next) return;
+        e.preventDefault();
+        next.classList.add('loading');
+        next.textContent = 'লোড হচ্ছে…';
+        fetch(next.href).then(function (r) { return r.text(); }).then(function (html) {
+          var doc = new DOMParser().parseFromString(html, 'text/html');
+          doc.querySelectorAll('[data-listing] > .card').forEach(function (card) { grid.appendChild(card); });
+          var newPager = doc.querySelector('[data-pager]');
+          pager.innerHTML = '';
+          var more = newPager && newPager.querySelector('[data-next]');
+          if (more) pager.appendChild(more);
+          BN.observeReveal && BN.observeReveal(grid);
+          BN.syncSaved();
+        }).catch(function () { window.location.href = next.href; });
+      });
+    })();
+
+    /* Check once a minute for a newer story; offer a refresh instead of jumping the page. */
+    (function () {
+      var main = document.querySelector('main[data-latest]');
+      var btn = document.querySelector('[data-fresh]');
+      if (!main || !btn) return;
+      var current = main.getAttribute('data-latest');
+      btn.addEventListener('click', function () { window.location.reload(); });
+      setInterval(function () {
+        fetch('/api/latest-check' + window.location.search, { cache: 'no-store' })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (d) { if (d && d.latest_id && current && d.latest_id !== current) btn.classList.add('show'); })
+          .catch(function () {});
+      }, 60000);
+    })();
+  </script>
+</body>
+</html>

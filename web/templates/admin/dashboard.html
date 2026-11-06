@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ড্যাশবোর্ড — বাংলা নিউজ অ্যাডমিন</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@700&display=swap">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="admin-body">
+  <div class="admin-shell">
+    {{ template "admin_sidebar" . }}
+
+    <div class="admin-main">
+      <div class="toolbar">
+        <h1>ড্যাশবোর্ড</h1>
+        <form method="POST" action="/admin/cron/run">
+          <input type="hidden" name="_csrf" value="{{ .CSRFToken }}">
+          <button class="btn btn-primary" type="submit">⚡ এখনই ফিড ফেচ করুন</button>
+        </form>
+      </div>
+
+      <!-- Stat cards -->
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="num">{{ .TotalCount }}</div>
+          <div class="label">মোট নিবন্ধ</div>
+        </div>
+        <div class="stat-card">
+          <div class="num">{{ len .Feeds }}</div>
+          <div class="label">RSS ফিড সোর্স</div>
+        </div>
+        <div class="stat-card">
+          <a href="/admin/articles?status=pending_review" style="text-decoration:none; color:inherit;">
+            <div class="num" style="{{ if gt .PendingCount 0 }}color:#c2410c;{{ end }}">{{ .PendingCount }}</div>
+            <div class="label">⏳ পর্যালোচনা প্রয়োজন</div>
+          </a>
+        </div>
+        <div class="stat-card">
+          <div class="num" style="font-size:1.2rem;">{{ .Username }}</div>
+          <div class="label">লগইন করা আছেন</div>
+        </div>
+      </div>
+
+      <!-- Recent articles table -->
+      <h2 style="font-size:16px; font-weight:700; margin-bottom:14px; color:#0f172a;">সাম্প্রতিক নিবন্ধ</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>শিরোনাম</th>
+            <th>ক্যাটাগরি</th>
+            <th>স্ট্যাটাস</th>
+            <th>প্রকাশিত</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ range .Articles }}
+          <tr>
+            <td><a href="/article/{{ .ID }}" target="_blank" style="color:#0f172a; font-weight:500;">{{ .Title }}</a></td>
+            <td>{{ .Category }}</td>
+            <td><span class="status-pill status-{{ .Status }}">{{ .Status }}</span></td>
+            <td>{{ .PublishedAt.Format "02 Jan, 15:04" }}</td>
+          </tr>
+          {{ else }}
+          <tr><td colspan="4" class="empty-state">এখনো কোনো নিবন্ধ নেই</td></tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>অ্যাডমিন লগইন — বাংলা নিউজ</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600;700&family=Noto+Serif+Bengali:wght@700&display=swap">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-box">
+      <div class="login-logo">
+        <span class="dot" style="font-size:1.8rem; line-height:1;">●</span>
+        বাংলা নিউজ
+      </div>
+      <p class="login-sub">অ্যাডমিন প্যানেলে প্রবেশ করুন</p>
+
+      {{ if .Error }}
+        <div class="alert alert-error">{{ .Error }}</div>
+      {{ end }}
+
+      <form method="POST" action="/admin/login" id="login-form">
+        <div class="field">
+          <label>ইউজারনেম</label>
+          <input type="text" name="username" id="username" required autofocus autocomplete="username" placeholder="admin">
+        </div>
+        <div class="field">
+          <label>পাসওয়ার্ড</label>
+          <input type="password" name="password" id="password" required autocomplete="current-password" placeholder="••••••••">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%; padding:11px; font-size:15px; margin-top:4px;">
+          লগইন করুন →
+        </button>
+      </form>
+
+      <p style="text-align:center; margin-top:20px; font-size:12px; color:#999;">
+        <a href="/" style="color:#999;">← পোর্টালে ফিরে যান</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>

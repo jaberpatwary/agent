@@ -1,0 +1,51 @@
+name: news-worker
+
+# Runs the RSS fetch -> cluster -> agentic rewrite -> publish pipeline on a
+# schedule, as a free alternative to a Render background worker (Render's
+# free web service has DISABLE_BACKGROUND_WORKER=true — see render.yaml and
+# docs/FREE_HOSTING.md). Stays a no-op until the NEWS_WORKER_ENABLED
+# repository variable is set to "true", so an incomplete setup can't run
+# against a database that isn't ready yet.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {} # lets you trigger a run manually from the Actions tab
+
+jobs:
+  run:
+    if: vars.NEWS_WORKER_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    # cmd/news-worker.go caps itself at 9 minutes internally; this is a hard
+    # backstop in case that ever doesn't fire.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run one feed/rewrite pass
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Needed because config.Load() validates these in production, even
+          # though news-worker never serves HTTP or issues a login token.
+          # Any unique 32+ char value works; it does not need to match the
+          # value Render uses for the web service.
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ADMIN_DEFAULT_PASS: ${{ secrets.ADMIN_DEFAULT_PASS }}
+          APP_ENV: production
+          CRON_INTERVAL: 10m
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          SAMBANOVA_API_KEY: ${{ secrets.SAMBANOVA_API_KEY }}
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+          AI_DAILY_TOKEN_BUDGET: ${{ vars.AI_DAILY_TOKEN_BUDGET }}
+          # Image caching needs a writable, persistent directory to be worth
+          # anything; a fresh GitHub Actions runner has neither, so leave
+          # this unset here and let the web service (which does have one, if
+          # you mounted a disk) own image caching instead.
+          IMAGE_STORAGE_DIR: ""
+        run: go run ./cmd/news-worker
