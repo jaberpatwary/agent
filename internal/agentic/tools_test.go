@@ -16,8 +16,12 @@ import (
 
 type fakeNewsroom struct {
 	reviewerPasses bool
+	writerCalls    int
+	writerText     string // what the writer returns for each passage (default: filler)
 	saved          []cron.ExternalArticle
 	journey        []cron.JourneyUpdate
+	systems        map[string]string // last system prompt per task
+	users          map[string]string // last user message per task
 }
 
 func (f *fakeNewsroom) RunSettings() (string, map[string]bool) { return "style", nil }
@@ -40,7 +44,25 @@ func (f *fakeNewsroom) RecordJourney(in cron.JourneyUpdate) (*domain.NewsJourney
 	f.journey = append(f.journey, in)
 	return &domain.NewsJourney{}, nil
 }
-func (f *fakeNewsroom) AIText(context.Context, ai.GatewayRequest) (ai.Result, error) {
+func (f *fakeNewsroom) AIText(_ context.Context, req ai.GatewayRequest) (ai.Result, error) {
+	if f.systems == nil {
+		f.systems = map[string]string{}
+	}
+	f.systems[req.Task] = req.System
+	if f.users == nil {
+		f.users = map[string]string{}
+	}
+	f.users[req.Task] = req.User
+	if req.Task == "rewrite" && !req.JSON {
+		f.writerCalls++
+		if f.writerText != "" {
+			return ai.Result{Text: f.writerText}, nil
+		}
+		return ai.Result{Text: "<p>অংশ " + strings.Repeat("নতুন লেখা ", 20) + "</p>"}, nil
+	}
+	if req.Task == "rewrite" {
+		return ai.Result{Text: `{"title":"নতুন শিরোনাম","summary":"সারাংশ","tags":["ট্যাগ"]}`}, nil
+	}
 	if f.reviewerPasses {
 		return ai.Result{Text: `{"passed":true,"scores":{"accuracy":5},"issues":[]}`}, nil
 	}
@@ -140,7 +162,10 @@ func TestHappyPathPublishesAndRespectsAutopublishSwitch(t *testing.T) {
 
 func TestAskEditorPausesTheStory(t *testing.T) {
 	_, tools, fields := newTestStory(&fakeNewsroom{}, true)
-	mustRun(t, tools, "ask_editor", `{"question":"অভিযোগটি কি প্রকাশ করা নিরাপদ?"}`)
+	if _, err := run(t, tools, "ask_editor", `{"question":"রিভিউ পাস হচ্ছে না, কী করব?","reason":"other"}`); err == nil {
+		t.Fatal("process problems must not be sent to the editor")
+	}
+	mustRun(t, tools, "ask_editor", `{"question":"অভিযোগটি কি প্রকাশ করা নিরাপদ?","reason":"legal_risk"}`)
 	if (*fields)["published_status"] != "needs_editor" || (*fields)["agent_question"] == "" {
 		t.Fatalf("story should wait for the editor, got %v", *fields)
 	}
@@ -153,4 +178,38 @@ func mustRun(t *testing.T, tools map[string]Tool, name, args string) string {
 		t.Fatalf("%s failed: %v", name, err)
 	}
 	return out
+}
+
+func TestWriteDraftRewritesPassageByPassageAndFeedsReview(t *testing.T) {
+	nr := &fakeNewsroom{reviewerPasses: true}
+	_, tools, _ := newTestStory(nr, true)
+	if _, err := run(t, tools, "review_draft", `{"use_written_draft":true}`); err == nil {
+		t.Fatal("reviewing a written draft before write_draft must be refused")
+	}
+	out := mustRun(t, tools, "write_draft", `{}`)
+	if nr.writerCalls != len(sourcePassages(origStory)) || !strings.Contains(out, "নতুন শিরোনাম") {
+		t.Fatalf("writer should be called once per passage (%d), got %d: %s", len(sourcePassages(origStory)), nr.writerCalls, out)
+	}
+	review := mustRun(t, tools, "review_draft", `{"use_written_draft":true}`)
+	if !strings.Contains(review, "body_chars") {
+		t.Fatalf("the written draft should be reviewed: %s", review)
+	}
+}
+
+// Groq and Cohere reject a tool whose schema has "required": null, which
+// silently took the whole fallback chain down once. Every tool must send a list.
+func TestToolSchemasAreValidForEveryProvider(t *testing.T) {
+	s, _, _ := newTestStory(&fakeNewsroom{}, true)
+	for _, tool := range s.tools() {
+		raw, err := json.Marshal(tool.Spec.Parameters)
+		if err != nil {
+			t.Fatalf("%s: %v", tool.Spec.Name, err)
+		}
+		if strings.Contains(string(raw), `"required":null`) || !strings.Contains(string(raw), `"required":[`) {
+			t.Fatalf("%s: required must be a JSON array, got %s", tool.Spec.Name, raw)
+		}
+		if tool.Spec.Parameters["type"] != "object" {
+			t.Fatalf("%s: parameters must be an object schema", tool.Spec.Name)
+		}
+	}
 }

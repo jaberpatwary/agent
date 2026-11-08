@@ -20,6 +20,11 @@ services:
       COHERE_MODEL: "${COHERE_MODEL:-command-a-03-2025}"
       # AI gateway used by n8n (POST /api/n8n/ai): provider order is in internal/ai/gateway.go.
       GEMINI_FALLBACK_MODEL: "${GEMINI_FALLBACK_MODEL:-gemini-3.1-flash-lite}"
+      # More models to try when the main ones are out of free quota (each model
+      # has its own daily quota): Gemini ones go between GEMINI_MODEL and the
+      # fallback, Groq ones after N8N_GROQ_MODEL. Comma-separated.
+      GEMINI_EXTRA_MODELS: "${GEMINI_EXTRA_MODELS:-}"
+      GROQ_EXTRA_MODELS: "${GROQ_EXTRA_MODELS:-}"
       N8N_GROQ_MODEL: "${N8N_GROQ_MODEL:-openai/gpt-oss-120b}"
       N8N_CHECK_MODEL: "${N8N_CHECK_MODEL:-openai/gpt-oss-20b}"
       CLOUDFLARE_API_TOKEN: "${CLOUDFLARE_API_TOKEN:-}"
@@ -40,7 +45,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    restart: unless-stopped
+    # on-failure: restarts after a crash, but not by itself after a PC or Docker
+    # restart — nothing runs (and no AI tokens are used) until "make start".
+    restart: on-failure
 
   db:
     image: postgres:16-alpine
@@ -58,7 +65,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    restart: unless-stopped
+    # on-failure: restarts after a crash, but not by itself after a PC or Docker
+    # restart — nothing runs (and no AI tokens are used) until "make start".
+    restart: on-failure
 
   n8n:
     image: docker.n8n.io/n8nio/n8n:2.46.6
@@ -82,7 +91,9 @@ services:
       - ./n8n:/files:ro
     depends_on:
       - app
-    restart: unless-stopped
+    # on-failure: restarts after a crash, but not by itself after a PC or Docker
+    # restart — nothing runs (and no AI tokens are used) until "make start".
+    restart: on-failure
 
 volumes:
   pgdata:

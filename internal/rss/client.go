@@ -2,6 +2,7 @@ package rss
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/mmcdole/gofeed"
@@ -245,35 +247,111 @@ func (c *Client) scrapeArticle(ctx context.Context, pageURL string) (string, str
 	return resolvedURL, imageURL, extractArticleText(doc)
 }
 
+// extractArticleText returns the story's full text as <p> paragraphs. It
+// tries every known body container and keeps the most complete result:
+//   - one container on its own (the usual layout),
+//   - all containers of one kind joined in page order — some sites split a
+//     story into many blocks (one per few paragraphs), and taking only the
+//     biggest block gave half a story,
+//   - the articleBody the site declares in its JSON-LD metadata, which is the
+//     whole story on many news sites.
 func extractArticleText(doc *goquery.Document) string {
+	declared := jsonLDArticleBody(doc) // read before scripts are stripped
 	doc.Find("script,style,noscript,nav,header,footer,aside,form,iframe,svg,button,[role='navigation'],.related,.recommended,.recommend,.share,.social,.advertisement,.ads,.comments,.comment,.article-tags,.tags").Remove()
 	bestText, bestScore := "", 0
+	consider := func(paragraphs []string) {
+		candidate := strings.Join(paragraphs, "\n")
+		score := len([]rune(candidate)) + len(paragraphs)*80
+		if score > bestScore {
+			bestScore, bestText = score, candidate
+		}
+	}
 	for _, selector := range articleBodySelectors {
-		doc.Find(selector).Each(func(_ int, container *goquery.Selection) {
-			paragraphs := make([]string, 0, 8)
-			seen := make(map[string]bool)
-			container.Find("p").Each(func(_ int, paragraph *goquery.Selection) {
-				text := normalizeText(paragraph.Text())
-				if len([]rune(text)) >= 35 && !isBoilerplate(text) && !seen[text] {
-					seen[text] = true
-					paragraphs = append(paragraphs, "<p>"+html.EscapeString(text)+"</p>")
-				}
-			})
-			if len(paragraphs) == 0 {
-				text := normalizeText(container.Text())
-				if len([]rune(text)) >= 300 && !isBoilerplate(text) {
-					paragraphs = append(paragraphs, "<p>"+html.EscapeString(text)+"</p>")
-				}
-			}
-			candidate := strings.Join(paragraphs, "\n")
-			score := len([]rune(candidate)) + len(paragraphs)*80
-			if score > bestScore {
-				bestScore, bestText = score, candidate
-			}
+		matches := doc.Find(selector)
+		matches.Each(func(_ int, container *goquery.Selection) {
+			consider(containerParagraphs(container, map[string]bool{}))
 		})
+		// Generic page landmarks (article, main) can repeat for teaser cards;
+		// only real body containers are joined.
+		if matches.Length() > 1 && selector != "article" && selector != "main" {
+			seen := map[string]bool{}
+			var all []string
+			matches.Each(func(_ int, container *goquery.Selection) {
+				if container.ParentsFiltered(selector).Length() > 0 {
+					return // nested inside another match, already covered by it
+				}
+				all = append(all, containerParagraphs(container, seen)...)
+			})
+			consider(all)
+		}
+	}
+	// The declared body wins only when it is clearly more complete; it has no
+	// markup, so the page's own paragraphs are preferred when they are as full.
+	if bestRunes := utf8.RuneCountInString(htmlTagRegex.ReplaceAllString(bestText, "")); utf8.RuneCountInString(declared) > bestRunes*115/100 {
+		var paragraphs []string
+		for _, p := range strings.Split(declared, "\n") {
+			if p = normalizeText(p); p != "" && !isBoilerplate(p) {
+				paragraphs = append(paragraphs, "<p>"+html.EscapeString(p)+"</p>")
+			}
+		}
+		return strings.Join(paragraphs, "\n")
 	}
 	return bestText
 }
+
+func containerParagraphs(container *goquery.Selection, seen map[string]bool) []string {
+	paragraphs := make([]string, 0, 8)
+	container.Find("p").Each(func(_ int, paragraph *goquery.Selection) {
+		text := normalizeText(paragraph.Text())
+		if len([]rune(text)) >= 25 && !isBoilerplate(text) && !seen[text] {
+			seen[text] = true
+			paragraphs = append(paragraphs, "<p>"+html.EscapeString(text)+"</p>")
+		}
+	})
+	if len(paragraphs) == 0 {
+		text := normalizeText(container.Text())
+		if len([]rune(text)) >= 300 && !isBoilerplate(text) && !seen[text] {
+			seen[text] = true
+			paragraphs = append(paragraphs, "<p>"+html.EscapeString(text)+"</p>")
+		}
+	}
+	return paragraphs
+}
+
+// jsonLDArticleBody returns the longest articleBody declared in the page's
+// JSON-LD (schema.org NewsArticle and friends), with HTML stripped.
+func jsonLDArticleBody(doc *goquery.Document) string {
+	best := ""
+	var walk func(v any)
+	walk = func(v any) {
+		switch x := v.(type) {
+		case []any:
+			for _, e := range x {
+				walk(e)
+			}
+		case map[string]any:
+			if body, ok := x["articleBody"].(string); ok {
+				body = html.UnescapeString(paraBreakRegex.ReplaceAllString(body, "\n"))
+				body = strings.TrimSpace(htmlTagRegex.ReplaceAllString(body, " "))
+				if utf8.RuneCountInString(body) > utf8.RuneCountInString(best) {
+					best = body
+				}
+			}
+			for _, e := range x {
+				walk(e)
+			}
+		}
+	}
+	doc.Find(`script[type="application/ld+json"]`).Each(func(_ int, s *goquery.Selection) {
+		var v any
+		if json.Unmarshal([]byte(strings.TrimSpace(s.Text())), &v) == nil {
+			walk(v)
+		}
+	})
+	return best
+}
+
+var paraBreakRegex = regexp.MustCompile(`(?i)</p>|<br\s*/?>|\r?\n`)
 
 func normalizeText(value string) string {
 	return strings.TrimSpace(strings.Join(strings.Fields(value), " "))

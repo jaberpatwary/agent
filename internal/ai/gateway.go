@@ -48,7 +48,8 @@ type gatewayRoute struct {
 }
 
 func NewGateway(cfg *config.Config) *Gateway {
-	return &Gateway{cfg: cfg, http: &http.Client{Timeout: 75 * time.Second}, cooldown: map[string]time.Time{}}
+	// Long Bangla prompts can take Cohere and Gemma well over a minute.
+	return &Gateway{cfg: cfg, http: &http.Client{Timeout: 115 * time.Second}, cooldown: map[string]time.Time{}}
 }
 
 func (g *Gateway) routes(req GatewayRequest) []gatewayRoute {
@@ -69,9 +70,12 @@ func (g *Gateway) routes(req GatewayRequest) []gatewayRoute {
 		add("gemini", c.GeminiAPIKey, c.GeminiModel, true)
 		return out
 	}
-	add("gemini", c.GeminiAPIKey, c.GeminiModel, false)
-	add("gemini", c.GeminiAPIKey, c.GeminiFallbackModel, false)
-	add("groq", c.GroqAPIKey, c.GatewayGroqWriteModel, false)
+	for _, m := range c.GeminiChain() {
+		add("gemini", c.GeminiAPIKey, m, false)
+	}
+	for _, m := range c.GroqChain() {
+		add("groq", c.GroqAPIKey, m, false)
+	}
 	add("cohere", c.CohereAPIKey, c.CohereModel, false)
 	if c.CloudflareAccountID != "" {
 		add("cloudflare", c.CloudflareAPIToken, c.CloudflareModel, false)
@@ -85,7 +89,19 @@ func (g *Gateway) Run(ctx context.Context, req GatewayRequest) (Result, []Result
 		req.MaxTokens = 3000
 	}
 	var attempts []Result
-	for _, rt := range g.routes(req) {
+	routes := g.routes(req)
+	waited := false
+	for i := 0; i < len(routes); i++ {
+		rt := routes[i]
+		if !waited && rt.provider == lastResortProvider {
+			if w := g.shortWait(routes); w > 0 {
+				waited = true
+				if sleepCtx(ctx, w) {
+					i = -1 // start again from the best model
+					continue
+				}
+			}
+		}
 		key := rt.provider + "/" + rt.model
 		if g.coolingDown(key) {
 			continue
@@ -117,10 +133,50 @@ func (g *Gateway) coolingDown(key string) bool {
 	return time.Now().Before(g.cooldown[key])
 }
 
+// Cohere's free key has a small monthly allowance, so it is the last resort.
+const (
+	lastResortProvider = "cohere"
+	maxShortWait       = 75 * time.Second
+)
+
+// shortWait returns how long until every better model that is only briefly
+// rate-limited (a per-minute quota) is free again, or 0 if none is. Waiting
+// a minute for them beats spending the last resort's scarce, slow calls.
+func (g *Gateway) shortWait(routes []gatewayRoute) time.Duration {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	longest := time.Duration(0)
+	for _, rt := range routes {
+		if rt.provider == lastResortProvider {
+			continue
+		}
+		left := time.Until(g.cooldown[rt.provider+"/"+rt.model])
+		if left > 0 && left <= maxShortWait && left > longest {
+			longest = left
+		}
+	}
+	return longest
+}
+
+// sleepCtx waits for d; it returns false if ctx ended first.
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
+	}
+}
+
 // coolDown parks a failing provider/model so the next stories skip it instead
 // of burning a slow failed call each time.
 func (g *Gateway) coolDown(key string, err error) {
 	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "http 413") {
+		return // this request was too big for the model; smaller ones still fit
+	}
 	d := 30 * time.Second
 	switch {
 	case strings.Contains(msg, "tokens per day"), strings.Contains(msg, "(tpd)"), strings.Contains(msg, "quota"):
@@ -139,12 +195,23 @@ func (g *Gateway) coolDown(key string, err error) {
 			d = min(max(hint+5*time.Second, 20*time.Second), 2*time.Hour)
 		}
 	}
+	// A used-up daily quota names the reset time; skip the model until then
+	// instead of spending a failed call on it every hour.
+	if m := retryInRegex.FindStringSubmatch(msg); m != nil {
+		if secs, perr := time.ParseDuration(m[1] + "s"); perr == nil && secs > 0 {
+			d = min(max(secs+10*time.Second, 20*time.Second), 20*time.Hour)
+		}
+	}
 	g.mu.Lock()
 	g.cooldown[key] = time.Now().Add(d)
 	g.mu.Unlock()
 }
 
-var retryAfterRegex = regexp.MustCompile(`try again in ((?:\d+h)?(?:\d+m)?(?:[\d.]+s)?)`)
+var (
+	retryAfterRegex = regexp.MustCompile(`try again in ((?:\d+h)?(?:\d+m)?(?:[\d.]+s)?)`)
+	retryInRegex    = regexp.MustCompile(`\(retry in ([\d.]+)s\)`)
+	retryDelayRegex = regexp.MustCompile(`"retryDelay":\s*"([\d.]+)s"`)
+)
 
 func (g *Gateway) call(ctx context.Context, rt gatewayRoute, req GatewayRequest) (string, int, error) {
 	switch rt.provider {
@@ -178,7 +245,13 @@ func (g *Gateway) post(ctx context.Context, url string, headers map[string]strin
 	defer resp.Body.Close()
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("http %d: %s", resp.StatusCode, truncateForError(string(data)))
+		// Gemini says when a used-up quota returns ("retryDelay": "9215s"),
+		// deep inside a long body; keep it so coolDown can honour it.
+		hint := ""
+		if m := retryDelayRegex.FindSubmatch(data); m != nil {
+			hint = " (retry in " + string(m[1]) + "s)"
+		}
+		return fmt.Errorf("http %d%s: %s", resp.StatusCode, hint, truncateForError(string(data)))
 	}
 	return json.Unmarshal(data, out)
 }

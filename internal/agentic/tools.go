@@ -73,11 +73,23 @@ type story struct {
 	reviews  int
 	asked    bool
 	saved    *domain.Article
+
+	// Measured by code, not claimed by the model: outlets whose search hits
+	// match this story's headline, and every outlet seen in any search.
+	matched map[string]bool
+	seen    map[string]bool
+	addFact func(fact string) error
+	written *draft // last draft produced by write_draft
+	latest  *draft // newest draft from either tool: what an editor gets if the story is held
+	facts   string // current facts, given to the writer too
 }
 
 const maxReviews = 4
 
 func obj(props map[string]any, required ...string) map[string]any {
+	if required == nil {
+		required = []string{} // Groq and Cohere reject "required": null
+	}
 	return map[string]any{"type": "object", "properties": props, "required": required}
 }
 func str(desc string) map[string]any { return map[string]any{"type": "string", "description": desc} }
@@ -87,9 +99,14 @@ func strList(desc string) map[string]any {
 
 func (s *story) tools() []Tool {
 	return []Tool{
-		{Spec: ai.ToolSpec{Name: "search_news", Description: "Search recent news coverage (Google News). Use it to verify the story's core claim and to see which outlets reported it and when. Free; prefer this over web_search.",
+		{Spec: ai.ToolSpec{Name: "search_news", Description: "Search recent news coverage (Google News). Use 3-6 key Bangla words from the headline (names, place, event); long or English queries usually find nothing for Bangladeshi news. Shows which outlets carry the same story. Free; prefer this over web_search.",
 			Parameters: obj(map[string]any{"query": str("search words, usually the key names, place and event"), "language": str("bn (default) or en")}, "query")},
 			Run: s.toolSearchNews},
+		{Spec: ai.ToolSpec{Name: "read_source", Description: "Read the full original story text (the goal message shows only its beginning). write_draft and review_draft already use the full text.",
+			Parameters: obj(map[string]any{})},
+			Run: func(context.Context, json.RawMessage) (string, error) {
+				return clip(plainText(s.item.Content), 9000), nil
+			}},
 		{Spec: ai.ToolSpec{Name: "web_search", Description: "General web search with an AI summary of results. Slower and limited — use only when search_news is not enough (e.g. checking a person's current position).",
 			Parameters: obj(map[string]any{"question": str("what you want to find out")}, "question")},
 			Run: s.toolWebSearch},
@@ -110,14 +127,19 @@ func (s *story) tools() []Tool {
 				"corroborating_outlets": strList("names of other outlets that reported the same event"),
 			}, "is_real", "reason")},
 			Run: s.toolRecordVerification},
-		{Spec: ai.ToolSpec{Name: "review_draft", Description: "Submit your complete draft for checking. Runs hard rules (length, copying, outlet names, numbers) and an independent AI editor. Fix every problem it reports and call it again until it passes.",
+		{Spec: ai.ToolSpec{Name: "write_draft", Description: "Have the desk writer rewrite the whole source passage by passage in our own words — full length, every fact kept, no copied sentences — and review it at once (hard rules + independent AI editor). If the review passes, submit_article next. Call again with notes to fix what the review reported.",
+			Parameters: obj(map[string]any{"notes": str("optional instructions, e.g. extra verified facts to weave in, or what the last review asked to fix")})},
+			Run: s.toolWriteDraft},
+		{Spec: ai.ToolSpec{Name: "review_draft", Description: "Check a draft you wrote or corrected yourself (write_draft already reviews its own drafts). Runs hard rules (length, copying, outlet names, numbers, new headline) and an independent AI editor. Also use it to send a corrected title/summary or numbers_not_in_story for the written draft (use_written_draft=true).",
 			Parameters: obj(map[string]any{
 				"title":                    str("new headline in your own words (Bangla)"),
 				"body":                     str("the full article as HTML <p> paragraphs, optional <h3> subheadings"),
 				"summary":                  str("3-4 sentence plain-text summary (Bangla)"),
 				"tags":                     strList("3-5 specific topic tags"),
 				"facts_from_other_sources": str("any facts you added from other outlets' reports, so the editor can verify them; empty if none"),
-			}, "title", "body", "summary")},
+				"numbers_not_in_story":     strList("numbers the hard rules flagged that are NOT facts of this story (times, menu items, other headlines in the scraped page); the editor will check this claim"),
+				"use_written_draft":        map[string]any{"type": "boolean", "description": "true to review the draft from write_draft instead of sending title/body yourself"},
+			})},
 			Run: s.toolReviewDraft},
 		{Spec: ai.ToolSpec{Name: "submit_article", Description: "FINAL: save the last reviewed draft. decision=publish needs a passed review and a positive verification; decision=hold keeps it for a human editor. Set update_article_id to replace an existing article with this newer version of the same developing story.",
 			Parameters: obj(map[string]any{
@@ -134,8 +156,17 @@ func (s *story) tools() []Tool {
 			}, "kind", "explanation")},
 			Run: s.toolReject, Terminal: true},
 		{Spec: ai.ToolSpec{Name: "ask_editor", Description: "FINAL for now: pause this story and ask a human editor a specific question (e.g. legal risk, an unverifiable serious allegation). The answer will be given to you next time.",
-			Parameters: obj(map[string]any{"question": str("the precise question, in Bangla")}, "question")},
+			Parameters: obj(map[string]any{
+				"question": str("the precise question, in Bangla"),
+				"reason":   str("legal_risk | unverifiable_allegation | sensitive_content"),
+			}, "question", "reason")},
 			Run: s.toolAskEditor, Terminal: true},
+		{Spec: ai.ToolSpec{Name: "remember_fact", Description: "Save a current fact for future stories (e.g. who now holds an office) after search results from at least 2 outlets confirmed it. Use when your memory turned out to be outdated.",
+			Parameters: obj(map[string]any{
+				"fact":    str("one short sentence in Bangla, e.g. who holds which position now"),
+				"outlets": strList("names of the outlets in your search results that state it (at least 2)"),
+			}, "fact", "outlets")},
+			Run: s.toolRememberFact},
 	}
 }
 
@@ -155,20 +186,68 @@ func (s *story) toolSearchNews(ctx context.Context, raw json.RawMessage) (string
 		return "", fmt.Errorf("news search failed: %v", err)
 	}
 	s.searches++
+	retried := ""
 	if len(hits) == 0 {
-		return "No coverage found for this query. Try other key words (names, place) or language=en.", nil
+		// Agents often over-specify queries; retry once with the headline's own key words.
+		if q := headlineQuery(s.item.Title); q != "" && q != a.Query {
+			if more, err2 := s.searchNews(ctx, q, "bn"); err2 == nil && len(more) > 0 {
+				hits, retried = more, q
+			}
+		}
+	}
+	if len(hits) == 0 {
+		return "No coverage found for this query. Try 3-6 key Bangla words from the headline.", nil
 	}
 	var b strings.Builder
+	if retried != "" {
+		fmt.Fprintf(&b, "Your query found nothing; searched the headline words instead: %q\n", retried)
+	}
 	fmt.Fprintf(&b, "%d results:\n", len(hits))
 	for i, h := range hits {
 		ago := "unknown time"
 		if !h.Published.IsZero() {
 			ago = h.Published.In(dhaka()).Format("2006-01-02 15:04")
 		}
-		fmt.Fprintf(&b, "%d. %s — %s (%s) %s\n", i+1, h.Title, h.Source, ago, h.URL)
+		link := ""
+		if i < 3 {
+			link = " " + h.URL
+		}
+		fmt.Fprintf(&b, "%d. %s — %s (%s)%s\n", i+1, h.Title, h.Source, ago, link)
 		s.addSource(h.Source, h.URL)
+		s.noteHit(h)
 	}
+	fmt.Fprintf(&b, "\nOther outlets confirmed (by headline match) to carry this same story so far: %d\n", s.corroboration())
 	return b.String(), nil
+}
+
+// noteHit records which outlet a search hit came from and whether its
+// headline is about the same story.
+func (s *story) noteHit(h NewsHit) {
+	name := strings.TrimSpace(h.Source)
+	if name == "" || strings.EqualFold(name, s.item.SourceName) {
+		return
+	}
+	if s.seen == nil {
+		s.seen, s.matched = map[string]bool{}, map[string]bool{}
+	}
+	s.seen[name] = true
+	if SameStory(s.item.Title, h.Title) {
+		s.matched[name] = true
+	}
+}
+
+// corroboration counts independent outlets carrying the same story: search
+// hits with a matching headline plus copies found in the portal's own feeds.
+func (s *story) corroboration() int {
+	return len(s.matched) + len(s.item.RelatedURLs)
+}
+
+func (s *story) matchedNames() string {
+	names := make([]string, 0, len(s.matched))
+	for n := range s.matched {
+		names = append(names, n)
+	}
+	return strings.Join(names, ", ")
 }
 
 func (s *story) addSource(name, url string) {
@@ -279,38 +358,80 @@ func (s *story) toolRecordVerification(_ context.Context, raw json.RawMessage) (
 	if !a.IsReal {
 		return "Recorded: NOT supported by evidence. If you are confident it is false, call reject_story(kind=fake); if unsure, ask_editor.", nil
 	}
-	return fmt.Sprintf("Recorded: verified, %d corroborating outlets. Next: write the full article and call review_draft.", len(s.sources)), nil
+	next := "Next: write_draft (it reviews the draft too)."
+	if s.review != nil && s.review.Passed {
+		next = "The current draft passed its review: submit_article next."
+	}
+	return fmt.Sprintf("Recorded: verified, %d corroborating outlets. %s", len(s.sources), next), nil
 }
 
-const reviewerSystem = `You are a strict senior news editor checking a Bangla article written by an AI reporter against its source material.
+const reviewerRules = `You are a strict senior news editor checking a Bangla article written by an AI reporter against its source material.
 Reply ONLY with JSON: {"passed": true/false, "scores": {"accuracy":1-5, "completeness":1-5, "originality":1-5, "language":1-5}, "issues": ["specific problem and how to fix it", ...]}.
-Fail (passed=false) if ANY of these: a fact, number, name or quote is not in the source or the listed extra facts; an important fact from the source is missing; sentences are copied from the source; any news outlet, reporter or website is named; the Bangla is unclear or ungrammatical; it adds opinion.
+Fail (passed=false) if ANY of these: a fact, number, name or quote is not in the source, the listed extra facts or the CURRENT FACTS; an important fact from the source is missing; whole sentences are copied unchanged from the source outside quotation marks; any news outlet, news agency, reporter or website is named; the body repeats the same information (the summary restating the body is normal, not repetition); the Bangla is unclear or ungrammatical; it adds opinion.
+Judge facts ONLY against the source and the CURRENT FACTS — never against your own memory, which is out of date. If the source gives someone a post, title or party role (e.g. প্রধানমন্ত্রী, মন্ত্রী, ক্ষমতাসীন দল), that is correct and the draft must keep it; never call it an error.
+Word-for-word copying is also measured by code; a sentence that says the same thing in new words is fine — do not fail a draft only because its paraphrase is close.
 Write issues in Bangla or English, each actionable.`
+
+// reviewerSystem is the reviewer's prompt with the editors' current facts,
+// so it does not "correct" today's office-holders from outdated memory.
+func reviewerSystem(facts string) string { return reviewerRules + factsBlock(facts) }
 
 func (s *story) toolReviewDraft(ctx context.Context, raw json.RawMessage) (string, error) {
 	var a struct {
 		Title, Body, Summary string
 		Tags                 []string
-		Extra                string `json:"facts_from_other_sources"`
+		UseWritten           bool     `json:"use_written_draft"`
+		Extra                string   `json:"facts_from_other_sources"`
+		IgnoreNumbers        []string `json:"numbers_not_in_story"`
 	}
 	if err := decodeArgs(raw, &a); err != nil {
 		return "", err
 	}
-	if s.reviews >= maxReviews {
-		return "", fmt.Errorf("review limit (%d) reached — submit_article with decision=hold for an editor, or ask_editor", maxReviews)
-	}
-	s.reviews++
 	d := &draft{Title: strings.TrimSpace(a.Title), Body: strings.TrimSpace(a.Body), Summary: strings.TrimSpace(a.Summary), Tags: a.Tags}
+	if a.UseWritten || d.Body == "" {
+		if s.written == nil {
+			return "", errors.New("no draft yet: call write_draft first, or pass title and body")
+		}
+		w := *s.written
+		if d.Title != "" {
+			w.Title = d.Title
+		}
+		if d.Summary != "" {
+			w.Summary = d.Summary
+		}
+		if len(d.Tags) > 0 {
+			w.Tags = d.Tags
+		}
+		d = &w
+	}
 	if d.Title == "" || d.Body == "" {
 		return "", errors.New("title and body are required")
 	}
-	s.draft = d
-	v := &verdict{Check: CheckDraft(s.item.Title, s.item.Content, d.Body, s.outlets)}
+	v, err := s.runReview(ctx, d, a.Extra, a.IgnoreNumbers)
+	if err != nil {
+		return "", err
+	}
+	out, _ := json.MarshalIndent(v, "", " ")
+	return string(out), nil
+}
+
+// runReview checks a draft with the hard rules (code) and an independent AI
+// editor, and makes it the story's current draft.
+func (s *story) runReview(ctx context.Context, d *draft, extra string, ignoreNumbers []string) (*verdict, error) {
+	if s.reviews >= maxReviews {
+		return nil, fmt.Errorf("review limit (%d) reached — submit_article with decision=hold for an editor, or ask_editor", maxReviews)
+	}
+	s.reviews++
+	s.draft, s.latest = d, d
+	v := &verdict{Check: CheckDraft(s.item.Title, s.item.Content, d.Body, s.outlets, ignoreNumbers)}
+	if p := headlineProblem(s.item.Title, d.Title); p != "" {
+		v.Check.Problems = append(v.Check.Problems, p)
+	}
 	v.Problems = v.Check.Problems
 
-	user := fmt.Sprintf("SOURCE TITLE: %s\n\nSOURCE TEXT:\n%s\n\nEXTRA FACTS THE REPORTER TOOK FROM OTHER OUTLETS:\n%s\n\nDRAFT TITLE: %s\nDRAFT SUMMARY: %s\nDRAFT BODY:\n%s",
-		s.item.Title, clip(plainText(s.item.Content), 8000), orNone(a.Extra), d.Title, d.Summary, plainText(d.Body))
-	res, err := s.nr.AIText(ctx, ai.GatewayRequest{Task: "review", JSON: true, MaxTokens: 1500, System: reviewerSystem, User: user})
+	user := fmt.Sprintf("SOURCE TITLE: %s\n\nSOURCE TEXT:\n%s\n\nEXTRA FACTS THE REPORTER TOOK FROM OTHER OUTLETS:\n%s\n\nNUMBERS THE REPORTER SAYS ARE NOT PART OF THE STORY (page furniture — fail the draft if any of them is actually a fact of the story):\n%s\n\nDRAFT TITLE: %s\nDRAFT SUMMARY: %s\nDRAFT BODY:\n%s",
+		s.item.Title, clip(plainText(s.item.Content), 14000), orNone(extra), orNone(strings.Join(ignoreNumbers, ", ")), d.Title, d.Summary, plainText(d.Body))
+	res, err := s.nr.AIText(ctx, ai.GatewayRequest{Task: "review", JSON: true, MaxTokens: 1500, System: reviewerSystem(s.facts), User: user})
 	llmPassed := true
 	if err != nil {
 		v.Issues = append(v.Issues, "AI editor unavailable right now ("+shortErr(err)+"); only the hard rules were checked")
@@ -333,12 +454,11 @@ func (s *story) toolReviewDraft(ctx context.Context, raw json.RawMessage) (strin
 	case s.reviews >= maxReviews:
 		v.Next = "Still failing and no reviews left: submit_article with decision=hold, or ask_editor."
 	default:
-		v.Next = fmt.Sprintf("Fix every problem above, then call review_draft again with the full corrected draft (%d of %d reviews used).", s.reviews, maxReviews)
+		v.Next = fmt.Sprintf("Fix every problem above: write_draft again with notes on what to fix, or review_draft with your own corrected title/body (%d of %d reviews used).", s.reviews, maxReviews)
 	}
 	s.review = v
 	_, _ = s.nr.RecordJourney(cron.JourneyUpdate{NewsID: s.item.NewsID, Stage: "rewritten", RewrittenTitle: d.Title, RewrittenContent: d.Body})
-	out, _ := json.MarshalIndent(v, "", " ")
-	return string(out), nil
+	return v, nil
 }
 
 func (s *story) toolSubmit(ctx context.Context, raw json.RawMessage) (string, error) {
@@ -366,11 +486,18 @@ func (s *story) toolSubmit(ctx context.Context, raw json.RawMessage) (string, er
 	if decision == "publish" && !s.review.Passed {
 		return "", errors.New("the last review did not pass: fix the problems and call review_draft again, or submit with decision=hold")
 	}
+	// Only the reviewed draft is ever published; a held story gives the
+	// editor the newest one (often written after the last review).
+	d := s.draft
+	if decision == "hold" && s.latest != nil {
+		d = s.latest
+	}
 	in := cron.ExternalArticle{
 		NewsID: s.item.NewsID, SourceURL: s.item.SourceURL, RelatedURLs: s.item.RelatedURLs,
-		Title: s.draft.Title, Body: s.draft.Body, Summary: s.draft.Summary, Tags: s.draft.Tags,
+		Title: d.Title, Body: d.Body, Summary: d.Summary, Tags: d.Tags,
 		ImageURL: s.item.ImageURL, SourceName: s.item.SourceName, Category: s.item.Category, PublishedAt: s.item.PublishedAt,
 		OriginalTitle: s.item.Title, OriginalContent: s.item.Content,
+		Corroborated: s.corroboration(),
 	}
 	switch {
 	case decision == "hold":
@@ -397,7 +524,7 @@ func (s *story) toolSubmit(ctx context.Context, raw json.RawMessage) (string, er
 		return "", err
 	}
 	s.saved = art
-	msg := fmt.Sprintf("Saved. article_id=%s status=%s", art.ID, art.Status)
+	msg := fmt.Sprintf("Saved. article_id=%s status=%s corroborating_outlets=%d", art.ID, art.Status, s.corroboration())
 	if art.ReviewReason != "" {
 		msg += " (held for editor: " + art.ReviewReason + ")"
 	}
@@ -419,6 +546,9 @@ func (s *story) toolReject(_ context.Context, raw json.RawMessage) (string, erro
 	}
 	switch kind {
 	case "fake":
+		if n := s.corroboration(); n >= cron.MinCorroboration {
+			return "", fmt.Errorf("%d other outlets (%s) carry this same story, so it is not fake. If a detail contradicts what you remember, the outlets are right and your memory is outdated — write the story, or hold it", n, s.matchedNames())
+		}
 		if s.searches == 0 || len(a.Evidence) == 0 {
 			return "", errors.New("calling a story fake needs evidence: search first and list what you found in evidence")
 		}
@@ -438,9 +568,14 @@ func (s *story) toolReject(_ context.Context, raw json.RawMessage) (string, erro
 }
 
 func (s *story) toolAskEditor(_ context.Context, raw json.RawMessage) (string, error) {
-	var a struct{ Question string }
+	var a struct{ Question, Reason string }
 	if err := decodeArgs(raw, &a); err != nil {
 		return "", err
+	}
+	switch strings.TrimSpace(a.Reason) {
+	case "legal_risk", "unverifiable_allegation", "sensitive_content":
+	default:
+		return "", errors.New("ask_editor is only for legal_risk, unverifiable_allegation or sensitive_content. If the review keeps failing, fix it or submit_article with decision=hold; if the story contradicts your memory, trust the sources and CURRENT FACTS")
 	}
 	q := strings.TrimSpace(a.Question)
 	if q == "" {
@@ -476,4 +611,79 @@ func dhaka() *time.Location {
 		return loc
 	}
 	return time.UTC
+}
+
+func (s *story) toolRememberFact(_ context.Context, raw json.RawMessage) (string, error) {
+	var a struct {
+		Fact    string
+		Outlets []string
+	}
+	if err := decodeArgs(raw, &a); err != nil {
+		return "", err
+	}
+	fact := strings.TrimSpace(a.Fact)
+	if fact == "" || len([]rune(fact)) > 240 {
+		return "", errors.New("fact must be one short sentence")
+	}
+	var confirmed []string
+	for _, o := range a.Outlets {
+		if s.seen[strings.TrimSpace(o)] {
+			confirmed = append(confirmed, strings.TrimSpace(o))
+		}
+	}
+	if len(confirmed) < 2 {
+		return "", errors.New("a fact needs at least 2 outlets that actually appeared in your search results in this story")
+	}
+	if s.addFact == nil {
+		return "", errors.New("fact memory is not available")
+	}
+	line := fmt.Sprintf("%s — সূত্র: %s (%s)", fact, strings.Join(confirmed, ", "), time.Now().In(dhaka()).Format("2006-01-02"))
+	if err := s.addFact(line); err != nil {
+		return "", err
+	}
+	return "Remembered for future stories: " + line, nil
+}
+
+// observe gathers, without a model call, what the agent needs on its first
+// turn anyway: news coverage of the headline (corroboration) and the
+// portal's own archive (duplicates). The agent can still search further.
+func (s *story) observe(ctx context.Context, record func(StepRecord)) string {
+	q := headlineQuery(s.item.Title)
+	if q == "" {
+		return ""
+	}
+	args, _ := json.Marshal(map[string]string{"query": q})
+	var b strings.Builder
+	b.WriteString("\nALREADY GATHERED BY THE DESK (do not repeat these calls):\n")
+	for _, t := range []struct {
+		name string
+		run  func(context.Context, json.RawMessage) (string, error)
+	}{{"search_news", s.toolSearchNews}, {"find_similar_stories", s.toolFindSimilar}} {
+		record(StepRecord{Kind: "tool", Tool: t.name, Input: string(args)})
+		res, err := t.run(ctx, args)
+		if err != nil {
+			res = "ERROR: " + err.Error()
+		}
+		res = clip(res, 2500)
+		record(StepRecord{Kind: "result", Tool: t.name, Output: res})
+		fmt.Fprintf(&b, "\n[%s %q]\n%s\n", t.name, q, res)
+	}
+	return b.String()
+}
+
+// headlineQuery builds a short search query from a headline's meaningful words.
+func headlineQuery(title string) string {
+	words := strings.FieldsFunc(title, func(r rune) bool {
+		return r == ' ' || r == ',' || r == ':' || r == '।' || r == '‘' || r == '’' || r == '"' || r == '\'' || r == '-' || r == '—'
+	})
+	var keep []string
+	for _, w := range words {
+		if len([]rune(w)) >= 3 && !headlineStopwords[w] {
+			keep = append(keep, w)
+		}
+		if len(keep) == 5 {
+			break
+		}
+	}
+	return strings.Join(keep, " ")
 }

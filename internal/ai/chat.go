@@ -63,21 +63,36 @@ func (g *Gateway) chatRoutes() []gatewayRoute {
 			out = append(out, gatewayRoute{provider: provider, model: model})
 		}
 	}
-	add("gemini", c.GeminiAPIKey, c.GeminiModel)
-	add("gemini", c.GeminiAPIKey, c.GeminiFallbackModel)
-	add("groq", c.GroqAPIKey, c.GatewayGroqWriteModel)
+	for _, m := range c.GeminiChain() {
+		add("gemini", c.GeminiAPIKey, m)
+	}
+	for _, m := range c.GroqChain() {
+		add("groq", c.GroqAPIKey, m)
+	}
 	add("cohere", c.CohereAPIKey, c.CohereModel)
 	return out
 }
 
-// Chat asks the next agent turn, trying providers in order (Gemini, Gemini
-// fallback, Groq, Cohere) and skipping any that are cooling down.
+// Chat asks the next agent turn, trying providers in order (the Gemini
+// models, the Groq models, Cohere) and skipping any that are cooling down.
 func (g *Gateway) Chat(ctx context.Context, system string, msgs []ChatMessage, tools []ToolSpec, maxTokens int) (ChatResult, []Result) {
 	if maxTokens <= 0 {
 		maxTokens = 4000
 	}
 	var attempts []Result
-	for _, rt := range g.chatRoutes() {
+	routes := g.chatRoutes()
+	waited := false
+	for i := 0; i < len(routes); i++ {
+		rt := routes[i]
+		if !waited && rt.provider == lastResortProvider {
+			if w := g.shortWait(routes); w > 0 {
+				waited = true
+				if sleepCtx(ctx, w) {
+					i = -1 // start again from the best model
+					continue
+				}
+			}
+		}
 		key := rt.provider + "/" + rt.model
 		if g.coolingDown(key) {
 			continue
@@ -102,7 +117,15 @@ func (g *Gateway) Chat(ctx context.Context, system string, msgs []ChatMessage, t
 		if err == nil && strings.TrimSpace(msg.Content) == "" && len(msg.ToolCalls) == 0 {
 			err = errors.New("empty response")
 		}
-		attempts = append(attempts, Result{Provider: rt.provider, Model: rt.model, Text: msg.Content, TokensUsed: tokens, Duration: time.Since(start), Err: err})
+		logged := msg.Content
+		if logged == "" && len(msg.ToolCalls) > 0 {
+			names := make([]string, 0, len(msg.ToolCalls))
+			for _, tc := range msg.ToolCalls {
+				names = append(names, tc.Name)
+			}
+			logged = "[tools: " + strings.Join(names, ", ") + "]"
+		}
+		attempts = append(attempts, Result{Provider: rt.provider, Model: rt.model, Text: logged, TokensUsed: tokens, Duration: time.Since(start), Err: err})
 		if err == nil {
 			return ChatResult{Message: msg, Provider: rt.provider, Model: rt.model, Tokens: tokens}, attempts
 		}
@@ -187,6 +210,18 @@ func geminiContents(msgs []ChatMessage, model string) []geminiTurn {
 	return out
 }
 
+// withSystemInFirstTurn puts the system prompt at the start of the first user message.
+func withSystemInFirstTurn(system string, msgs []ChatMessage) []ChatMessage {
+	out := make([]ChatMessage, len(msgs))
+	copy(out, msgs)
+	head := "SYSTEM INSTRUCTIONS (follow them throughout):\n" + system + "\n\n---\n\n"
+	if len(out) > 0 && out[0].Role == "user" {
+		out[0].Content = head + out[0].Content
+		return out
+	}
+	return append([]ChatMessage{{Role: "user", Content: head}}, out...)
+}
+
 func nonEmptyJSON(raw json.RawMessage) json.RawMessage {
 	if len(strings.TrimSpace(string(raw))) == 0 {
 		return json.RawMessage(`{}`)
@@ -203,6 +238,12 @@ func (g *Gateway) chatGemini(ctx context.Context, model, system string, msgs []C
 		"systemInstruction": map[string]any{"parts": []map[string]string{{"text": system}}},
 		"contents":          geminiContents(msgs, model),
 		"generationConfig":  map[string]any{"maxOutputTokens": maxTokens + 6000, "temperature": 0.3},
+	}
+	if strings.HasPrefix(model, "gemma-") && len(decls) > 0 {
+		// Gemma answers HTTP 500 to a system instruction combined with tools;
+		// it takes the same instructions at the top of the first user turn.
+		delete(body, "systemInstruction")
+		body["contents"] = geminiContents(withSystemInFirstTurn(system, msgs), model)
 	}
 	if len(decls) > 0 {
 		body["tools"] = []map[string]any{{"functionDeclarations": decls}}

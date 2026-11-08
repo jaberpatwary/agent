@@ -92,7 +92,7 @@ func (e *Engine) Run(ctx context.Context, system, goal string) Outcome {
 			out.Stopped, out.Detail = "provider_error", ctx.Err().Error()
 			return out
 		}
-		res, err := e.Chat(ctx, system, msgs, specs, maxTokens)
+		res, err := e.Chat(ctx, system, compactHistory(msgs), specs, maxTokens)
 		if err != nil {
 			e.record(StepRecord{Kind: "error", Output: err.Error()})
 			out.Stopped, out.Detail = "provider_error", err.Error()
@@ -147,6 +147,32 @@ func (e *Engine) Run(ctx context.Context, system, goal string) Outcome {
 		}
 	}
 	out.Stopped, out.Detail = "max_turns", fmt.Sprintf("reached the limit of %d turns", e.MaxTurns)
+	return out
+}
+
+// seenToolRunes is how much of a tool result is re-sent once the model has
+// already read it in full.
+const seenToolRunes = 700
+
+// compactHistory shortens tool results the model already saw in an earlier
+// turn. Every turn re-sends the whole conversation, so old search results and
+// drafts would otherwise be paid for again on each turn — the main cost of a
+// story. The newest results (after the model's last turn) stay complete.
+func compactHistory(msgs []ai.ChatMessage) []ai.ChatMessage {
+	lastModel := -1
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == "assistant" {
+			lastModel = i
+			break
+		}
+	}
+	out := make([]ai.ChatMessage, len(msgs))
+	copy(out, msgs)
+	for i := 0; i < lastModel; i++ {
+		if out[i].Role == "tool" && utf8.RuneCountInString(out[i].Content) > seenToolRunes {
+			out[i].Content = string([]rune(out[i].Content)[:seenToolRunes]) + " …[already read; shortened — call the tool again if you need all of it]"
+		}
+	}
 	return out
 }
 

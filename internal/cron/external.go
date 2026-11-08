@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"html"
 	"log"
 	"net/url"
 	"sort"
@@ -30,6 +31,10 @@ import (
 // DraftJSONPlaceholder marks where the caller must splice the draft step's
 // JSON output into ReviewPromptTemplate before running the review step.
 const DraftJSONPlaceholder = "__DRAFT_JSON__"
+
+// MinCorroboration is how many other outlets must carry a story before a
+// sensitive-category story (e.g. bangladesh, international) may auto-publish.
+const MinCorroboration = 2
 
 var (
 	ErrPendingBusy     = errors.New("another pending-items fetch is already running")
@@ -164,7 +169,69 @@ func (w *Worker) PendingItems(ctx context.Context, limit int) ([]PendingItem, er
 			ReviewPromptTemplate: ai.BuildRewriteReviewPrompt(item.Title, item.Content, DraftJSONPlaceholder),
 		})
 	}
-	return out, nil
+	return w.fullStories(ctx, out), nil
+}
+
+// fullStories makes sure every story handed on is the whole story, taken
+// from its own source page. Each page is read again; its text replaces the
+// feed's when it is clearly longer and contains the feed's opening (so it is
+// the same story, not a page of teasers). A story whose text still looks cut
+// off ("…", "বিস্তারিত পড়ুন") is left out.
+func (w *Worker) fullStories(ctx context.Context, items []PendingItem) []PendingItem {
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 4)
+	for i := range items {
+		wg.Add(1)
+		go func(it *PendingItem) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			_, _, page := w.rssClient.Enrich(ctx, it.SourceURL)
+			if visibleLen(page) > visibleLen(it.Content)*115/100 && sameOpening(it.Content, page) {
+				log.Printf("[desk] %q: using the source page's full text (%d chars instead of %d)", it.Title, visibleLen(page), visibleLen(it.Content))
+				it.Content = page
+			}
+		}(&items[i])
+	}
+	wg.Wait()
+
+	out := items[:0]
+	for _, it := range items {
+		if looksCutOff(it.Content) {
+			log.Printf("[desk] skipping %q: only part of the story is available", it.Title)
+			continue
+		}
+		it.DraftPrompt = ai.BuildRewriteDraftPrompt(it.Title, it.Content)
+		it.ReviewPromptTemplate = ai.BuildRewriteReviewPrompt(it.Title, it.Content, DraftJSONPlaceholder)
+		out = append(out, it)
+	}
+	return out
+}
+
+func plainWords(htmlContent string) string {
+	return strings.Join(strings.Fields(html.UnescapeString(htmlTagRegex.ReplaceAllString(htmlContent, " "))), " ")
+}
+
+// sameOpening reports whether the page text contains the feed text's first words.
+func sameOpening(feed, page string) bool {
+	f := []rune(plainWords(feed))
+	if len(f) > 60 {
+		f = f[:60]
+	}
+	return len(f) >= 20 && strings.Contains(plainWords(page), string(f))
+}
+
+// looksCutOff spots feed teasers: text that ends in an ellipsis or a
+// "read more" link instead of a sentence.
+func looksCutOff(htmlContent string) bool {
+	t := strings.TrimSpace(plainWords(htmlContent))
+	t = strings.TrimSpace(strings.TrimRight(t, "]) "))
+	for _, end := range []string{"...", "…", "[…", "[...", "বিস্তারিত", "বিস্তারিত পড়ুন", "আরও পড়ুন", "বাকি অংশ পড়ুন", "Read more", "Continue reading"} {
+		if strings.HasSuffix(t, end) {
+			return true
+		}
+	}
+	return false
 }
 
 // NewsIDFor derives a stable id from a story's source URL, so a retry of the
@@ -196,6 +263,11 @@ type ExternalArticle struct {
 	// ForceReview holds the story for an editor with this reason, even if
 	// the review rules would have published it (the agent chose to hold).
 	ForceReview string `json:"force_review"`
+
+	// Corroborated is how many other outlets were seen (by code, in search
+	// results or our own feeds) carrying the same story. At
+	// MinCorroboration or more, sensitive categories may publish without an editor.
+	Corroborated int `json:"corroborated"`
 
 	// Optional AI usage accounting, shown on /admin/ai-usage.
 	AIProvider string `json:"ai_provider"`
@@ -248,6 +320,16 @@ func (w *Worker) SaveExternal(ctx context.Context, in ExternalArticle) (*domain.
 		factCheck = agent.CheckFactConsistency([]string{in.OriginalTitle, in.OriginalContent}, in.Body)
 	}
 	_, sensitive := w.loadRunSettings()
+	if in.Corroborated >= MinCorroboration && sensitive[category] {
+		// Owner's policy: a sensitive-category story confirmed by enough
+		// independent outlets publishes on its own (other rules still apply).
+		relaxed := make(map[string]bool, len(sensitive))
+		for k, v := range sensitive {
+			relaxed[k] = v
+		}
+		delete(relaxed, category)
+		sensitive = relaxed
+	}
 	decision := decideReview(category, sensitive, factCheck, false)
 	if note := strings.TrimSpace(in.ForceReview); note != "" {
 		decision.status = "pending_review"
@@ -257,6 +339,14 @@ func (w *Worker) SaveExternal(ctx context.Context, in ExternalArticle) (*domain.
 	summary := strings.TrimSpace(in.Summary)
 	if summary == "" {
 		summary = truncate(strings.Join(strings.Fields(htmlTagRegex.ReplaceAllString(in.Body, " ")), " "), 280)
+	}
+
+	// The portal lists news newest first by this time. A story that goes live
+	// now must show as new, not hours down the page at its source's time.
+	// (A held story gets its time when an editor approves it.)
+	publishedAt := in.PublishedAt
+	if decision.status == "published" {
+		publishedAt = time.Now()
 	}
 
 	article := &domain.Article{
@@ -270,7 +360,7 @@ func (w *Worker) SaveExternal(ctx context.Context, in ExternalArticle) (*domain.
 		Tags:         strings.Join(cleanExternalTags(in.Tags), ", "),
 		Status:       decision.status,
 		ReviewReason: decision.reason,
-		PublishedAt:  in.PublishedAt,
+		PublishedAt:  publishedAt,
 	}
 	if err := w.articleRepo.Create(article); err != nil {
 		if errors.Is(err, repository.ErrDuplicateArticle) {

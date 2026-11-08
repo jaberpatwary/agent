@@ -9,14 +9,34 @@ The portal's newsroom is an AI agent, not a fixed pipeline. Code lives in
 n8n (every 15 min) ──POST /api/agent/run──▶ Desk.Start
                                               │
           fetch feeds, dedupe, download photos (cron.Worker.PendingItems)
+          re-read each story's source page for its full text (fullStories)
                                               │
-               Editor agent: picks which stories to cover first
+       Editor agent: picks the story to cover first, plus 2 reserves
                                               │
-       Reporter agent, per story — loop until a final decision:
+       Desk gathers evidence without a model call: news search on the
+       headline + the portal's archive (story.observe)
+                                              │
+       Reporter agent — loop until a final decision:
          model chooses a tool ─▶ tool runs ─▶ result goes back to the model
+         (usually: record_verification + write_draft, then submit_article)
                                               │
      submit_article (publish / hold / update)  ·  reject_story  ·  ask_editor
+                                              │
+       not published (held, rejected)? next reserve; no new story after
+       9 minutes, and the story in progress stops at 14 (the next run is due)
 ```
+
+Every model turn re-sends the conversation, so the engine shortens tool
+results the model has already read (`compactHistory`). Together with the
+pre-gathered evidence and `write_draft` reviewing its own draft, a story
+takes about 3 agent turns instead of ~10. Free quotas are per model, so the
+gateway walks a list of models (`GEMINI_EXTRA_MODELS`, `GROQ_EXTRA_MODELS`)
+and skips a model whose daily quota is used up until the reset time the
+provider names.
+
+A story goes live with the time it was published on the portal (or approved
+by an editor), so new news is always at the top and the open homepage's
+"নতুন খবর এসেছে" bar notices it.
 
 ## Reporter agent tools
 
@@ -26,8 +46,9 @@ n8n (every 15 min) ──POST /api/agent/run──▶ Desk.Start
 | `web_search` | Groq web search via the gateway | falls back to telling the agent to use `search_news` |
 | `read_page` | Extract another outlet's article text | blocks localhost/private URLs |
 | `find_similar_stories`, `get_article` | Search / read the portal's own archive | — |
-| `record_verification` | Records the fact-check verdict and corroborating outlets | refused until the agent has searched |
-| `review_draft` | Hard rules in code (length ≥ 80% of source, no copied sentences, no outlet names, numbers kept) + an independent AI editor | max 4 reviews |
+| `record_verification` | Records the fact-check verdict and corroborating outlets | refused until there is search evidence |
+| `write_draft` | The desk writer rewrites the whole source passage by passage (≤ 7 calls, nothing dropped), writes a new headline, then reviews the draft like `review_draft`. After a failed review (sources ≤ 4000 characters) it instead fixes only the reported problems in that draft, so a fix does not bring new problems | counts toward the 4 reviews; a held story keeps the newest draft |
+| `review_draft` | Hard rules in code (length ≥ 85% of source, no copied sentences of 7+ words, no outlet names, numbers kept, headline not the source's) + an independent AI editor that is given the CURRENT FACTS (it must not "correct" today's office-holders from memory) | max 4 reviews |
 | `submit_article` | Publish, hold for an editor, or update an existing article (old text kept as a version) | needs a positive verification and, to publish, a passed review; sensitive categories and the autopublish switch force a hold |
 | `reject_story` | fake / duplicate / not_news / low_quality | "fake" needs search evidence |
 | `ask_editor` | Pauses the story with a question for a human | answer is given to the agent next time |

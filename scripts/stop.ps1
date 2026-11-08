@@ -1,50 +1,42 @@
-$ErrorActionPreference = 'Stop'
+# make stop — stop every container of this project so no AI tokens are used.
+# Data (database, photos, n8n) is kept in Docker volumes; "make start" resumes.
+# 'Continue': docker prints progress and warnings on stderr, which Windows
+# PowerShell 5.1 would otherwise turn into terminating errors. Failures are
+# detected from $LASTEXITCODE instead.
+$ErrorActionPreference = 'Continue'
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$runDir = Join-Path $projectRoot '.run'
-$pidPath = Join-Path $runDir 'server.pid'
-$tokenPath = Join-Path $runDir 'shutdown.token'
-$portPath = Join-Path $runDir 'server.port'
-$port = 8080
-if (Test-Path -LiteralPath $portPath) {
-    $parsedPort = 0
-    if ([int]::TryParse((Get-Content -LiteralPath $portPath -Raw).Trim(), [ref]$parsedPort)) { $port = $parsedPort }
-}
-$stoppedLocal = $false
+Set-Location $projectRoot
 
-if ((Test-Path -LiteralPath $pidPath) -and (Test-Path -LiteralPath $tokenPath)) {
-    $appPid = 0
-    [void][int]::TryParse((Get-Content -LiteralPath $pidPath -Raw).Trim(), [ref]$appPid)
-    $appProcess = if ($appPid -gt 0) { Get-CimInstance Win32_Process -Filter "ProcessId=$appPid" -ErrorAction SilentlyContinue } else { $null }
-    $expectedBinary = Join-Path $runDir 'autonews-server.exe'
-
-    if ($appProcess -and $appProcess.ExecutablePath -eq $expectedBinary) {
-        $controlToken = (Get-Content -LiteralPath $tokenPath -Raw).Trim()
-        try {
-            Invoke-RestMethod -Uri "http://127.0.0.1:$port/_control/shutdown" -Method Post `
-                -Headers @{ 'X-Autonews-Control' = $controlToken } -TimeoutSec 5 | Out-Null
-        } catch { }
-
-        try { Wait-Process -Id $appPid -Timeout 35 -ErrorAction Stop } catch { }
-        $appProcess = Get-CimInstance Win32_Process -Filter "ProcessId=$appPid" -ErrorAction SilentlyContinue
-        if ($appProcess -and $appProcess.ExecutablePath -eq $expectedBinary) {
-            Stop-Process -Id $appPid -Force -ErrorAction SilentlyContinue
-        }
-        $stoppedLocal = $true
-    }
-
-    Remove-Item -LiteralPath $pidPath, $tokenPath, $portPath -Force -ErrorAction SilentlyContinue
-}
-
-# Stop any older Compose instance too, so no container worker keeps calling AI.
-if (Get-Command docker -ErrorAction SilentlyContinue) {
-    Push-Location $projectRoot
-    try { & docker compose stop app db 2>$null | Out-Null } catch { }
-    Pop-Location
-}
-
-if ($stoppedLocal) {
-    Write-Output 'Auto News is stopped. Its RSS and AI workers are no longer running.'
+& docker info 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Output 'Docker is not running, so nothing from this project is running either. No AI tokens are being used.'
 } else {
-    Write-Output 'Auto News was already stopped. Its RSS and AI workers are not running.'
+    # n8n first: it is the scheduler that wakes the AI agent.
+    Write-Output 'Stopping n8n (the agent scheduler)...'
+    & docker compose stop n8n
+    Write-Output 'Stopping the app and database...'
+    & docker compose stop app db
+    if ($LASTEXITCODE -ne 0) { throw 'docker compose stop failed.' }
+
+    $running = & docker compose ps --status running --services
+    if ($running) {
+        throw ("Still running: {0}" -f ($running -join ', '))
+    }
+    Write-Output 'All project containers are stopped. The AI agent cannot run, so no API tokens are used.'
+}
+
+# Optional: also suspend the hosted copy on Render, if a key is configured.
+$envFile = Join-Path $projectRoot '.env'
+$renderKey = $env:RENDER_API_KEY
+if (-not $renderKey -and (Test-Path -LiteralPath $envFile)) {
+    $line = Get-Content -LiteralPath $envFile | Where-Object { $_ -match '^\s*RENDER_API_KEY\s*=\s*\S' } | Select-Object -First 1
+    if ($line) { $renderKey = 'set' }
+}
+if ($renderKey) {
+    try {
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'render-control.ps1') -Action suspend
+    } catch {
+        Write-Output ("Render suspend skipped: {0}" -f $_.Exception.Message)
+    }
 }

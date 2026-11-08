@@ -1,19 +1,30 @@
 .DEFAULT_GOAL := help
-.PHONY: help start stop host-start host-stop
+.PHONY: help start stop status logs host-start host-stop
+
+PS := powershell.exe -NoProfile -ExecutionPolicy Bypass
 
 help:
-	@echo Available commands: make start, make stop, make host-start, make host-stop
-	@echo make stop also suspends the hosted Render service.
+	@echo make start      - start database, app and n8n - the AI agent then runs every 15 minutes
+	@echo make stop       - stop everything so no AI API tokens are used
+	@echo make status     - show which containers are running
+	@echo make logs       - follow the app log - press Ctrl+C to quit
+	@echo make host-start - resume the hosted Render service
+	@echo make host-stop  - suspend the hosted Render service
 
 start:
-	powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/start.ps1
+	$(PS) -File scripts/start.ps1
 
 stop:
-	powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/render-control.ps1 -Action suspend
-	powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/stop.ps1
+	$(PS) -File scripts/stop.ps1
+
+status:
+	docker compose ps
+
+logs:
+	docker compose logs -f app
 
 host-start:
-	powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/render-control.ps1 -Action resume
+	$(PS) -File scripts/render-control.ps1 -Action resume
 
 host-stop:
-	powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/render-control.ps1 -Action suspend
+	$(PS) -File scripts/render-control.ps1 -Action suspend
