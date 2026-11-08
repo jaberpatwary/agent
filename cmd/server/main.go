@@ -71,7 +71,14 @@ func main() {
 	adminH := handler.NewAdminHandler(authUC, articleUC, feedUC, settingsUC, usageUC, worker, cfg.JWTExpiry)
 	// ---- Agentic news desk (see internal/agentic) ----
 	journeyRepo := repository.NewJourneyRepository(db)
-	desk := agentic.NewDesk(worker, repository.NewAgentRepository(db), journeyRepo, settingsRepo, feedRepo,
+	agentRepo := repository.NewAgentRepository(db)
+	// A run in progress when the server last stopped can never finish now.
+	if n, err := agentRepo.CloseInterruptedRuns(); err != nil {
+		log.Printf("[agent] could not close interrupted runs: %v", err)
+	} else if n > 0 {
+		log.Printf("[agent] marked %d interrupted run(s) from before the restart", n)
+	}
+	desk := agentic.NewDesk(worker, agentRepo, journeyRepo, settingsRepo, feedRepo,
 		agentic.GoogleNewsSearch(nil), agentic.PageReader(rss.NewClient()))
 	adminH.SetAgent(desk, journeyRepo)
 

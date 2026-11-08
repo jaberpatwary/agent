@@ -1,133 +1,59 @@
-$ErrorActionPreference = 'Stop'
+# make start — bring up the whole project (Postgres, app, n8n) with Docker Compose.
+# AI tokens are only spent while it runs: n8n wakes the agent every 15 minutes.
+# 'Continue': docker prints progress and warnings on stderr, which Windows
+# PowerShell 5.1 would otherwise turn into terminating errors. Failures are
+# detected from $LASTEXITCODE instead.
+$ErrorActionPreference = 'Continue'
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$runDir = Join-Path $projectRoot '.run'
-$binaryPath = Join-Path $runDir 'autonews-server.exe'
-$pidPath = Join-Path $runDir 'server.pid'
-$tokenPath = Join-Path $runDir 'shutdown.token'
-$portPath = Join-Path $runDir 'server.port'
-$stdoutPath = Join-Path $runDir 'server.log'
-$stderrPath = Join-Path $runDir 'server-error.log'
-$port = if ($env:PORT) { [int]$env:PORT } else { 8080 }
-$baseUrl = "http://127.0.0.1:$port"
+Set-Location $projectRoot
 
-New-Item -ItemType Directory -Path $runDir -Force | Out-Null
+if (-not (Test-Path -LiteralPath (Join-Path $projectRoot '.env'))) {
+    throw '.env is missing. Copy .env.example to .env and add your API keys first.'
+}
 
-if (Test-Path -LiteralPath $pidPath) {
-    $existingPid = 0
-    [void][int]::TryParse((Get-Content -LiteralPath $pidPath -Raw).Trim(), [ref]$existingPid)
-    $existingProcess = if ($existingPid -gt 0) { Get-CimInstance Win32_Process -Filter "ProcessId=$existingPid" -ErrorAction SilentlyContinue } else { $null }
-    if ($existingProcess -and $existingProcess.ExecutablePath -eq $binaryPath) {
+function Test-Docker {
+    & docker info 2>&1 | Out-Null
+    return ($LASTEXITCODE -eq 0)
+}
+
+if (-not (Test-Docker)) {
+    $desktop = Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe'
+    if (-not (Test-Path -LiteralPath $desktop)) {
+        throw 'Docker is not running and Docker Desktop was not found. Start Docker first.'
+    }
+    Write-Output 'Docker Desktop is not running - starting it (this can take a minute)...'
+    Start-Process -FilePath $desktop | Out-Null
+    $deadline = (Get-Date).AddMinutes(3)
+    while (-not (Test-Docker)) {
+        if ((Get-Date) -gt $deadline) { throw 'Docker did not become ready within 3 minutes.' }
+        Start-Sleep -Seconds 3
+    }
+}
+
+Write-Output 'Starting database, app and n8n (rebuilding the app if the code changed)...'
+& docker compose up -d --build
+if ($LASTEXITCODE -ne 0) { throw 'docker compose up failed.' }
+
+function Wait-Url([string] $Url, [string] $Name) {
+    $deadline = (Get-Date).AddSeconds(120)
+    while ((Get-Date) -lt $deadline) {
         try {
-            $health = Invoke-RestMethod -Uri "$baseUrl/health" -TimeoutSec 3
-            if ($health.status -eq 'ok') {
-                Write-Output "Auto News is already running at $baseUrl"
-                exit 0
-            }
+            $r = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 3
+            if ($r.StatusCode -eq 200) { Write-Output ("  {0} is up" -f $Name); return }
         } catch { }
-        throw "Managed app process $existingPid is running but its health endpoint is unavailable. Run 'make stop' first."
+        Start-Sleep -Seconds 2
     }
-    Remove-Item -LiteralPath $pidPath -Force
-    Remove-Item -LiteralPath $tokenPath -Force -ErrorAction SilentlyContinue
+    throw ("{0} did not become healthy. Check: docker compose logs" -f $Name)
 }
+Wait-Url 'http://localhost:8080/health' 'App'
+Wait-Url 'http://localhost:5678/healthz' 'n8n'
 
-$databaseUrl = $env:DATABASE_URL
-if (-not $databaseUrl) {
-    $envFile = Join-Path $projectRoot '.env'
-    if (Test-Path -LiteralPath $envFile) {
-        $dbLine = Get-Content -LiteralPath $envFile | Where-Object { $_ -match '^\s*DATABASE_URL\s*=' } | Select-Object -First 1
-        if ($dbLine) { $databaseUrl = ($dbLine -split '=', 2)[1].Trim().Trim('"', "'") }
-    }
-}
-if (-not $databaseUrl) { throw 'DATABASE_URL is missing. Set it in .env to your local PostgreSQL database.' }
-
-try { $databaseUri = [uri]$databaseUrl } catch { throw 'DATABASE_URL is not a valid PostgreSQL URL.' }
-if ($databaseUri.Scheme -ne 'postgres' -and $databaseUri.Scheme -ne 'postgresql') {
-    throw 'DATABASE_URL must use the postgres:// or postgresql:// scheme.'
-}
-if ($databaseUri.Host -notin @('localhost', '127.0.0.1', '::1')) {
-    throw 'make start is configured for the local database; DATABASE_URL host must be localhost.'
-}
-$dbPort = if ($databaseUri.Port -gt 0) { $databaseUri.Port } else { 5432 }
-$tcp = [Net.Sockets.TcpClient]::new()
-try {
-    $connect = $tcp.ConnectAsync($databaseUri.Host, $dbPort)
-    if (-not $connect.Wait(3000) -or -not $tcp.Connected) {
-        throw "Local PostgreSQL is not reachable at $($databaseUri.Host):$dbPort."
-    }
-} catch {
-    throw "Local PostgreSQL is not reachable at $($databaseUri.Host):$dbPort. Start the PostgreSQL service first."
-} finally {
-    $tcp.Dispose()
-}
-
-Push-Location $projectRoot
-try {
-    & go build -o $binaryPath ./cmd/server
-    if ($LASTEXITCODE -ne 0) { throw 'Go build failed; the app was not started.' }
-} finally {
-    Pop-Location
-}
-
-$portCheck = [Net.Sockets.TcpClient]::new()
-try {
-    $connect = $portCheck.ConnectAsync('127.0.0.1', $port)
-    if ($connect.Wait(500) -and $portCheck.Connected) {
-        try {
-            $health = Invoke-RestMethod -Uri "$baseUrl/health" -TimeoutSec 2
-            if ($health.status -eq 'ok') { throw "Another Auto News server is already using port $port. Run 'make stop' if it is the managed server." }
-        } catch {
-            if ($_.Exception.Message -like 'Another Auto News server*') { throw }
-            throw "Port $port is already in use by another process."
-        }
-    }
-} finally {
-    $portCheck.Dispose()
-}
-
-# Keep a previous Docker run from continuing its RSS and AI workers.
-if (Get-Command docker -ErrorAction SilentlyContinue) {
-    Push-Location $projectRoot
-    try { & docker compose stop app db 2>$null | Out-Null } catch { }
-    Pop-Location
-}
-
-$randomBytes = [byte[]]::new(32)
-$randomGenerator = [Security.Cryptography.RandomNumberGenerator]::Create()
-try { $randomGenerator.GetBytes($randomBytes) } finally { $randomGenerator.Dispose() }
-$controlToken = [BitConverter]::ToString($randomBytes).Replace('-', '')
-[IO.File]::WriteAllText($tokenPath, $controlToken, [Text.UTF8Encoding]::new($false))
-
-$previousDatabaseUrl = $env:DATABASE_URL
-$previousControlToken = $env:AUTONEWS_CONTROL_TOKEN
-try {
-    $env:DATABASE_URL = $databaseUrl
-    $env:AUTONEWS_CONTROL_TOKEN = $controlToken
-    $process = Start-Process -FilePath $binaryPath -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru `
-        -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
-} finally {
-    $env:DATABASE_URL = $previousDatabaseUrl
-    $env:AUTONEWS_CONTROL_TOKEN = $previousControlToken
-}
-
-[IO.File]::WriteAllText($pidPath, [string]$process.Id, [Text.UTF8Encoding]::new($false))
-[IO.File]::WriteAllText($portPath, [string]$port, [Text.UTF8Encoding]::new($false))
-
-$ready = $false
-for ($attempt = 0; $attempt -lt 30; $attempt++) {
-    Start-Sleep -Seconds 1
-    if ($process.HasExited) { break }
-    try {
-        $health = Invoke-RestMethod -Uri "$baseUrl/health" -TimeoutSec 2
-        if ($health.status -eq 'ok') { $ready = $true; break }
-    } catch { }
-}
-
-if (-not $ready) {
-    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $pidPath, $tokenPath, $portPath -Force -ErrorAction SilentlyContinue
-    throw "Auto News did not become healthy. Check .run/server-error.log."
-}
-
-Write-Output "Auto News started at $baseUrl (PID $($process.Id))."
-Write-Output 'The local PostgreSQL database is in use; RSS and AI workers run only while this app is on.'
+Write-Output ''
+Write-Output 'Bangla News is running:'
+Write-Output '  Website      http://localhost:8080'
+Write-Output '  Admin        http://localhost:8080/admin/login'
+Write-Output '  Agent desk   http://localhost:8080/admin/agent'
+Write-Output '  n8n          http://localhost:5678'
+Write-Output ''
+Write-Output 'The AI agent now runs every 15 minutes and uses API tokens. Run "make stop" to stop all AI usage.'

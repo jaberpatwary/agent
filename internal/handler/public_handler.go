@@ -352,18 +352,20 @@ func (h *PublicHandler) Robots(c *gin.Context) {
 	c.String(http.StatusOK, body)
 }
 
-// LatestCheck returns the ID, title, and count of latest published articles for auto-update checks.
+// LatestCheck returns the newest published article (of the listing the
+// reader is on) so an open page can offer "new news arrived". It always
+// looks at the first page: new stories land on top.
 func (h *PublicHandler) LatestCheck(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	c.Header("Cache-Control", "no-store")
 	category := c.Query("category")
 	query := c.Query("q")
 	var articles []domain.Article
 	var total int64
 	var err error
 	if query != "" {
-		articles, total, err = h.articleUC.Search(page, 1, query, category, "published")
+		articles, total, err = h.articleUC.Search(1, 1, query, category, "published")
 	} else {
-		articles, total, err = h.articleUC.List(page, 1, category, "published")
+		articles, total, err = h.articleUC.List(1, 1, category, "published")
 	}
 	if err != nil || len(articles) == 0 {
 		c.JSON(http.StatusOK, gin.H{

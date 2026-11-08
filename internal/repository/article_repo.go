@@ -148,6 +148,13 @@ func (r *articleRepository) Delete(id uuid.UUID) error {
 }
 
 func (r *articleRepository) UpdateStatus(id uuid.UUID, status string) error {
+	if status == "published" {
+		// Going live now (e.g. an editor approved a held story): the portal
+		// lists news newest first, so it must show as new news, not at the
+		// time its source first ran it.
+		return r.db.Model(&domain.Article{}).Where("id = ? AND status <> ?", id, "published").
+			Updates(map[string]any{"status": status, "published_at": time.Now()}).Error
+	}
 	return r.db.Model(&domain.Article{}).Where("id = ?", id).Update("status", status).Error
 }
 

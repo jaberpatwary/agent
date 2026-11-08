@@ -43,6 +43,7 @@ func (h *AdminHandler) AgentSettings(c *gin.Context) {
 		MaxTurns:      min(max(atoi("max_turns", cur.MaxTurns), 4), 40),
 		StoriesPerRun: min(max(atoi("stories_per_run", cur.StoriesPerRun), 1), 5),
 		StoryBudget:   min(max(atoi("story_budget", cur.StoryBudget), 20000), 2000000),
+		Facts:         c.PostForm("facts"),
 	}
 	if err := h.desk.SaveSettings(s); err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"message": "সেটিংস সংরক্ষণ করা যায়নি"})

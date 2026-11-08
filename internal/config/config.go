@@ -43,6 +43,44 @@ type Config struct {
 	CloudflareAPIToken    string
 	CloudflareAccountID   string // Workers AI is used only when this is set
 	CloudflareModel       string
+
+	// Extra models tried in order when the main ones are out of quota. Every
+	// model has its own free daily quota, so a longer list means more stories
+	// per day on free tiers.
+	GeminiExtraModels []string // after GEMINI_MODEL, before GEMINI_FALLBACK_MODEL
+	GroqExtraModels   []string // after N8N_GROQ_MODEL
+}
+
+// GeminiChain is every Gemini model to try, best first.
+func (c *Config) GeminiChain() []string {
+	return uniqueNonEmpty(append(append([]string{c.GeminiModel}, c.GeminiExtraModels...), c.GeminiFallbackModel))
+}
+
+// GroqChain is every Groq model to try for writing and agent turns, best first.
+func (c *Config) GroqChain() []string {
+	return uniqueNonEmpty(append([]string{c.GatewayGroqWriteModel}, c.GroqExtraModels...))
+}
+
+func uniqueNonEmpty(list []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(list))
+	for _, s := range list {
+		if s = strings.TrimSpace(s); s != "" && !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func getEnvList(key string) []string {
+	var out []string
+	for _, s := range strings.Split(getEnv(key, ""), ",") {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // Load reads a .env file (if present) and then environment variables,
@@ -83,6 +121,8 @@ func Load() *Config {
 		CloudflareAPIToken:    getEnv("CLOUDFLARE_API_TOKEN", ""),
 		CloudflareAccountID:   getEnv("CLOUDFLARE_ACCOUNT_ID", ""),
 		CloudflareModel:       getEnv("CLOUDFLARE_MODEL", "@cf/openai/gpt-oss-120b"),
+		GeminiExtraModels:     getEnvList("GEMINI_EXTRA_MODELS"),
+		GroqExtraModels:       getEnvList("GROQ_EXTRA_MODELS"),
 	}
 
 	if cfg.N8NAPIKey != "" && len(cfg.N8NAPIKey) < 24 {

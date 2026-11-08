@@ -3,6 +3,7 @@ package agentic
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -26,6 +27,7 @@ const (
 	SettingMaxTurns      = "agent_max_turns"
 	SettingStoriesPerRun = "agent_stories_per_run"
 	SettingStoryBudget   = "agent_story_token_budget"
+	SettingFacts         = "agent_facts"
 )
 
 // DeskSettings are the editor-controlled limits on the agent.
@@ -35,6 +37,7 @@ type DeskSettings struct {
 	MaxTurns      int
 	StoriesPerRun int
 	StoryBudget   int
+	Facts         string // current facts the agent must trust over its own (outdated) memory, one per line
 }
 
 // Desk runs the agentic newsroom: an editor agent picks which incoming
@@ -84,6 +87,7 @@ func (d *Desk) Settings() DeskSettings {
 		MaxTurns:      atoiOr(d.setting(SettingMaxTurns, "16"), 16, 4, 40),
 		StoriesPerRun: atoiOr(d.setting(SettingStoriesPerRun, "1"), 1, 1, 5),
 		StoryBudget:   atoiOr(d.setting(SettingStoryBudget, "250000"), 250000, 20000, 2000000),
+		Facts:         d.setting(SettingFacts, ""),
 	}
 }
 
@@ -92,13 +96,31 @@ func (d *Desk) SaveSettings(s DeskSettings) error {
 	for k, v := range map[string]string{
 		SettingEnabled: strconv.FormatBool(s.Enabled), SettingAutopublish: strconv.FormatBool(s.Autopublish),
 		SettingMaxTurns: strconv.Itoa(s.MaxTurns), SettingStoriesPerRun: strconv.Itoa(s.StoriesPerRun),
-		SettingStoryBudget: strconv.Itoa(s.StoryBudget),
+		SettingStoryBudget: strconv.Itoa(s.StoryBudget), SettingFacts: strings.TrimSpace(s.Facts),
 	} {
 		if err := d.settings.Set(k, v); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// addFact appends a verified current fact to the desk's memory (newest last,
+// at most 40 lines, no duplicates).
+func (d *Desk) addFact(line string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	var lines []string
+	for _, l := range strings.Split(d.setting(SettingFacts, ""), "\n") {
+		if l = strings.TrimSpace(l); l != "" && l != line {
+			lines = append(lines, l)
+		}
+	}
+	lines = append(lines, line)
+	if len(lines) > 40 {
+		lines = lines[len(lines)-40:]
+	}
+	return d.settings.Set(SettingFacts, strings.Join(lines, "\n"))
 }
 
 // DeskStatus is what /api/agent/status and /admin/agent show.
@@ -207,21 +229,50 @@ func (d *Desk) run(ctx context.Context, run *domain.AgentRun) {
 	}
 
 	d.setCurrent("সম্পাদক এজেন্ট খবর বাছাই করছে")
-	chosen, note := d.plan(ctx, run, items, cfg.StoriesPerRun)
+	// A couple of reserves: when a story is rejected or held, the desk moves
+	// on to the next one so every run tries to put new news on the portal.
+	chosen, note := d.plan(ctx, run, items, cfg.StoriesPerRun+storyReserves)
 	run.PlanNote = note
 	_ = d.agents.SaveRun(run)
 
+	published := 0
 	for _, item := range chosen {
-		if ctx.Err() != nil {
+		if ctx.Err() != nil || published >= cfg.StoriesPerRun {
 			break
 		}
+		if time.Since(run.StartedAt) > runWorkWindow {
+			break // the next scheduled run is close; leave the rest to it
+		}
 		d.setCurrent(item.Title)
-		tokens := d.processStory(ctx, run, item, cfg)
+		// A story may not run into the next scheduled run, which would then be skipped.
+		sctx, cancel := context.WithDeadline(ctx, run.StartedAt.Add(runHardStop))
+		res := d.processStory(sctx, run, item, cfg)
+		cancel()
 		run.Processed++
-		run.Tokens += tokens
+		run.Tokens += res.tokens
 		_ = d.agents.SaveRun(run)
+		if res.published {
+			published++
+		}
+		if res.providerDown {
+			break // no AI capacity right now; the next run tries again
+		}
 	}
 	run.Status = "done"
+}
+
+const (
+	storyReserves = 2
+	// Runs start every 15 minutes. No new story starts after runWorkWindow,
+	// and the story in progress is stopped at runHardStop.
+	runWorkWindow = 9 * time.Minute
+	runHardStop   = 14 * time.Minute
+)
+
+type storyResult struct {
+	tokens       int
+	published    bool
+	providerDown bool
 }
 
 // plan is the editor agent: from the candidates it picks what to cover now.
@@ -283,8 +334,8 @@ func (d *Desk) outletNames() []string {
 	return names
 }
 
-// processStory lets the reporter agent work one story; returns tokens used.
-func (d *Desk) processStory(ctx context.Context, run *domain.AgentRun, item cron.PendingItem, cfg DeskSettings) int {
+// processStory lets the reporter agent work one story.
+func (d *Desk) processStory(ctx context.Context, run *domain.AgentRun, item cron.PendingItem, cfg DeskSettings) storyResult {
 	if _, err := d.worker.RecordJourney(cron.JourneyUpdate{NewsID: item.NewsID, Stage: "received", SourceURL: item.SourceURL,
 		SourceName: item.SourceName, Category: item.Category, OriginalTitle: item.Title, OriginalContent: item.Content}); err != nil {
 		log.Printf("[agent] journey %s: %v", item.NewsID, err)
@@ -307,29 +358,35 @@ func (d *Desk) processStory(ctx context.Context, run *domain.AgentRun, item cron
 	setJourney(map[string]any{"attempts": mem.Attempt})
 
 	s := &story{item: item, nr: d.worker, versions: d.agents, searchNews: d.search, readPage: d.read,
-		setJourney: setJourney, outlets: d.outletNames(), autopublish: cfg.Autopublish}
+		setJourney: setJourney, outlets: d.outletNames(), autopublish: cfg.Autopublish, addFact: d.addFact, facts: cfg.Facts}
 
 	step := 0
+	record := func(r StepRecord) {
+		step++
+		if err := d.agents.AddStep(&domain.AgentStep{RunID: run.ID, NewsID: item.NewsID, Step: step, Kind: r.Kind, Tool: r.Tool,
+			Input: r.Input, Output: clip(r.Output, 6000), Provider: r.Provider, Model: r.Model, Tokens: r.Tokens}); err != nil {
+			log.Printf("[agent] step %s/%d: %v", item.NewsID, step, err)
+		}
+	}
 	engine := Engine{
 		Chat:        d.worker.AIChat,
 		Tools:       s.tools(),
 		MaxTurns:    cfg.MaxTurns,
 		TokenBudget: cfg.StoryBudget,
 		MaxTokens:   6000,
-		Record: func(r StepRecord) {
-			step++
-			if err := d.agents.AddStep(&domain.AgentStep{RunID: run.ID, NewsID: item.NewsID, Step: step, Kind: r.Kind, Tool: r.Tool,
-				Input: r.Input, Output: clip(r.Output, 6000), Provider: r.Provider, Model: r.Model, Tokens: r.Tokens}); err != nil {
-				log.Printf("[agent] step %s/%d: %v", item.NewsID, step, err)
-			}
-		},
+		Record:      record,
 	}
-	out := engine.Run(ctx, systemPrompt(houseStyle, sensitive[item.Category], cfg.Autopublish, mem), goalMessage(item, mem))
+	mem.Facts = cfg.Facts
+	d.setCurrent("খবর যাচাইয়ের তথ্য সংগ্রহ: " + item.Title)
+	gathered := s.observe(ctx, record)
+	out := engine.Run(ctx, systemPrompt(houseStyle, sensitive[item.Category], cfg.Autopublish, mem), goalMessage(item, mem)+gathered)
 
 	summary := ""
 	switch {
 	case out.Finished:
 		summary = out.Tool + ": " + out.Result
+	case out.Stopped == "provider_error" && errors.Is(ctx.Err(), context.DeadlineExceeded):
+		summary = "এই রানের সময় শেষ — পরের রানে আবার চেষ্টা হবে"
 	case out.Stopped == "provider_error":
 		summary = "AI প্রোভাইডার পাওয়া যায়নি — পরের রানে আবার চেষ্টা হবে (" + clip(out.Detail, 160) + ")"
 	default:
@@ -341,16 +398,20 @@ func (d *Desk) processStory(ctx context.Context, run *domain.AgentRun, item cron
 	}
 	setJourney(fields)
 	log.Printf("[agent] %q → %s (%d turns, %d tokens)", clip(item.Title, 60), clip(summary, 120), out.Turns, out.Tokens)
-	return out.Tokens
+	return storyResult{
+		tokens:       out.Tokens,
+		published:    s.saved != nil && s.saved.Status == "published",
+		providerDown: out.Stopped == "provider_error",
+	}
 }
 
 // salvage handles an agent that hit a limit before deciding: a verified,
 // written draft is held for an editor; otherwise the editor is asked.
 func (d *Desk) salvage(ctx context.Context, s *story, out Outcome) string {
-	if s.draft != nil && s.verified != nil && *s.verified {
+	if dr := s.latest; dr != nil && s.verified != nil && *s.verified {
 		in := cron.ExternalArticle{
 			NewsID: s.item.NewsID, SourceURL: s.item.SourceURL, RelatedURLs: s.item.RelatedURLs,
-			Title: s.draft.Title, Body: s.draft.Body, Summary: s.draft.Summary, Tags: s.draft.Tags,
+			Title: dr.Title, Body: dr.Body, Summary: dr.Summary, Tags: dr.Tags,
 			ImageURL: s.item.ImageURL, SourceName: s.item.SourceName, Category: s.item.Category, PublishedAt: s.item.PublishedAt,
 			OriginalTitle: s.item.Title, OriginalContent: s.item.Content,
 			ForceReview: "এজেন্ট সীমার মধ্যে শেষ করতে পারেনি (" + out.Stopped + ") — খসড়াটি দেখে সিদ্ধান্ত দিন",

@@ -24,6 +24,7 @@ type SourceRecord struct {
 type AgentRepository interface {
 	CreateRun(r *domain.AgentRun) error
 	SaveRun(r *domain.AgentRun) error
+	CloseInterruptedRuns() (int64, error)
 	RecentRuns(limit int) ([]domain.AgentRun, error)
 	AddStep(s *domain.AgentStep) error
 	StepsForNews(newsID string) ([]domain.AgentStep, error)
@@ -49,6 +50,15 @@ func (r *agentRepository) CreateRun(run *domain.AgentRun) error {
 }
 
 func (r *agentRepository) SaveRun(run *domain.AgentRun) error { return r.db.Save(run).Error }
+
+// CloseInterruptedRuns marks runs left "running" by a server that stopped
+// mid-run (restart, redeploy) as interrupted, so they don't look stuck.
+// Only the server calls it at startup: it runs the desk in-process.
+func (r *agentRepository) CloseInterruptedRuns() (int64, error) {
+	res := r.db.Model(&domain.AgentRun{}).Where("status = ?", "running").
+		Updates(map[string]any{"status": "interrupted", "error": "সার্ভার রিস্টার্ট হওয়ায় রানটি মাঝপথে থেমে গেছে", "finished_at": time.Now()})
+	return res.RowsAffected, res.Error
+}
 
 func (r *agentRepository) RecentRuns(limit int) ([]domain.AgentRun, error) {
 	var out []domain.AgentRun

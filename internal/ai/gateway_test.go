@@ -67,3 +67,43 @@ func TestGatewayCooldownUsesProviderRetryHint(t *testing.T) {
 		t.Fatalf("expected ~6m cooldown from the retry hint, got %s", left)
 	}
 }
+
+// A used-up daily quota names its reset time; the model is skipped until then.
+func TestDailyQuotaCooldownFollowsTheProvidersRetryDelay(t *testing.T) {
+	g := &Gateway{cooldown: map[string]time.Time{}}
+	g.coolDown("gemini/m", errors.New(`gemini m: http 429 (retry in 9215s): { "error": { "code": 429, "message": "You exceeded your current quota"`))
+	left := time.Until(g.cooldown["gemini/m"])
+	if left < 2*time.Hour || left > 3*time.Hour {
+		t.Fatalf("expected about 2.5h of cooldown, got %v", left)
+	}
+	if m := retryDelayRegex.FindSubmatch([]byte(`"details": [{"retryDelay": "9215s"}]`)); m == nil || string(m[1]) != "9215" {
+		t.Fatalf("retryDelay not found: %q", m)
+	}
+}
+
+// A better model that is only rate-limited for a minute is worth waiting for
+// before spending the last resort's (Cohere's) small monthly allowance.
+func TestShortRateLimitIsWaitedOutBeforeTheLastResort(t *testing.T) {
+	g := &Gateway{cooldown: map[string]time.Time{}}
+	routes := []gatewayRoute{{provider: "gemini", model: "a"}, {provider: "gemini", model: "b"}, {provider: "cohere", model: "c"}}
+	g.cooldown["gemini/a"] = time.Now().Add(40 * time.Second)
+	g.cooldown["gemini/b"] = time.Now().Add(3 * time.Hour) // daily quota: not worth waiting for
+	if w := g.shortWait(routes); w <= 30*time.Second || w > 40*time.Second {
+		t.Fatalf("expected to wait ~40s for model a, got %v", w)
+	}
+	// Two briefly limited models: wait until both are free, not just the first.
+	g.cooldown["gemini/b"] = time.Now().Add(20 * time.Second)
+	if w := g.shortWait(routes); w <= 30*time.Second {
+		t.Fatalf("expected to wait for the later of the two (~40s), got %v", w)
+	}
+	// A request too large for one model says nothing about the model's quota.
+	g.coolDown("groq/q", errors.New("groq q: http 413: Request too large"))
+	if g.coolingDown("groq/q") {
+		t.Fatal("413 must not park the model")
+	}
+	g.cooldown["gemini/a"] = time.Now().Add(2 * time.Hour)
+	g.cooldown["gemini/b"] = time.Now().Add(2 * time.Hour)
+	if w := g.shortWait(routes); w != 0 {
+		t.Fatalf("nothing is free soon, so no waiting: got %v", w)
+	}
+}

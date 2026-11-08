@@ -43,7 +43,7 @@
   </div>
   {{ end }}
 
-  <main class="page" data-latest="{{ if .Articles }}{{ (index .Articles 0).ID }}{{ end }}">
+  <main class="page" data-latest="{{ if and .Articles (le .Page 1) }}{{ (index .Articles 0).ID }}{{ end }}">
     <div class="wrap">
 
     {{ if not .Articles }}
@@ -245,19 +245,31 @@
       });
     })();
 
-    /* Check once a minute for a newer story; offer a refresh instead of jumping the page. */
+    /* Check once a minute for a newer story; offer a refresh instead of jumping the page.
+       Coming back to the tab after a while checks at once, and a reader still at
+       the top of the page simply gets the fresh page. */
     (function () {
       var main = document.querySelector('main[data-latest]');
       var btn = document.querySelector('[data-fresh]');
       if (!main || !btn) return;
       var current = main.getAttribute('data-latest');
+      if (!current) return;
+      var hiddenSince = 0;
       btn.addEventListener('click', function () { window.location.reload(); });
-      setInterval(function () {
+      function check(onNew) {
         fetch('/api/latest-check' + window.location.search, { cache: 'no-store' })
           .then(function (r) { return r.ok ? r.json() : null; })
-          .then(function (d) { if (d && d.latest_id && current && d.latest_id !== current) btn.classList.add('show'); })
+          .then(function (d) { if (d && d.latest_id && d.latest_id !== current) onNew(); })
           .catch(function () {});
-      }, 60000);
+      }
+      function offer() { btn.classList.add('show'); }
+      setInterval(function () { if (!document.hidden) check(offer); }, 60000);
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) { hiddenSince = Date.now(); return; }
+        if (hiddenSince && Date.now() - hiddenSince > 60000) {
+          check(function () { if (window.scrollY < 300) window.location.reload(); else offer(); });
+        }
+      });
     })();
   </script>
 </body>
