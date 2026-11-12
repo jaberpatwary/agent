@@ -315,6 +315,7 @@ func NewRouter(
 		agentAPI := r.Group("/api/agent", n8nH.RequireAPIKey())
 		agentAPI.POST("/run", n8nH.AgentRun)
 		agentAPI.GET("/status", n8nH.AgentStatus)
+		agentAPI.POST("/stage/:name", n8nH.AgentStage)
 	}
 
 	// ---- Admin auth routes (unprotected) ----

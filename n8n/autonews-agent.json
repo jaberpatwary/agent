@@ -11,186 +11,219 @@
       "name": "Every 15 minutes",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [
-        0,
-        -100
-      ],
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "minutes",
-              "minutesInterval": 15
-            }
-          ]
-        }
-      }
+      "position": [0, -100],
+      "parameters": { "rule": { "interval": [ { "field": "minutes", "minutesInterval": 15 } ] } }
     },
     {
       "id": "c0a1b2c3-0002-4000-8000-000000000002",
       "name": "Run manually",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
-      "position": [
-        0,
-        100
-      ],
+      "position": [0, 100],
       "parameters": {}
     },
     {
-      "id": "c0a1b2c3-0003-4000-8000-000000000003",
-      "name": "Start agent desk",
+      "id": "c0a1b2c3-0011-4000-8000-000000000011",
+      "name": "সম্পাদক এজেন্ট — খবর বাছাই",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        260,
-        0
-      ],
+      "position": [260, 0],
       "onError": "continueRegularOutput",
+      "notes": "নতুন খবরগুলো থেকে কোনটি আগে হবে বাছাই করে",
+      "notesInFlow": true,
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.AUTONEWS_API_URL }}/api/agent/run",
+        "url": "={{ $env.AUTONEWS_API_URL }}/api/agent/stage/plan",
         "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "trigger",
-              "value": "n8n"
-            }
-          ]
-        },
+        "queryParameters": { "parameters": [ { "name": "trigger", "value": "n8n" } ] },
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-API-Key",
-              "value": "={{ $env.AUTONEWS_API_KEY }}"
-            }
-          ]
-        },
-        "options": {
-          "timeout": 30000,
-          "response": {
-            "response": {
-              "neverError": true,
-              "fullResponse": true
-            }
-          }
-        }
+        "headerParameters": { "parameters": [ { "name": "X-API-Key", "value": "={{ $env.AUTONEWS_API_KEY }}" } ] },
+        "options": { "timeout": 870000, "response": { "response": { "neverError": true } } }
       }
     },
     {
-      "id": "c0a1b2c3-0004-4000-8000-000000000004",
-      "name": "Let the agent work (5 min)",
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [
-        520,
-        0
-      ],
-      "webhookId": "c0a1b2c3-0000-4000-8000-00000000b001",
+      "id": "c0a1b2c3-0012-4000-8000-000000000012",
+      "name": "খবর আছে?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [500, 0],
       "parameters": {
-        "resume": "timeInterval",
-        "amount": 5,
-        "unit": "minutes"
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2 },
+          "conditions": [ { "id": "c0a1b2c3-0c12-4000-8000-000000000012", "leftValue": "={{ $json.next }}", "rightValue": "verify", "operator": { "type": "string", "operation": "equals" } } ],
+          "combinator": "and"
+        },
+        "options": {}
       }
     },
     {
-      "id": "c0a1b2c3-0005-4000-8000-000000000005",
-      "name": "Check desk status",
+      "id": "c0a1b2c3-0013-4000-8000-000000000013",
+      "name": "প্রতিবেদক এজেন্ট — যাচাই",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        780,
-        0
-      ],
+      "position": [760, 0],
       "onError": "continueRegularOutput",
+      "notes": "খবরটি সত্যি ও নতুন কি না নিজে খুঁজে যাচাই করে",
+      "notesInFlow": true,
       "parameters": {
-        "method": "GET",
-        "url": "={{ $env.AUTONEWS_API_URL }}/api/agent/status",
+        "method": "POST",
+        "url": "={{ $env.AUTONEWS_API_URL }}/api/agent/stage/verify",
+        "sendQuery": true,
+        "queryParameters": { "parameters": [ { "name": "run_id", "value": "={{ $json.run_id }}" } ] },
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-API-Key",
-              "value": "={{ $env.AUTONEWS_API_KEY }}"
-            }
-          ]
-        },
-        "options": {
-          "timeout": 30000
-        }
+        "headerParameters": { "parameters": [ { "name": "X-API-Key", "value": "={{ $env.AUTONEWS_API_KEY }}" } ] },
+        "options": { "timeout": 870000, "response": { "response": { "neverError": true } } }
       }
     },
     {
-      "id": "c0a1b2c3-0006-4000-8000-000000000006",
-      "name": "Summarise run",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1040,
-        0
-      ],
+      "id": "c0a1b2c3-0014-4000-8000-000000000014",
+      "name": "যাচাই হয়েছে?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1000, 0],
       "parameters": {
-        "jsCode": "// One line per recent run so the n8n execution log shows what the agent did.\nconst s = $input.first().json;\nconst last = (s.recent || [])[0] || {};\nreturn [{ json: {\n  running: s.running, current: s.current || \"\",\n  last_status: last.status, processed: last.processed, candidates: last.candidates,\n  tokens: last.tokens, editor_agent_note: last.plan_note, error: last.error || \"\",\n} }];"
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2 },
+          "conditions": [ { "id": "c0a1b2c3-0c14-4000-8000-000000000014", "leftValue": "={{ $json.next }}", "rightValue": "write", "operator": { "type": "string", "operation": "equals" } } ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c0a1b2c3-0015-4000-8000-000000000015",
+      "name": "লেখক — খসড়া লেখা",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1260, 0],
+      "onError": "continueRegularOutput",
+      "notes": "পুরো খবর নিজের ভাষায় লেখে; ফেল হলে শুধু ভুলগুলো ঠিক করে",
+      "notesInFlow": true,
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AUTONEWS_API_URL }}/api/agent/stage/write",
+        "sendQuery": true,
+        "queryParameters": { "parameters": [ { "name": "run_id", "value": "={{ $json.run_id }}" } ] },
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "X-API-Key", "value": "={{ $env.AUTONEWS_API_KEY }}" } ] },
+        "options": { "timeout": 870000, "response": { "response": { "neverError": true } } }
+      }
+    },
+    {
+      "id": "c0a1b2c3-0016-4000-8000-000000000016",
+      "name": "খসড়া হয়েছে?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1500, 0],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2 },
+          "conditions": [ { "id": "c0a1b2c3-0c16-4000-8000-000000000016", "leftValue": "={{ $json.next }}", "rightValue": "review", "operator": { "type": "string", "operation": "equals" } } ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c0a1b2c3-0017-4000-8000-000000000017",
+      "name": "পরীক্ষক — খসড়া পরীক্ষা",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1760, 0],
+      "onError": "continueRegularOutput",
+      "notes": "হার্ড রুল (কোড) + AI সম্পাদক দিয়ে খসড়া পরীক্ষা",
+      "notesInFlow": true,
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AUTONEWS_API_URL }}/api/agent/stage/review",
+        "sendQuery": true,
+        "queryParameters": { "parameters": [ { "name": "run_id", "value": "={{ $json.run_id }}" } ] },
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "X-API-Key", "value": "={{ $env.AUTONEWS_API_KEY }}" } ] },
+        "options": { "timeout": 870000, "response": { "response": { "neverError": true } } }
+      }
+    },
+    {
+      "id": "c0a1b2c3-0018-4000-8000-000000000018",
+      "name": "আবার লিখতে হবে?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2000, 0],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2 },
+          "conditions": [ { "id": "c0a1b2c3-0c18-4000-8000-000000000018", "leftValue": "={{ $json.next }}", "rightValue": "write", "operator": { "type": "string", "operation": "equals" } } ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c0a1b2c3-0019-4000-8000-000000000019",
+      "name": "প্রতিবেদক এজেন্ট — সিদ্ধান্ত",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2260, 0],
+      "onError": "continueRegularOutput",
+      "notes": "খসড়া ও পরীক্ষার ফল দেখে প্রকাশ / হোল্ড / বাতিল ঠিক করে",
+      "notesInFlow": true,
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AUTONEWS_API_URL }}/api/agent/stage/decide",
+        "sendQuery": true,
+        "queryParameters": { "parameters": [ { "name": "run_id", "value": "={{ $json.run_id }}" } ] },
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "X-API-Key", "value": "={{ $env.AUTONEWS_API_KEY }}" } ] },
+        "options": { "timeout": 870000, "response": { "response": { "neverError": true } } }
+      }
+    },
+    {
+      "id": "c0a1b2c3-0020-4000-8000-000000000020",
+      "name": "আরও খবর?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2520, 220],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2 },
+          "conditions": [ { "id": "c0a1b2c3-0c20-4000-8000-000000000020", "leftValue": "={{ $json.next }}", "rightValue": "verify", "operator": { "type": "string", "operation": "equals" } } ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c0a1b2c3-0021-4000-8000-000000000021",
+      "name": "রান শেষ — সারাংশ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2780, 220],
+      "onError": "continueRegularOutput",
+      "notes": "রান বন্ধ করে ফলাফল জানায়",
+      "notesInFlow": true,
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AUTONEWS_API_URL }}/api/agent/stage/finish",
+        "sendQuery": true,
+        "queryParameters": { "parameters": [ { "name": "run_id", "value": "={{ $json.run_id }}" } ] },
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "X-API-Key", "value": "={{ $env.AUTONEWS_API_KEY }}" } ] },
+        "options": { "timeout": 870000, "response": { "response": { "neverError": true } } }
       }
     }
   ],
   "connections": {
-    "Every 15 minutes": {
-      "main": [
-        [
-          {
-            "node": "Start agent desk",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Run manually": {
-      "main": [
-        [
-          {
-            "node": "Start agent desk",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Start agent desk": {
-      "main": [
-        [
-          {
-            "node": "Let the agent work (5 min)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Let the agent work (5 min)": {
-      "main": [
-        [
-          {
-            "node": "Check desk status",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Check desk status": {
-      "main": [
-        [
-          {
-            "node": "Summarise run",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+    "Every 15 minutes": { "main": [ [ { "node": "সম্পাদক এজেন্ট — খবর বাছাই", "type": "main", "index": 0 } ] ] },
+    "Run manually": { "main": [ [ { "node": "সম্পাদক এজেন্ট — খবর বাছাই", "type": "main", "index": 0 } ] ] },
+    "সম্পাদক এজেন্ট — খবর বাছাই": { "main": [ [ { "node": "খবর আছে?", "type": "main", "index": 0 } ] ] },
+    "খবর আছে?": { "main": [ [ { "node": "প্রতিবেদক এজেন্ট — যাচাই", "type": "main", "index": 0 } ], [ { "node": "রান শেষ — সারাংশ", "type": "main", "index": 0 } ] ] },
+    "প্রতিবেদক এজেন্ট — যাচাই": { "main": [ [ { "node": "যাচাই হয়েছে?", "type": "main", "index": 0 } ] ] },
+    "যাচাই হয়েছে?": { "main": [ [ { "node": "লেখক — খসড়া লেখা", "type": "main", "index": 0 } ], [ { "node": "আরও খবর?", "type": "main", "index": 0 } ] ] },
+    "লেখক — খসড়া লেখা": { "main": [ [ { "node": "খসড়া হয়েছে?", "type": "main", "index": 0 } ] ] },
+    "খসড়া হয়েছে?": { "main": [ [ { "node": "পরীক্ষক — খসড়া পরীক্ষা", "type": "main", "index": 0 } ], [ { "node": "আরও খবর?", "type": "main", "index": 0 } ] ] },
+    "পরীক্ষক — খসড়া পরীক্ষা": { "main": [ [ { "node": "আবার লিখতে হবে?", "type": "main", "index": 0 } ] ] },
+    "আবার লিখতে হবে?": { "main": [ [ { "node": "লেখক — খসড়া লেখা", "type": "main", "index": 0 } ], [ { "node": "প্রতিবেদক এজেন্ট — সিদ্ধান্ত", "type": "main", "index": 0 } ] ] },
+    "প্রতিবেদক এজেন্ট — সিদ্ধান্ত": { "main": [ [ { "node": "আরও খবর?", "type": "main", "index": 0 } ] ] },
+    "আরও খবর?": { "main": [ [ { "node": "প্রতিবেদক এজেন্ট — যাচাই", "type": "main", "index": 0 } ], [ { "node": "রান শেষ — সারাংশ", "type": "main", "index": 0 } ] ] }
   }
 }

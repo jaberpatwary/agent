@@ -131,15 +131,48 @@ func (s *story) toolWriteDraft(ctx context.Context, raw json.RawMessage) (string
 	if err := decodeArgs(raw, &a); err != nil {
 		return "", err
 	}
+	head, err := s.writeDraft(ctx, a.Notes)
+	if err != nil {
+		return "", err
+	}
+	// Review at once, so a good draft goes straight to submit_article.
+	v, err := s.runReview(ctx, s.written, "", nil)
+	if err != nil {
+		return head + "\nNot reviewed: " + err.Error(), nil
+	}
+	rv, _ := json.MarshalIndent(v, "", " ")
+	return head + "\nREVIEW OF THIS DRAFT:\n" + string(rv), nil
+}
+
+// fixNotes is what the writer is told when the desk, not the reporter, calls
+// it: the reporter's notes from verification and, for a story too long to
+// revise in one call, what the last review found.
+func (s *story) fixNotes() string {
+	notes := strings.TrimSpace(s.writerNotes)
+	if s.review == nil || s.review.Passed || s.revisable() != nil {
+		return notes // revise lists the problems itself
+	}
+	var b strings.Builder
+	b.WriteString(notes + "\nআগের খসড়ায় সম্পাদক এই সমস্যাগুলো পেয়েছেন, এবার এগুলো এড়িয়ে লেখো:")
+	for _, p := range append(append([]string(nil), s.review.Problems...), s.review.Issues...) {
+		b.WriteString("\n- " + p)
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// writeDraft is the desk writer: it rewrites the whole source, or fixes the
+// last draft after a failed review of a short story, and describes the new
+// draft. It does not review it.
+func (s *story) writeDraft(ctx context.Context, reporterNotes string) (string, error) {
 	passages := sourcePassages(s.item.Content)
 	if len(passages) == 0 {
-		return "", errors.New("the source has no text to rewrite")
+		return "", errNoSourceText
 	}
 	houseStyle, _ := s.nr.RunSettings()
 	rules := writerRules(houseStyle, s.facts)
 	notes := ""
-	if strings.TrimSpace(a.Notes) != "" {
-		notes = "\n\nরিপোর্টারের নির্দেশনা: " + strings.TrimSpace(a.Notes)
+	if strings.TrimSpace(reporterNotes) != "" {
+		notes = "\n\nরিপোর্টারের নির্দেশনা: " + strings.TrimSpace(reporterNotes)
 	}
 
 	var body strings.Builder
@@ -192,12 +225,5 @@ func (s *story) toolWriteDraft(ctx context.Context, raw json.RawMessage) (string
 	orig := utf8.RuneCountInString(plainText(s.item.Content))
 	head := fmt.Sprintf("Draft %s: %d characters (%.0f%% of the source).\nTitle: %s\nSummary: %s\nOpening: %s\n",
 		how, chars, 100*float64(chars)/float64(max(orig, 1)), d.Title, d.Summary, clip(plainText(d.Body), 300))
-
-	// Review at once, so a good draft goes straight to submit_article.
-	v, err := s.runReview(ctx, d, "", nil)
-	if err != nil {
-		return head + "\nNot reviewed: " + err.Error(), nil
-	}
-	rv, _ := json.MarshalIndent(v, "", " ")
-	return head + "\nREVIEW OF THIS DRAFT:\n" + string(rv), nil
+	return head, nil
 }

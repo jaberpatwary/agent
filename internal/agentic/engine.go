@@ -1,9 +1,10 @@
-// Package agentic is the portal's autonomous news desk. Instead of a fixed
-// pipeline (verify -> cross-check -> rewrite -> review -> save, always in that
-// order), a model is given a goal, a set of tools and guardrails, and decides
-// for itself what to do next: which searches to run, which pages to read,
-// whether the story is a duplicate or an update, when its draft is good
-// enough, and whether to publish, hold, reject, or ask a human editor.
+// Package agentic is the portal's news desk. A run goes through stages, each
+// done by its own agent (stages.go): the editor picks the stories, the
+// reporter verifies one, the writer drafts it, the reviewer checks the draft,
+// and the reporter decides. In its stages the reporter is a model given a
+// goal, tools and guardrails: it chooses which searches to run and pages to
+// read, whether the story is a duplicate or an update, and whether to
+// publish, hold, reject, or ask a human editor.
 package agentic
 
 import (
@@ -24,6 +25,9 @@ type Tool struct {
 	Spec     ai.ToolSpec
 	Run      func(ctx context.Context, args json.RawMessage) (string, error)
 	Terminal bool // a successful call ends the agent's work on the story
+	// Ends, when set on a terminal tool, says whether this call really ended
+	// the work (a verdict of "not real" does not: a rejection must follow).
+	Ends func() bool
 }
 
 // StepRecord is one entry of the agent's trace.
@@ -45,6 +49,9 @@ type Engine struct {
 	TokenBudget int // total tokens before the agent is stopped (0 = unlimited)
 	MaxTokens   int // per model turn
 	Record      func(StepRecord)
+	// History is the conversation so far. Run continues it and leaves the
+	// longer conversation here, so the agent's next stage remembers this one.
+	History []ai.ChatMessage
 }
 
 // Outcome says how the loop ended.
@@ -80,7 +87,14 @@ func (e *Engine) Run(ctx context.Context, system, goal string) Outcome {
 		maxTokens = 6000
 	}
 
-	msgs := []ai.ChatMessage{{Role: "user", Content: goal}}
+	var finals []string
+	for _, t := range e.Tools {
+		if t.Terminal {
+			finals = append(finals, t.Spec.Name)
+		}
+	}
+	msgs := append(append([]ai.ChatMessage(nil), e.History...), ai.ChatMessage{Role: "user", Content: goal})
+	defer func() { e.History = msgs }()
 	out := Outcome{}
 	idleTurns := 0
 	for out.Turns < e.MaxTurns {
@@ -118,12 +132,12 @@ func (e *Engine) Run(ctx context.Context, system, goal string) Outcome {
 				out.Stopped, out.Detail = "no_action", "the agent stopped calling tools without a final decision"
 				return out
 			}
-			msgs = append(msgs, ai.ChatMessage{Role: "user", Content: "Keep working by calling tools. You must finish by calling exactly one of: submit_article, reject_story, ask_editor."})
+			msgs = append(msgs, ai.ChatMessage{Role: "user", Content: "Keep working by calling tools. You must finish by calling exactly one of: " + strings.Join(finals, ", ") + "."})
 			continue
 		}
 		idleTurns = 0
 
-		for _, tc := range msg.ToolCalls {
+		for i, tc := range msg.ToolCalls {
 			tool, ok := byName[tc.Name]
 			var text string
 			var runErr error
@@ -139,7 +153,11 @@ func (e *Engine) Run(ctx context.Context, system, goal string) Outcome {
 			text = clip(text, maxToolOutput)
 			e.record(StepRecord{Kind: "result", Tool: tc.Name, Output: text})
 			msgs = append(msgs, ai.ChatMessage{Role: "tool", ToolCallID: tc.ID, ToolName: tc.Name, Content: text})
-			if ok && tool.Terminal && runErr == nil {
+			if ok && tool.Terminal && runErr == nil && (tool.Ends == nil || tool.Ends()) {
+				// Every call needs an answer for the history to stay valid.
+				for _, rest := range msg.ToolCalls[i+1:] {
+					msgs = append(msgs, ai.ChatMessage{Role: "tool", ToolCallID: rest.ID, ToolName: rest.Name, Content: "Not run: " + tc.Name + " ended this stage."})
+				}
 				out.Finished, out.Tool, out.Result = true, tc.Name, text
 				e.record(StepRecord{Kind: "final", Tool: tc.Name, Output: text})
 				return out
