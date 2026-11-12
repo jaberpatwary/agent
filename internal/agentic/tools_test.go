@@ -35,7 +35,7 @@ func (f *fakeNewsroom) SaveExternal(_ context.Context, in cron.ExternalArticle) 
 	if in.ForceReview != "" {
 		status = "pending_review"
 	}
-	return &domain.Article{ID: uuid.New(), Status: status, ReviewReason: in.ForceReview}, nil
+	return &domain.Article{ID: uuid.New(), Title: in.Title, Content: in.Body, Summary: in.Summary, Status: status, ReviewReason: in.ForceReview}, nil
 }
 func (f *fakeNewsroom) UpdateExternal(context.Context, uuid.UUID, cron.ExternalArticle, string, repository.AgentRepository) (*domain.Article, error) {
 	return &domain.Article{ID: uuid.New(), Status: "published"}, nil

@@ -82,6 +82,21 @@ type story struct {
 	written *draft // last draft produced by write_draft
 	latest  *draft // newest draft from either tool: what an editor gets if the story is held
 	facts   string // current facts, given to the writer too
+
+	writerNotes string // the reporter's instructions for the writer, from record_verification
+}
+
+// pick returns the named tools, for a stage that offers only some of them.
+func pick(all []Tool, names ...string) []Tool {
+	var out []Tool
+	for _, n := range names {
+		for _, t := range all {
+			if t.Spec.Name == n {
+				out = append(out, t)
+			}
+		}
+	}
+	return out
 }
 
 const maxReviews = 4
@@ -125,12 +140,13 @@ func (s *story) tools() []Tool {
 				"confidence":            str("high | medium | low"),
 				"reason":                str("short reason in Bangla, citing what you found"),
 				"corroborating_outlets": strList("names of other outlets that reported the same event"),
+				"writer_notes":          str("optional instructions for the desk writer, in Bangla: verified extra facts from pages you read that belong in the story, or what to leave out"),
 			}, "is_real", "reason")},
 			Run: s.toolRecordVerification},
 		{Spec: ai.ToolSpec{Name: "write_draft", Description: "Have the desk writer rewrite the whole source passage by passage in our own words — full length, every fact kept, no copied sentences — and review it at once (hard rules + independent AI editor). If the review passes, submit_article next. Call again with notes to fix what the review reported.",
 			Parameters: obj(map[string]any{"notes": str("optional instructions, e.g. extra verified facts to weave in, or what the last review asked to fix")})},
 			Run: s.toolWriteDraft},
-		{Spec: ai.ToolSpec{Name: "review_draft", Description: "Check a draft you wrote or corrected yourself (write_draft already reviews its own drafts). Runs hard rules (length, copying, outlet names, numbers, new headline) and an independent AI editor. Also use it to send a corrected title/summary or numbers_not_in_story for the written draft (use_written_draft=true).",
+		{Spec: ai.ToolSpec{Name: "review_draft", Description: "Check a draft you corrected yourself (the desk writer's drafts are reviewed already). Runs hard rules (length, copying, outlet names, numbers, new headline) and an independent AI editor. Also use it to send a corrected title/summary or numbers_not_in_story for the writer's draft (use_written_draft=true).",
 			Parameters: obj(map[string]any{
 				"title":                    str("new headline in your own words (Bangla)"),
 				"body":                     str("the full article as HTML <p> paragraphs, optional <h3> subheadings"),
@@ -333,6 +349,7 @@ func (s *story) toolRecordVerification(_ context.Context, raw json.RawMessage) (
 		Confidence string   `json:"confidence"`
 		Reason     string   `json:"reason"`
 		Outlets    []string `json:"corroborating_outlets"`
+		Notes      string   `json:"writer_notes"`
 	}
 	if err := decodeArgs(raw, &a); err != nil {
 		return "", err
@@ -354,11 +371,11 @@ func (s *story) toolRecordVerification(_ context.Context, raw json.RawMessage) (
 	if _, err := s.nr.RecordJourney(cron.JourneyUpdate{NewsID: s.item.NewsID, Stage: "cross_check", Sources: s.sources}); err != nil {
 		return "", err
 	}
-	s.verified = &a.IsReal
+	s.verified, s.writerNotes = &a.IsReal, strings.TrimSpace(a.Notes)
 	if !a.IsReal {
 		return "Recorded: NOT supported by evidence. If you are confident it is false, call reject_story(kind=fake); if unsure, ask_editor.", nil
 	}
-	next := "Next: write_draft (it reviews the draft too)."
+	next := "Next: the desk writer writes the article and the editor reviews it."
 	if s.review != nil && s.review.Passed {
 		next = "The current draft passed its review: submit_article next."
 	}
@@ -367,7 +384,7 @@ func (s *story) toolRecordVerification(_ context.Context, raw json.RawMessage) (
 
 const reviewerRules = `You are a strict senior news editor checking a Bangla article written by an AI reporter against its source material.
 Reply ONLY with JSON: {"passed": true/false, "scores": {"accuracy":1-5, "completeness":1-5, "originality":1-5, "language":1-5}, "issues": ["specific problem and how to fix it", ...]}.
-Fail (passed=false) if ANY of these: a fact, number, name or quote is not in the source, the listed extra facts or the CURRENT FACTS; an important fact from the source is missing; whole sentences are copied unchanged from the source outside quotation marks; any news outlet, news agency, reporter or website is named; the body repeats the same information (the summary restating the body is normal, not repetition); the Bangla is unclear or ungrammatical; it adds opinion.
+Fail (passed=false) if ANY of these: a fact, number, name or quote is not in the source, the listed extra facts or the CURRENT FACTS; an important fact from the source is missing; whole sentences are copied unchanged from the source outside quotation marks; the DRAFT names any news outlet, news agency, reporter or website (the source's own byline, credit or outlet name is expected and not the draft's fault — fail only for a name that appears in the draft itself); the body repeats the same information (the summary restating the body is normal, not repetition); the Bangla is unclear or ungrammatical; it adds opinion.
 Judge facts ONLY against the source and the CURRENT FACTS — never against your own memory, which is out of date. If the source gives someone a post, title or party role (e.g. প্রধানমন্ত্রী, মন্ত্রী, ক্ষমতাসীন দল), that is correct and the draft must keep it; never call it an error.
 Word-for-word copying is also measured by code; a sentence that says the same thing in new words is fine — do not fail a draft only because its paraphrase is close.
 Write issues in Bangla or English, each actionable.`
@@ -454,7 +471,7 @@ func (s *story) runReview(ctx context.Context, d *draft, extra string, ignoreNum
 	case s.reviews >= maxReviews:
 		v.Next = "Still failing and no reviews left: submit_article with decision=hold, or ask_editor."
 	default:
-		v.Next = fmt.Sprintf("Fix every problem above: write_draft again with notes on what to fix, or review_draft with your own corrected title/body (%d of %d reviews used).", s.reviews, maxReviews)
+		v.Next = fmt.Sprintf("Not passed: every problem above must be fixed and the draft reviewed again (%d of %d reviews used).", s.reviews, maxReviews)
 	}
 	s.review = v
 	_, _ = s.nr.RecordJourney(cron.JourneyUpdate{NewsID: s.item.NewsID, Stage: "rewritten", RewrittenTitle: d.Title, RewrittenContent: d.Body})

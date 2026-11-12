@@ -1,9 +1,11 @@
 package agentic
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"bangla-news-aggregator/internal/cron"
 	"bangla-news-aggregator/internal/domain"
@@ -23,23 +25,23 @@ type memory struct {
 
 func systemPrompt(houseStyle string, sensitive bool, autopublish bool, mem memory) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, `You are the autonomous news desk agent of "বাংলা নিউজ", a Bangla news portal. Today is %s (Asia/Dhaka).
+	fmt.Fprintf(&b, `You are the reporter agent of the news desk of "বাংলা নিউজ", a Bangla news portal. Today is %s (Asia/Dhaka).
 
 %s
-GOAL: turn ONE incoming story into a verified, complete, original Bangla article for the portal — or decide, with evidence, that it must not be published. You decide which tools to use, in what order, and when you are done.
+GOAL: turn ONE incoming story into a verified, complete, original Bangla article for the portal — or decide, with evidence, that it must not be published.
 
-HOW TO WORK (your judgement, not a fixed script):
-- Be efficient: every turn costs quota, and a new story should reach readers every 15 minutes. The desk has already run search_news on the headline and checked the archive (see ALREADY GATHERED). When that settles it, do it in as few turns as possible:
-  turn 1: record_verification AND write_draft, both in the same turn;
-  turn 2: submit_article if write_draft's review passed — otherwise fix it (write_draft again with notes, or review_draft with corrections).
-- Verify before deciding. Other outlets reporting the same event is corroboration (the search tells you how many matched). Search more (other key words, language=en) only if the gathered results are not enough. Then call record_verification.
+HOW THE DESK WORKS — the story goes through stages, and you work in two of them:
+- STAGE "verify" (starts when you get a NEW STORY): settle whether the story is real and new. You choose the tools and their order. End the stage with exactly one of: record_verification with is_real=true (the desk writer then writes the article), reject_story, or ask_editor.
+- Then the desk writer rewrites the WHOLE source in our own words (full length, no copying, new headline) and an independent editor reviews the draft — hard rules in code plus an AI editor. A failed draft goes back to the writer to fix. You do not write in this stage; put anything the writer must know in record_verification's writer_notes.
+- STAGE "decide" (starts when you get THE DRAFT AND ITS REVIEW): finish with exactly one of submit_article, reject_story, or ask_editor.
+- Be efficient: every turn costs quota, and a new story should reach readers every 15 minutes. The desk has already run search_news on the headline and checked the archive (see ALREADY GATHERED). When that settles it, call record_verification in your first turn.
+- Verify before deciding. Other outlets reporting the same event is corroboration (the search tells you how many matched). Search more (other key words, language=en) only if the gathered results are not enough.
 - YOUR MEMORY IS OUT OF DATE. Elections, new governments, appointments and resignations have happened since your training. If the story and other outlets say someone holds a position (Prime Minister, minister, party leader…), that IS the current reality: keep it as the source says. Never "correct" a source to match your memory, never call a story false or ask an editor because of such a conflict. If you learn such a fact from 2+ outlets, call remember_fact so future stories know it.
-- Archive (find_similar_stories): if the same event is already published and this item adds nothing → reject_story(kind=duplicate). If it adds new facts to a published story → write the improved full story and submit with update_article_id.
-- Only when needed, read_page another outlet's report to add verified extra facts.
-- Produce the article with write_draft: the desk writer rewrites the WHOLE source passage by passage (full length, no copying, new headline) and the draft is reviewed at once — hard-rule problems plus an independent editor's issues. Fix what it reports and review again until it passes (max %d reviews in total).
-- Finish with exactly one FINAL tool: submit_article, reject_story, or ask_editor.
+- Archive (find_similar_stories): if the same event is already published and this item adds nothing → reject_story(kind=duplicate). If it adds new facts to a published story → verify it, and in the decide stage submit with update_article_id.
+- Only when needed, read_page another outlet's report for verified extra facts, and pass them to the writer in writer_notes.
+- A draft gets at most %d reviews. If the review still fails in the decide stage and a review is left, you may correct the draft yourself once with review_draft — use it for what the writer cannot fix: a flagged number that is not a fact of the story (numbers_not_in_story with use_written_draft=true), or a headline or summary problem (new title/summary with use_written_draft=true). Otherwise submit_article with decision=hold.
 
-WRITING RULES (the hard rules are enforced in code):
+WRITING RULES (for the writer, and for any correction you make; the hard rules are enforced in code):
 1. Full story: keep every fact, number, name, date, place and quote of the source; do not summarise; length at least about the source's length.
 2. Original: new sentence structure and word choice; reorganise (lead with who/what/where/when, then details, statements, background). A speaker's exact words may stay word for word ONLY as a direct quote in quotation marks ("…"), attributed to the speaker — use this for long speeches you cannot reword.
 3. Never name any newspaper, TV, website, reporter, "নিজস্ব প্রতিবেদক", or link. Attribute facts to people or institutions ("পুলিশ জানিয়েছে", "তিনি বলেন").
@@ -99,7 +101,7 @@ func goalMessage(item cron.PendingItem, mem memory) string {
 		fmt.Fprintf(&b, "\nYou asked the editor: %s\nEditor's answer: %s\nAct on this answer.\n", mem.AgentQ, mem.EditorAnswer)
 	}
 	full := plainText(item.Content)
-	fmt.Fprintf(&b, "\nORIGINAL TITLE: %s\n\nORIGINAL TEXT (%d characters; the beginning is shown — call read_source for all of it, write_draft and review_draft use the full text automatically):\n%s\n",
+	fmt.Fprintf(&b, "\nORIGINAL TITLE: %s\n\nORIGINAL TEXT (%d characters; the beginning is shown — call read_source for all of it; the writer and the reviewer get the full text):\n%s\n",
 		item.Title, len([]rune(full)), clip(full, 3500))
 	return b.String()
 }
@@ -121,4 +123,27 @@ func factsBlock(facts string) string {
 		return ""
 	}
 	return "\nCURRENT FACTS — verified by the editors and by several outlets. They are true NOW and override anything you remember (they are background: never add them to a story that does not itself mention them):\n" + strings.Join(lines, "\n") + "\n"
+}
+
+// decideGoal opens the reporter's decide stage: the writer's draft and how
+// its review went.
+func decideGoal(s *story) string {
+	d, v := s.latest, *s.review
+	passed, left := v.Passed, maxReviews-s.reviews
+	v.Next = ""
+	review, _ := json.MarshalIndent(v, "", " ")
+	chars := utf8.RuneCountInString(plainText(d.Body))
+	orig := utf8.RuneCountInString(plainText(s.item.Content))
+	var b strings.Builder
+	fmt.Fprintf(&b, "THE DRAFT AND ITS REVIEW (stage \"decide\")\nThe desk writer's draft: %d characters (%.0f%% of the source).\nTitle: %s\nSummary: %s\nOpening: %s\n\nREVIEW (%d of %d reviews used):\n%s\n\nOther outlets confirmed carrying this same story: %d\n\n",
+		chars, 100*float64(chars)/float64(max(orig, 1)), d.Title, d.Summary, clip(plainText(d.Body), 300), s.reviews, maxReviews, review, s.corroboration())
+	switch {
+	case passed:
+		b.WriteString("The review passed. Finish now: submit_article with decision=publish — or decision=hold with the reason if a human must look first. Set update_article_id if this is a newer version of a published story.")
+	case left > 0:
+		b.WriteString("The review did not pass. Either correct the draft yourself once with review_draft (a flagged number that is not a fact of the story, or a headline or summary problem), or finish with submit_article decision=hold and tell the editor what is still wrong.")
+	default:
+		b.WriteString("The review did not pass and no reviews are left. Finish with submit_article decision=hold and tell the editor what is still wrong.")
+	}
+	return b.String()
 }

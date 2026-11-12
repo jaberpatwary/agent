@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -143,3 +144,22 @@ func (h *N8NHandler) AgentStatus(c *gin.Context) {
 
 // SetDesk connects the agentic desk to the machine API.
 func (h *N8NHandler) SetDesk(d *agentic.Desk) { h.desk = d }
+
+// AgentStage handles POST /api/agent/stage/:name?run_id=… — one stage of a
+// run, for a workflow that shows every agent as its own node. The plan stage
+// opens the run and returns its id; each reply says which stage is next.
+func (h *N8NHandler) AgentStage(c *gin.Context) {
+	if h.desk == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "agent desk not configured", "next": agentic.StageFinish})
+		return
+	}
+	res, err := h.desk.Stage(c.Request.Context(), c.Param("name"), c.Query("run_id"), c.DefaultQuery("trigger", "n8n"))
+	switch {
+	case errors.Is(err, agentic.ErrRunBusy), errors.Is(err, agentic.ErrNoSuchRun):
+		c.JSON(http.StatusConflict, res)
+	case err != nil:
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error(), "next": agentic.StageFinish})
+	default:
+		c.JSON(http.StatusOK, res)
+	}
+}

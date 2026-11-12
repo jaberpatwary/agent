@@ -46,14 +46,14 @@ function Wait-Url([string] $Url, [string] $Name) {
     }
     throw ("{0} did not become healthy. Check: docker compose logs" -f $Name)
 }
-Wait-Url 'http://localhost:8080/health' 'App'
+Wait-Url 'http://localhost:8081/health' 'App'
 Wait-Url 'http://localhost:5678/healthz' 'n8n'
 
 Write-Output ''
 Write-Output 'Bangla News is running:'
-Write-Output '  Website      http://localhost:8080'
-Write-Output '  Admin        http://localhost:8080/admin/login'
-Write-Output '  Agent desk   http://localhost:8080/admin/agent'
+Write-Output '  Website      http://localhost:8081'
+Write-Output '  Admin        http://localhost:8081/admin/login'
+Write-Output '  Agent desk   http://localhost:8081/admin/agent'
 Write-Output '  n8n          http://localhost:5678'
 Write-Output ''
 Write-Output 'The AI agent now runs every 15 minutes and uses API tokens. Run "make stop" to stop all AI usage.'

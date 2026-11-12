@@ -3,7 +3,6 @@ package agentic
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -40,9 +39,9 @@ type DeskSettings struct {
 	Facts         string // current facts the agent must trust over its own (outdated) memory, one per line
 }
 
-// Desk runs the agentic newsroom: an editor agent picks which incoming
-// stories to cover, then a reporter agent works each one with tools until
-// it publishes, holds, rejects, or asks a human.
+// Desk runs the agentic newsroom in stages (stages.go): an editor agent picks
+// which incoming stories to cover; for each, a reporter agent verifies it, a
+// writer drafts it, a reviewer checks the draft, and the reporter decides.
 type Desk struct {
 	worker   *cron.Worker
 	agents   repository.AgentRepository
@@ -51,8 +50,11 @@ type Desk struct {
 	feeds    repository.FeedRepository
 	search   SearchFunc
 	read     ReadFunc
+	chat     ChatFunc
 
 	mu      sync.Mutex
+	stageMu sync.Mutex // one stage at a time
+	sess    *session
 	running bool
 	current string
 	runID   uuid.UUID
@@ -60,7 +62,7 @@ type Desk struct {
 
 func NewDesk(worker *cron.Worker, agents repository.AgentRepository, journeys repository.JourneyRepository,
 	settings repository.SettingsRepository, feeds repository.FeedRepository, search SearchFunc, read ReadFunc) *Desk {
-	return &Desk{worker: worker, agents: agents, journeys: journeys, settings: settings, feeds: feeds, search: search, read: read}
+	return &Desk{worker: worker, chat: worker.AIChat, agents: agents, journeys: journeys, settings: settings, feeds: feeds, search: search, read: read}
 }
 
 func (d *Desk) setting(key, def string) string {
@@ -144,59 +146,40 @@ func (d *Desk) Status() DeskStatus {
 
 // Start launches a run in the background. It returns false if one is already running.
 func (d *Desk) Start(trigger string) (uuid.UUID, bool) {
-	d.mu.Lock()
-	if d.running {
-		id := d.runID
-		d.mu.Unlock()
-		return id, false
-	}
-	run := &domain.AgentRun{ID: uuid.New(), Trigger: trigger, Status: "running", StartedAt: time.Now()}
-	d.running, d.runID, d.current = true, run.ID, "খবর খোঁজা হচ্ছে"
-	d.mu.Unlock()
-	if err := d.agents.CreateRun(run); err != nil {
-		log.Printf("[agent] could not record run: %v", err)
+	sess, ok := d.begin(trigger)
+	if !ok {
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		return d.runID, false
 	}
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("[agent] run panicked: %v", r)
-				run.Status, run.Error = "failed", fmt.Sprint(r)
-				d.finish(run)
-			}
-		}()
 		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Minute)
 		defer cancel()
-		d.run(ctx, run)
+		d.drive(ctx, sess)
 	}()
-	return run.ID, true
+	return sess.run.ID, true
 }
 
 // RunOnce runs the desk synchronously (for one-shot runners such as the
 // news-worker command on GitHub Actions).
 func (d *Desk) RunOnce(ctx context.Context, trigger string) (*domain.AgentRun, error) {
-	d.mu.Lock()
-	if d.running {
-		d.mu.Unlock()
-		return nil, fmt.Errorf("a run is already in progress")
+	sess, ok := d.begin(trigger)
+	if !ok {
+		return nil, ErrRunBusy
 	}
-	run := &domain.AgentRun{ID: uuid.New(), Trigger: trigger, Status: "running", StartedAt: time.Now()}
-	d.running, d.runID = true, run.ID
-	d.mu.Unlock()
-	if err := d.agents.CreateRun(run); err != nil {
-		log.Printf("[agent] could not record run: %v", err)
-	}
-	d.run(ctx, run)
-	return run, nil
+	d.drive(ctx, sess)
+	return sess.run, nil
 }
 
-func (d *Desk) finish(run *domain.AgentRun) {
+func (d *Desk) finish(sess *session) {
+	sess.watchdog.Stop()
 	now := time.Now()
-	run.FinishedAt = &now
-	if err := d.agents.SaveRun(run); err != nil {
+	sess.run.FinishedAt = &now
+	if err := d.agents.SaveRun(sess.run); err != nil {
 		log.Printf("[agent] could not save run: %v", err)
 	}
 	d.mu.Lock()
-	d.running, d.current = false, ""
+	d.running, d.current, d.sess = false, "", nil
 	d.mu.Unlock()
 }
 
@@ -206,61 +189,6 @@ func (d *Desk) setCurrent(s string) {
 	d.mu.Unlock()
 }
 
-func (d *Desk) run(ctx context.Context, run *domain.AgentRun) {
-	defer d.finish(run)
-	cfg := d.Settings()
-	if !cfg.Enabled {
-		run.Status, run.Error = "skipped", "agent is switched off on /admin/agent"
-		return
-	}
-	if budget := d.worker.DailyTokenBudget(); budget > 0 && d.worker.TokensUsedToday() >= budget {
-		run.Status, run.Error = "skipped", "daily AI token budget reached"
-		return
-	}
-	items, err := d.worker.PendingItems(ctx, 12)
-	if err != nil {
-		run.Status, run.Error = "failed", "could not load new stories: "+err.Error()
-		return
-	}
-	run.Candidates = len(items)
-	if len(items) == 0 {
-		run.Status, run.PlanNote = "done", "কোনো নতুন খবর নেই"
-		return
-	}
-
-	d.setCurrent("সম্পাদক এজেন্ট খবর বাছাই করছে")
-	// A couple of reserves: when a story is rejected or held, the desk moves
-	// on to the next one so every run tries to put new news on the portal.
-	chosen, note := d.plan(ctx, run, items, cfg.StoriesPerRun+storyReserves)
-	run.PlanNote = note
-	_ = d.agents.SaveRun(run)
-
-	published := 0
-	for _, item := range chosen {
-		if ctx.Err() != nil || published >= cfg.StoriesPerRun {
-			break
-		}
-		if time.Since(run.StartedAt) > runWorkWindow {
-			break // the next scheduled run is close; leave the rest to it
-		}
-		d.setCurrent(item.Title)
-		// A story may not run into the next scheduled run, which would then be skipped.
-		sctx, cancel := context.WithDeadline(ctx, run.StartedAt.Add(runHardStop))
-		res := d.processStory(sctx, run, item, cfg)
-		cancel()
-		run.Processed++
-		run.Tokens += res.tokens
-		_ = d.agents.SaveRun(run)
-		if res.published {
-			published++
-		}
-		if res.providerDown {
-			break // no AI capacity right now; the next run tries again
-		}
-	}
-	run.Status = "done"
-}
-
 const (
 	storyReserves = 2
 	// Runs start every 15 minutes. No new story starts after runWorkWindow,
@@ -268,12 +196,6 @@ const (
 	runWorkWindow = 9 * time.Minute
 	runHardStop   = 14 * time.Minute
 )
-
-type storyResult struct {
-	tokens       int
-	published    bool
-	providerDown bool
-}
 
 // plan is the editor agent: from the candidates it picks what to cover now.
 func (d *Desk) plan(ctx context.Context, run *domain.AgentRun, items []cron.PendingItem, k int) ([]cron.PendingItem, string) {
@@ -332,77 +254,6 @@ func (d *Desk) outletNames() []string {
 		names = append(names, f.Name)
 	}
 	return names
-}
-
-// processStory lets the reporter agent work one story.
-func (d *Desk) processStory(ctx context.Context, run *domain.AgentRun, item cron.PendingItem, cfg DeskSettings) storyResult {
-	if _, err := d.worker.RecordJourney(cron.JourneyUpdate{NewsID: item.NewsID, Stage: "received", SourceURL: item.SourceURL,
-		SourceName: item.SourceName, Category: item.Category, OriginalTitle: item.Title, OriginalContent: item.Content}); err != nil {
-		log.Printf("[agent] journey %s: %v", item.NewsID, err)
-	}
-	j, _ := d.journeys.Get(item.NewsID)
-	mem := memory{Attempt: 1}
-	if j != nil {
-		mem.Attempt = j.Attempts + 1
-		mem.PrevSummary, mem.EditorAnswer, mem.AgentQ = j.AgentSummary, j.EditorAnswer, j.AgentQuestion
-	}
-	mem.Feedback, _ = d.agents.RecentFeedback(8)
-	mem.Source, _ = d.agents.SourceRecord(item.SourceName)
-
-	houseStyle, sensitive := d.worker.RunSettings()
-	setJourney := func(fields map[string]any) {
-		if err := d.journeys.Update(item.NewsID, fields); err != nil {
-			log.Printf("[agent] journey update %s: %v", item.NewsID, err)
-		}
-	}
-	setJourney(map[string]any{"attempts": mem.Attempt})
-
-	s := &story{item: item, nr: d.worker, versions: d.agents, searchNews: d.search, readPage: d.read,
-		setJourney: setJourney, outlets: d.outletNames(), autopublish: cfg.Autopublish, addFact: d.addFact, facts: cfg.Facts}
-
-	step := 0
-	record := func(r StepRecord) {
-		step++
-		if err := d.agents.AddStep(&domain.AgentStep{RunID: run.ID, NewsID: item.NewsID, Step: step, Kind: r.Kind, Tool: r.Tool,
-			Input: r.Input, Output: clip(r.Output, 6000), Provider: r.Provider, Model: r.Model, Tokens: r.Tokens}); err != nil {
-			log.Printf("[agent] step %s/%d: %v", item.NewsID, step, err)
-		}
-	}
-	engine := Engine{
-		Chat:        d.worker.AIChat,
-		Tools:       s.tools(),
-		MaxTurns:    cfg.MaxTurns,
-		TokenBudget: cfg.StoryBudget,
-		MaxTokens:   6000,
-		Record:      record,
-	}
-	mem.Facts = cfg.Facts
-	d.setCurrent("খবর যাচাইয়ের তথ্য সংগ্রহ: " + item.Title)
-	gathered := s.observe(ctx, record)
-	out := engine.Run(ctx, systemPrompt(houseStyle, sensitive[item.Category], cfg.Autopublish, mem), goalMessage(item, mem)+gathered)
-
-	summary := ""
-	switch {
-	case out.Finished:
-		summary = out.Tool + ": " + out.Result
-	case out.Stopped == "provider_error" && errors.Is(ctx.Err(), context.DeadlineExceeded):
-		summary = "এই রানের সময় শেষ — পরের রানে আবার চেষ্টা হবে"
-	case out.Stopped == "provider_error":
-		summary = "AI প্রোভাইডার পাওয়া যায়নি — পরের রানে আবার চেষ্টা হবে (" + clip(out.Detail, 160) + ")"
-	default:
-		summary = d.salvage(ctx, s, out)
-	}
-	fields := map[string]any{"agent_summary": clip(summary, 1000), "agent_steps": step, "agent_tokens": out.Tokens}
-	if mem.EditorAnswer != "" && out.Finished {
-		fields["editor_answer"] = "" // answer consumed
-	}
-	setJourney(fields)
-	log.Printf("[agent] %q → %s (%d turns, %d tokens)", clip(item.Title, 60), clip(summary, 120), out.Turns, out.Tokens)
-	return storyResult{
-		tokens:       out.Tokens,
-		published:    s.saved != nil && s.saved.Status == "published",
-		providerDown: out.Stopped == "provider_error",
-	}
 }
 
 // salvage handles an agent that hit a limit before deciding: a verified,
