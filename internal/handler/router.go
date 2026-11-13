@@ -94,15 +94,15 @@ func categoryLabel(category string) string {
 	case "bangladesh":
 		return "বাংলাদেশ"
 	case "international":
-		return "বিশ্ব"
+		return "আন্তর্জাতিক"
 	case "business":
-		return "ব্যবসা"
+		return "বাণিজ্য"
 	case "sports":
 		return "খেলা"
 	case "entertainment":
 		return "বিনোদন"
 	case "technology":
-		return "প্রযুক্তি"
+		return "প্রযুক্তি ও স্টার্টআপ"
 	case "general":
 		return "সাধারণ"
 	default:
@@ -227,28 +227,8 @@ func todayBanglaDate() string {
 	return fmt.Sprintf("%s, %s %s %s", bengaliDays[now.Weekday()], toBanglaDigits(now.Format("02")), bengaliMonths[now.Month()], toBanglaDigits(now.Format("2006")))
 }
 
-// NewRouter builds the full Gin engine: templates, static files, public
-// routes, and JWT-protected admin routes.
-func NewRouter(
-	authUC usecase.AuthUsecase,
-	publicH *PublicHandler,
-	adminH *AdminHandler,
-	n8nH *N8NHandler, // nil disables the /api/n8n routes
-	imageStorageDir string,
-) *gin.Engine {
-	r := gin.Default()
-	r.Use(func(c *gin.Context) {
-		c.Header("X-Content-Type-Options", "nosniff")
-		c.Header("X-Frame-Options", "DENY")
-		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
-		c.Header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-		if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
-			c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-		}
-		c.Next()
-	})
-
-	r.SetFuncMap(template.FuncMap{
+func templateFuncs() template.FuncMap {
+	return template.FuncMap{
 		"add": func(a, b int) int { return a + b },
 		"sub": func(a, b int) int { return a - b },
 		"mul": func(a, b int) int { return a * b },
@@ -271,7 +251,36 @@ func NewRouter(
 		"readMinutes":        readMinutes,
 		"banglaCalendar":     banglaCalendarDate,
 		"now":                time.Now,
+		"dsToday":            dsToday,
+		"dsDateTime":         dsDateTime,
+		"dsAgo":              dsAgo,
+		"part":               part,
+		"iso":                func(t time.Time) string { return inDhaka(t).Format(time.RFC3339) },
+	}
+}
+
+// NewRouter builds the full Gin engine: templates, static files, public
+// routes, and JWT-protected admin routes.
+func NewRouter(
+	authUC usecase.AuthUsecase,
+	publicH *PublicHandler,
+	adminH *AdminHandler,
+	n8nH *N8NHandler, // nil disables the /api/n8n routes
+	imageStorageDir string,
+) *gin.Engine {
+	r := gin.Default()
+	r.Use(func(c *gin.Context) {
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		c.Header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
+			c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		c.Next()
 	})
+
+	r.SetFuncMap(templateFuncs())
 	r.LoadHTMLGlob("web/templates/**/*.html")
 	r.Static("/static", "web/static")
 	if imageStorageDir != "" {
@@ -286,6 +295,7 @@ func NewRouter(
 
 	// ---- Public routes ----
 	r.GET("/", publicH.Home)
+	r.GET("/latest", publicH.Home)
 	r.GET("/article/:id", publicH.ArticleDetail)
 	r.GET("/health", publicH.HealthCheck)
 	r.GET("/api/latest-check", publicH.LatestCheck)

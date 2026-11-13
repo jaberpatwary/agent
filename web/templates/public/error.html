@@ -1,23 +1,27 @@
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="bn" dir="ltr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>পাতাটি পাওয়া যায়নি | বাংলা নিউজ</title>
+  <title>পাতাটি পাওয়া যায়নি | দ্য ডেইলি স্টার বাংলা</title>
   <meta name="robots" content="noindex">
   {{ template "portal_assets" . }}
 </head>
-<body>
+<body class="path-taxonomy">
+<div class="page-wrapper">
   {{ template "portal_header" . }}
-  <main class="page">
-    <div class="wrap error-box">
-      <div class="code">৪০৪</div>
-      <h1>দুঃখিত, পাতাটি খুঁজে পাওয়া যায়নি</h1>
-      <p>{{ with .message }}{{ . }}{{ else }}লিংকটি ভুল হতে পারে, অথবা খবরটি সরিয়ে নেওয়া হয়েছে।{{ end }}</p>
-      <a href="/" class="btn-primary">প্রথম পাতায় ফিরুন</a>
+  <main role="main" class="main" id="main-content">
+    <div class="news-section section-spacer mt-5">
+      <div class="row">
+        <div class="column small-12">
+          <div class="section-title-wrapper"><h1 class="section-title">দুঃখিত, পাতাটি খুঁজে পাওয়া যায়নি</h1></div>
+          <p class="ds-empty">{{ with .message }}{{ . }}{{ else }}লিংকটি ভুল হতে পারে, অথবা খবরটি সরিয়ে নেওয়া হয়েছে।{{ end }} <a href="/">প্রথম পাতায় ফিরুন</a></p>
+        </div>
+      </div>
     </div>
   </main>
   {{ template "portal_footer" . }}
+</div>
   {{ template "portal_scripts" . }}
 </body>
 </html>

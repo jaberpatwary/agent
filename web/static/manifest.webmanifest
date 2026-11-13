@@ -1,13 +1,13 @@
 {
-  "name": "বাংলা নিউজ — সর্বশেষ সংবাদ",
-  "short_name": "বাংলা নিউজ",
-  "description": "দেশ ও বিশ্বের সর্বশেষ খবর, প্রতি মুহূর্তে হালনাগাদ।",
+  "name": "দ্য ডেইলি স্টার বাংলা",
+  "short_name": "ডেইলি স্টার",
+  "description": "বাংলাদেশ ও বিশ্বের সর্বশেষ সংবাদ",
   "lang": "bn",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f6f4ef",
-  "theme_color": "#c8102e",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "icons": [
     { "src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
     { "src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
