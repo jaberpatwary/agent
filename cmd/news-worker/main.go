@@ -40,6 +40,7 @@ func main() {
 		repository.NewSeenURLRepository(db),
 	)
 	worker.SetJourneyRepo(journeyRepo)
+	worker.SetPopularRepo(repository.NewPopularRepository(db))
 
 	desk := agentic.NewDesk(worker, repository.NewAgentRepository(db), journeyRepo, settingsRepo, feedRepo,
 		agentic.GoogleNewsSearch(nil), agentic.PageReader(rss.NewClient()))

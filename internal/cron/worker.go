@@ -50,6 +50,7 @@ type Worker struct {
 	images       *imagestore.Store // nil (or cfg.ImageStorageDir == "") disables image caching
 	gateway      *ai.Gateway
 	journeyRepo  repository.JourneyRepository // optional; set via SetJourneyRepo to track the n8n pipeline
+	popularRepo  repository.PopularRepository // optional; set via SetPopularRepo to read outlets' most-read lists
 }
 
 func NewWorker(

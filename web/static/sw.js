@@ -5,7 +5,7 @@
 const VERSION = 'ds-v1';
 const STATIC = VERSION + '-static';
 const PAGES = VERSION + '-pages';
-const PRECACHE = ['/', '/saved', '/static/ds/swallow.css?v=1', '/static/ds/logo.css?v=1', '/static/ds/extra.css?v=3', '/static/ds/logo.png', '/manifest.webmanifest'];
+const PRECACHE = ['/', '/saved', '/static/ds/swallow.css?v=1', '/static/ds/logo.css?v=1', '/static/ds/extra.css?v=6', '/static/ds/logo.png', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(STATIC).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));

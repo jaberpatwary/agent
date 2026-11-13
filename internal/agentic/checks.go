@@ -34,7 +34,7 @@ var knownOutlets = []string{
 	"ইত্তেফাক", "ittefaq", "জাগো নিউজ", "জাগোনিউজ", "jagonews", "বাংলা ট্রিবিউন", "bangla tribune", "ঢাকা পোস্ট", "dhaka post",
 	"ঢাকা মেইল", "dhaka mail", "সময় নিউজ", "somoy news", "রাইজিংবিডি", "risingbd", "বিডিনিউজ", "bdnews24", "ডেইলি স্টার",
 	"daily star", "আজকের পত্রিকা", "নয়া দিগন্ত", "মানবজমিন", "বাংলানিউজ২৪", "banglanews24", "ডেইলি বাংলাদেশ", "daily bangladesh",
-	"bd24live", "techshohor", "টেকশহর", "নিজস্ব প্রতিবেদক", "স্টাফ রিপোর্টার", "আরও পড়ুন", ".com",
+	"bd24live", "techshohor", "টেকশহর", "জনকণ্ঠ", "janakantha", "inqilab", "mzamin", "manab zamin", "naya diganta", "nayadiganta", "bd-pratidin", "নিজস্ব প্রতিবেদক", "স্টাফ রিপোর্টার", "আরও পড়ুন", ".com",
 }
 
 // DraftCheck is the result of the code checks on a draft.

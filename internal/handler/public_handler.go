@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"bangla-news-aggregator/internal/domain"
+	"bangla-news-aggregator/internal/repository"
 	"bangla-news-aggregator/internal/usecase"
 )
 
@@ -20,7 +21,8 @@ import (
 // and individual article pages.
 type PublicHandler struct {
 	articleUC usecase.ArticleUsecase
-	baseURL   string // may be empty if PUBLIC_BASE_URL isn't configured; callers fall back to relative URLs
+	popular   repository.PopularRepository // optional; the source outlets' most-read lists
+	baseURL   string                       // may be empty if PUBLIC_BASE_URL isn't configured; callers fall back to relative URLs
 }
 
 func NewPublicHandler(articleUC usecase.ArticleUsecase, baseURL string) *PublicHandler {
@@ -57,15 +59,14 @@ func (h *PublicHandler) Home(c *gin.Context) {
 
 	front := page == 1 && category == "" && query == "" && !latest
 	cats := map[string][]domain.Article{}
-	var mostRead []domain.Article
 	if front {
 		for _, key := range homeCategories {
 			if list, _, err := h.articleUC.List(1, 14, key, "published"); err == nil {
 				cats[key] = list
 			}
 		}
-		mostRead, _ = h.articleUC.MostRead(5)
 	}
+	mostRead := h.mostRead(5)
 
 	c.HTML(http.StatusOK, "index.html", gin.H{
 		"Front":        front,
@@ -109,7 +110,7 @@ func (h *PublicHandler) ArticleDetail(c *gin.Context) {
 
 	h.articleUC.RecordView(article.ID)
 
-	related, err := h.articleUC.Related(article, 4)
+	related, err := h.articleUC.Related(article, 5)
 	if err != nil {
 		// Related stories are a nice-to-have, not essential to the page —
 		// log and continue rather than failing the whole article view.
@@ -123,6 +124,20 @@ func (h *PublicHandler) ArticleDetail(c *gin.Context) {
 		}
 	}
 
+	var popularOutlet string
+	var popularRank int
+	if h.popular != nil {
+		popularOutlet, popularRank, _ = h.popular.RankOf(article.SourceURL, time.Now().Add(-popularFresh))
+	}
+	article.Views++ // this reading counts too
+
+	// The first related story sits inside the text, as "আরও পড়ুন".
+	head, tail := splitBody(article.Content, 2)
+	var more *domain.Article
+	if len(related) > 0 && tail != "" {
+		more, related = &related[0], related[1:]
+	}
+
 	var latest []domain.Article
 	if list, _, err := h.articleUC.List(1, 6, "", "published"); err == nil {
 		for _, a := range list {
@@ -134,15 +149,20 @@ func (h *PublicHandler) ArticleDetail(c *gin.Context) {
 
 	canonicalURL := h.absoluteURL("/article/" + article.ID.String())
 	c.HTML(http.StatusOK, "article.html", gin.H{
-		"Article":      article,
-		"Category":     article.Category,
-		"Tags":         tags,
-		"Related":      related,
-		"Latest":       latest,
-		"HeaderNews":   h.headerNews(),
-		"CanonicalURL": canonicalURL,
-		"BaseURL":      h.baseURL,
-		"JSONLD":       newsArticleJSONLD(article, canonicalURL),
+		"Article":       article,
+		"Category":      article.Category,
+		"Tags":          tags,
+		"Related":       related,
+		"Latest":        latest,
+		"HeaderNews":    h.headerNews(),
+		"CanonicalURL":  canonicalURL,
+		"BaseURL":       h.baseURL,
+		"JSONLD":        newsArticleJSONLD(article, canonicalURL),
+		"BodyHead":      head,
+		"BodyTail":      tail,
+		"MoreRead":      more,
+		"PopularOutlet": popularOutlet,
+		"PopularRank":   popularRank,
 	})
 }
 
@@ -399,4 +419,33 @@ func (h *PublicHandler) LatestCheck(c *gin.Context) {
 		"latest_title": articles[0].Title,
 		"published_at": articles[0].PublishedAt,
 	})
+}
+
+// SetPopular gives the "most read" box the source outlets' own lists.
+func (h *PublicHandler) SetPopular(repo repository.PopularRepository) { h.popular = repo }
+
+// mostRead fills the "most read" box: stories on the source outlets' own
+// most-read lists first, then this portal's most read.
+func (h *PublicHandler) mostRead(limit int) []domain.RankedArticle {
+	var out []domain.RankedArticle
+	seen := map[uuid.UUID]bool{}
+	add := func(a domain.RankedArticle) {
+		if len(out) < limit && !seen[a.ID] {
+			seen[a.ID] = true
+			out = append(out, a)
+		}
+	}
+	if h.popular != nil {
+		list, _ := h.popular.Published(time.Now().Add(-popularFresh), limit)
+		for _, a := range list {
+			add(a)
+		}
+	}
+	if len(out) < limit {
+		own, _ := h.articleUC.MostRead(limit)
+		for _, a := range own {
+			add(domain.RankedArticle{Article: a})
+		}
+	}
+	return out
 }

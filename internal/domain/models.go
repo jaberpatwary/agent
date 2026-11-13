@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -212,4 +213,32 @@ type ArticleVersion struct {
 	Summary   string    `gorm:"type:text" json:"summary"`
 	Note      string    `gorm:"type:text" json:"note"` // what changed and why
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// PopularStory is a story on a source outlet's own "most read" list, as last
+// read from that outlet. The desk covers these first; the portal's "most
+// read" box shows the ones it has published.
+type PopularStory struct {
+	URL       string    `gorm:"type:text;primaryKey" json:"url"`       // without query or fragment
+	Outlet    string    `gorm:"type:varchar(255);index" json:"outlet"` // the feed's name, e.g. "Prothom Alo"
+	Title     string    `gorm:"type:text" json:"title"`
+	Rank      int       `json:"rank"` // 1 = most read
+	FetchedAt time.Time `gorm:"index" json:"fetched_at"`
+}
+
+// RankedArticle is a published article with its place on its source
+// outlet's most-read list (Rank 0: not on one).
+type RankedArticle struct {
+	Article
+	PopularOutlet string `json:"popular_outlet,omitempty"`
+	PopularRank   int    `json:"popular_rank,omitempty"`
+}
+
+// PopularKey is a URL as most-read lists are matched on: no query string
+// (feeds add tracking parameters), fragment or trailing slash.
+func PopularKey(u string) string {
+	if i := strings.IndexAny(u, "?#"); i >= 0 {
+		u = u[:i]
+	}
+	return strings.TrimRight(strings.TrimSpace(u), "/")
 }

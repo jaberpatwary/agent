@@ -50,7 +50,9 @@ type PendingItem struct {
 	ForceReal            bool      `json:"force_real"` // admin overrode an earlier "fake" verdict — do not reject again
 	HouseStyle           string    `json:"house_style"`
 	SourceURL            string    `json:"source_url"`
-	RelatedURLs          []string  `json:"related_urls,omitempty"` // other feeds' copies of the same story; send back so they are marked seen too
+	PopularOutlet        string    `json:"popular_outlet,omitempty"` // the outlet whose most-read list has this story
+	PopularRank          int       `json:"popular_rank,omitempty"`   // its place there, 1 = most read
+	RelatedURLs          []string  `json:"related_urls,omitempty"`   // other feeds' copies of the same story; send back so they are marked seen too
 	Title                string    `json:"title"`
 	Content              string    `json:"content"`
 	ImageURL             string    `json:"image_url"`
@@ -82,7 +84,9 @@ func (w *Worker) PendingItems(ctx context.Context, limit int) ([]PendingItem, er
 	houseStyle, _ := w.loadRunSettings()
 	system := ai.RewriteSystemPrompt(houseStyle)
 
+	popular := w.refreshPopular(ctx, feeds)
 	candidates, _ := w.fetchAllFeeds(ctx, feeds)
+	candidates = append(candidates, w.popularCandidates(ctx, feeds, popular, candidates)...)
 	candidates, _, err = w.dropAlreadySeen(candidates)
 	if err != nil {
 		return nil, fmt.Errorf("dedupe lookup: %w", err)
@@ -91,7 +95,24 @@ func (w *Worker) PendingItems(ctx context.Context, limit int) ([]PendingItem, er
 	// Same-story copies from different feeds collapse into one item; the
 	// extra URLs ride along so they get marked seen when the story is saved.
 	clusters := clusterCandidates(candidates)
+	// Stories on an outlet's most-read list come first, best ranked first.
+	rankOf := func(cl storyCluster) (domain.PopularStory, bool) {
+		for _, c := range cl.items {
+			if p, ok := popular[domain.PopularKey(c.item.Link)]; ok {
+				return p, true
+			}
+		}
+		return domain.PopularStory{}, false
+	}
 	sort.SliceStable(clusters, func(i, j int) bool {
+		pi, oki := rankOf(clusters[i])
+		pj, okj := rankOf(clusters[j])
+		if oki != okj {
+			return oki
+		}
+		if oki && pi.Rank != pj.Rank {
+			return pi.Rank < pj.Rank
+		}
 		return clusters[i].items[0].item.Published.After(clusters[j].items[0].item.Published)
 	})
 
@@ -109,11 +130,21 @@ func (w *Worker) PendingItems(ctx context.Context, limit int) ([]PendingItem, er
 	}
 
 	out := make([]PendingItem, 0, limit)
+	perSource := map[string]int{}
 	for _, cl := range clusters {
 		if len(out) >= limit {
 			break
 		}
 		item, feed := cl.items[0].item, cl.items[0].feed
+		// A few stories per outlet, so one busy outlet does not fill the
+		// queue; stories on a most-read list are always let through.
+		src := feed.Name
+		if item.PublisherName != "" {
+			src = item.PublisherName
+		}
+		if _, popular := rankOf(cl); !popular && perSource[src] >= maxPendingPerSource {
+			continue
+		}
 		// Aggregator feeds (e.g. Google News) append " - Publisher" to titles;
 		// the portal never shows where a story came from.
 		for _, name := range []string{item.PublisherName, feed.Name} {
@@ -152,11 +183,14 @@ func (w *Worker) PendingItems(ctx context.Context, limit int) ([]PendingItem, er
 		if item.PublisherName != "" {
 			sourceName = item.PublisherName
 		}
+		pop, _ := rankOf(cl)
 		out = append(out, PendingItem{
 			NewsID:               NewsIDFor(item.Link),
 			ForceReal:            tracked && j.ForceReal,
 			HouseStyle:           houseStyle,
 			SourceURL:            item.Link,
+			PopularOutlet:        pop.Outlet,
+			PopularRank:          pop.Rank,
 			RelatedURLs:          related,
 			Title:                item.Title,
 			Content:              item.Content,
@@ -168,6 +202,7 @@ func (w *Worker) PendingItems(ctx context.Context, limit int) ([]PendingItem, er
 			DraftPrompt:          ai.BuildRewriteDraftPrompt(item.Title, item.Content),
 			ReviewPromptTemplate: ai.BuildRewriteReviewPrompt(item.Title, item.Content, DraftJSONPlaceholder),
 		})
+		perSource[src]++
 	}
 	return w.fullStories(ctx, out), nil
 }
@@ -431,3 +466,6 @@ func (w *Worker) AIComplete(ctx context.Context, req ai.GatewayRequest) (ai.Resu
 	}
 	return res, attempts
 }
+
+// maxPendingPerSource caps one outlet's stories in a batch of pending items.
+const maxPendingPerSource = 3

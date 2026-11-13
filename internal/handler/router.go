@@ -255,6 +255,8 @@ func templateFuncs() template.FuncMap {
 		"dsDateTime":         dsDateTime,
 		"dsAgo":              dsAgo,
 		"part":               part,
+		"outletLabel":        outletLabel,
+		"readCount":          readCount,
 		"iso":                func(t time.Time) string { return inDhaka(t).Format(time.RFC3339) },
 	}
 }

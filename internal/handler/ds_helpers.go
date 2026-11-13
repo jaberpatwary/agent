@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"bangla-news-aggregator/internal/domain"
@@ -72,3 +73,50 @@ func part(list []domain.Article, from, to int) []domain.Article {
 }
 
 const siteName = "দ্য ডেইলি স্টার বাংলা"
+
+// splitBody cuts a story after its nth paragraph, where The Daily Star puts
+// a "আরও পড়ুন" card. A story with no more paragraphs after that is not cut.
+func splitBody(body string, n int) (head, tail string) {
+	at := 0
+	for i := 0; i < n; i++ {
+		j := strings.Index(body[at:], "</p>")
+		if k := strings.Index(body[at:], "</P>"); k >= 0 && (j < 0 || k < j) {
+			j = k
+		}
+		if j < 0 {
+			return body, ""
+		}
+		at += j + len("</p>")
+	}
+	if !strings.Contains(strings.ToLower(body[at:]), "<p") {
+		return body, ""
+	}
+	return body[:at], body[at:]
+}
+
+// outletNames are the source outlets' names as readers know them.
+var outletNames = map[string]string{
+	"prothom alo": "প্রথম আলো", "bbc news বাংলা": "বিবিসি বাংলা", "bbc bangla": "বিবিসি বাংলা",
+	"risingbd": "রাইজিংবিডি", "bd24live": "বিডি২৪লাইভ", "techshohor": "টেকশহর",
+	"jugantor": "যুগান্তর", "ittefaq": "ইত্তেফাক", "samakal": "সমকাল", "janakantha": "জনকণ্ঠ",
+	"inqilab": "ইনকিলাব", "manab zamin": "মানবজমিন", "naya diganta": "নয়া দিগন্ত",
+}
+
+func outletLabel(name string) string {
+	if v, ok := outletNames[strings.ToLower(strings.TrimSpace(name))]; ok {
+		return v
+	}
+	return strings.TrimSpace(name)
+}
+
+// readCount is how often a story has been read on this portal.
+func readCount(n int64) string {
+	if n <= 0 {
+		return "এখনো পড়া হয়নি"
+	}
+	return toBanglaDigits(strconv.FormatInt(n, 10)) + " বার পড়া হয়েছে"
+}
+
+// popularFresh is how long an outlet's most-read list counts after it was
+// read; the desk reads the lists on every run.
+const popularFresh = 12 * time.Hour

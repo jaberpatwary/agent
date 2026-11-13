@@ -10,7 +10,28 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+Bengali:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/static/ds/swallow.css?v=1">
   <link rel="stylesheet" href="/static/ds/logo.css?v=1">
-  <link rel="stylesheet" href="/static/ds/extra.css?v=3">
+  <link rel="stylesheet" href="/static/ds/extra.css?v=6">
+  <script>
+    /* A reload opens the page at its top; Back returns to where the reader was. */
+    (function () {
+      try {
+        if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+        var nav = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
+        var key = 'ds-scroll:' + location.pathname + location.search;
+        var target = nav.type === 'back_forward' ? (parseInt(sessionStorage.getItem(key), 10) || 0) : 0;
+        var moved = false;
+        ['wheel', 'touchstart', 'keydown'].forEach(function (ev) {
+          window.addEventListener(ev, function () { moved = true; }, { passive: true, once: true });
+        });
+        function place() { if (!moved) window.scrollTo(0, target); }
+        window.addEventListener('DOMContentLoaded', place);
+        window.addEventListener('load', place);
+        window.addEventListener('pagehide', function () {
+          try { sessionStorage.setItem(key, String(window.scrollY)); } catch (e) {}
+        });
+      } catch (e) {}
+    })();
+  </script>
 {{ end }}
 
 {{ define "nav_items" }}
@@ -143,7 +164,7 @@
       </ul>
     </nav>
     <div class="block block-rsi-blocks block-copyright-block">
-      <div class="copyright py-[40px] lg:py-[20px]"> © {{ (now).Year }} thedailystar.net </div>
+      <div class="copyright py-[40px] lg:py-[20px]"> © {{ (now).Year }} thedailystar.net <p class="mt-4 text-sm text-gray-600"> Copyright: Any unauthorized use or reproduction of The Daily Star content for commercial purposes <br> is strictly prohibited and constitutes copyright infringement liable to legal action.</p></div>
     </div>
   </div>
 </div>
@@ -170,6 +191,19 @@
 </footer>
 {{ end }}
 
+{{/* SHARE with X, Facebook, LinkedIn and copy-link; the links are filled in by the article page's script. */}}
+{{ define "share_menu" }}
+<div class="relative share-dropdown">
+  <button type="button" class="no-style info-item share-toggle" title="শেয়ার করুন"><span>SHARE</span> {{ template "ico_share" }}</button>
+  <div class="share-menu absolute border-[1px] border-gray_1 top-full right-0 bg-white hidden" data-share data-title="{{ . }}">
+    <a href="#" data-share-to="x" target="_blank" rel="noopener" class="info-item" aria-label="X">{{ template "ico_x" }}</a>
+    <a href="#" data-share-to="facebook" target="_blank" rel="noopener" class="info-item" aria-label="Facebook">{{ template "ico_fb" }}</a>
+    <a href="#" data-share-to="linkedin" target="_blank" rel="noopener" class="info-item" aria-label="LinkedIn">{{ template "ico_li" }}</a>
+    <button type="button" class="no-style info-item copy-link-btn" data-copy-link aria-label="লিংক কপি করুন">{{ template "ico_copy" }}</button>
+  </div>
+</div>
+{{ end }}
+
 {{/* A story's photo, cropped to its box by the theme. */}}
 {{ define "ds_pic" }}<picture><img loading="lazy" decoding="async" src="{{ .ImageURL }}" alt="{{ .Title }}" onerror="dsImgFail(this)"></picture>{{ end }}
 
@@ -178,6 +212,24 @@
 <div class="card-info ">
   <span class=""><time class="rsi-ago rsi-ago--bn" datetime="{{ iso .PublishedAt }}">{{ dsAgo .PublishedAt }}</time></span>
   <span class="flex items-center gap-[4px]"><span class="rounded-full bg-gray_7"></span> {{ categoryLabel .Category }} </span>
+  {{ template "ds_source" . }}
+</div>
+{{ end }}
+
+{{/* The outlet a story came from and how often it has been read here. */}}
+{{ define "ds_source" }}
+  {{ with .SourceName }}<span class="flex items-center gap-[4px] ds-dot">সূত্র: {{ outletLabel . }}</span>{{ end }}
+  <span class="flex items-center gap-[4px] ds-dot">{{ readCount .Views }}</span>
+{{ end }}
+
+{{/* Title-only lists: just the outlet and the read count. */}}
+{{ define "ds_note" }}<div class="card-info ds-note">{{ template "ds_source" . }}</div>{{ end }}
+
+{{/* A "most read" entry (domain.RankedArticle): its place on the outlet's own list, the outlet, the read count. */}}
+{{ define "ds_ranked" }}
+<div class="card-info ds-note">
+  {{ if .PopularRank }}<span class="flex items-center gap-[4px] color-red">সর্বাধিক পঠিত: {{ outletLabel .PopularOutlet }} · {{ banglaDigits (printf "%d" .PopularRank) }} নম্বর</span>{{ end }}
+  {{ template "ds_source" .Article }}
 </div>
 {{ end }}
 

@@ -204,11 +204,15 @@ func (d *Desk) plan(ctx context.Context, run *domain.AgentRun, items []cron.Pend
 	}
 	var b strings.Builder
 	for i, it := range items {
-		fmt.Fprintf(&b, "[%d] %s | %s | %s | %d chars | %d other outlets | %s\n", i, it.Category, it.SourceName,
-			it.PublishedAt.In(dhaka()).Format("01-02 15:04"), len([]rune(plainText(it.Content))), len(it.RelatedURLs), it.Title)
+		popular := ""
+		if it.PopularRank > 0 {
+			popular = fmt.Sprintf(" | MOST READ #%d on %s", it.PopularRank, it.PopularOutlet)
+		}
+		fmt.Fprintf(&b, "[%d] %s | %s | %s | %d chars | %d other outlets%s | %s\n", i, it.Category, it.SourceName,
+			it.PublishedAt.In(dhaka()).Format("01-02 15:04"), len([]rune(plainText(it.Content))), len(it.RelatedURLs), popular, it.Title)
 	}
 	system := `You are the duty editor of a Bangla news portal. From the incoming stories pick which to cover first.
-Prefer: important public-interest news, fresh events, stories other outlets also carry, a balance of sections. Deprioritise: trivia, promotional or routine notices, opinion pieces, near-duplicates of another candidate.
+Prefer: stories marked MOST READ (they are the most read on that outlet right now; best rank first), important public-interest news, fresh events, stories other outlets also carry, a balance of sections. Deprioritise: trivia, promotional or routine notices, opinion pieces, near-duplicates of another candidate.
 Reply ONLY with JSON: {"cover":[{"index":0,"why":"…"}], "skip":[{"index":3,"why":"…"}], "note":"one sentence in Bangla about today's priorities"}. List "cover" in priority order.`
 	res, err := d.worker.AIText(ctx, ai.GatewayRequest{Task: "plan", JSON: true, MaxTokens: 1200, System: system, User: "Incoming stories:\n" + b.String()})
 	var picked []cron.PendingItem
@@ -237,7 +241,13 @@ Reply ONLY with JSON: {"cover":[{"index":0,"why":"…"}], "skip":[{"index":3,"wh
 			Output: clip(res.Text, 4000), Provider: res.Provider, Model: res.Model, Tokens: res.TokensUsed})
 	}
 	if len(picked) == 0 {
-		sort.SliceStable(items, func(i, j int) bool { return items[i].PublishedAt.After(items[j].PublishedAt) })
+		// Most-read stories first (PendingItems already puts them first), then the newest.
+		sort.SliceStable(items, func(i, j int) bool {
+			if (items[i].PopularRank > 0) != (items[j].PopularRank > 0) {
+				return items[i].PopularRank > 0
+			}
+			return items[i].PopularRank == 0 && items[i].PublishedAt.After(items[j].PublishedAt)
+		})
 		picked = items[:k]
 		note = "সম্পাদক এজেন্ট পাওয়া যায়নি — সবচেয়ে নতুন খবর নেওয়া হলো"
 	}

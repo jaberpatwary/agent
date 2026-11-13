@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -35,6 +36,9 @@ type Item struct {
 type Client struct {
 	parser     *gofeed.Parser
 	httpClient *http.Client
+
+	mu    sync.Mutex
+	pages map[string]articlePage // recently read article pages
 }
 
 func NewClient() *Client {
@@ -42,6 +46,7 @@ func NewClient() *Client {
 	parser.RSSTranslator = sourceAwareRSSTranslator{}
 	return &Client{
 		parser: parser,
+		pages:  map[string]articlePage{},
 		httpClient: &http.Client{
 			Timeout: 12 * time.Second,
 		},
@@ -79,6 +84,9 @@ func (sourceAwareRSSTranslator) Translate(raw interface{}) (*gofeed.Feed, error)
 func (c *Client) Fetch(ctx context.Context, feedURL string) ([]Item, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
+	if isSitemapFeed(feedURL) {
+		return c.fetchSitemap(ctx, feedURL)
+	}
 
 	feed, err := c.parser.ParseURLWithContext(feedURL, ctx)
 	if err != nil {
@@ -99,6 +107,7 @@ func (c *Client) Fetch(ctx context.Context, feedURL string) ([]Item, error) {
 		} else {
 			item.Content = entry.Description
 		}
+		item.Content = cleanContent(item.Content)
 		item.ImageURL = resolveURL(item.Link, extractImage(entry))
 
 		cleanLen := len(strings.TrimSpace(htmlTagRegex.ReplaceAllString(item.Content, "")))
@@ -199,52 +208,8 @@ func (c *Client) Enrich(ctx context.Context, pageURL string) (resolvedURL, image
 }
 
 func (c *Client) scrapeArticle(ctx context.Context, pageURL string) (string, string, string) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
-	if err != nil {
-		return "", "", ""
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "bn-BD,bn;q=0.9,en-US;q=0.8,en;q=0.7")
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return "", "", ""
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", "", ""
-	}
-	doc, err := goquery.NewDocumentFromReader(http.MaxBytesReader(nil, resp.Body, 6<<20))
-	if err != nil {
-		return "", "", ""
-	}
-	resolvedURL := pageURL
-	if resp.Request != nil && resp.Request.URL != nil {
-		resolvedURL = resp.Request.URL.String()
-	}
-	imageURL, _ := doc.Find(`meta[property="og:image"]`).Attr("content")
-	if imageURL == "" {
-		imageURL, _ = doc.Find(`meta[property="og:image:secure_url"]`).Attr("content")
-	}
-	if imageURL == "" {
-		imageURL, _ = doc.Find(`meta[name="twitter:image"]`).Attr("content")
-	}
-	if imageURL == "" {
-		imageURL, _ = doc.Find(`meta[itemprop="image"], meta[name="thumbnail"]`).First().Attr("content")
-	}
-	if imageURL == "" {
-		image := doc.Find(".featured-image img, figure img, article img, .lead-image img, .detail-box img, [itemprop='image']").First()
-		for _, key := range []string{"src", "data-src", "data-original", "data-lazy-src", "srcset"} {
-			if value, ok := image.Attr(key); ok {
-				imageURL = firstSrc(value)
-				if imageURL != "" {
-					break
-				}
-			}
-		}
-	}
-	imageURL = resolveURL(resolvedURL, imageURL)
-	return resolvedURL, imageURL, extractArticleText(doc)
+	p := c.readPage(ctx, pageURL)
+	return p.resolved, p.image, p.text
 }
 
 // extractArticleText returns the story's full text as <p> paragraphs. It
@@ -255,9 +220,12 @@ func (c *Client) scrapeArticle(ctx context.Context, pageURL string) (string, str
 //     biggest block gave half a story,
 //   - the articleBody the site declares in its JSON-LD metadata, which is the
 //     whole story on many news sites.
-func extractArticleText(doc *goquery.Document) string {
+func extractArticleText(doc *goquery.Document, pageURL string) string {
 	declared := jsonLDArticleBody(doc) // read before scripts are stripped
 	doc.Find("script,style,noscript,nav,header,footer,aside,form,iframe,svg,button,[role='navigation'],.related,.recommended,.recommend,.share,.social,.advertisement,.ads,.comments,.comment,.article-tags,.tags").Remove()
+	if text := siteBody(doc, pageURL); text != "" {
+		return text
+	}
 	bestText, bestScore := "", 0
 	consider := func(paragraphs []string) {
 		candidate := strings.Join(paragraphs, "\n")
@@ -302,10 +270,12 @@ func extractArticleText(doc *goquery.Document) string {
 func containerParagraphs(container *goquery.Selection, seen map[string]bool) []string {
 	paragraphs := make([]string, 0, 8)
 	container.Find("p").Each(func(_ int, paragraph *goquery.Selection) {
-		text := normalizeText(paragraph.Text())
-		if len([]rune(text)) >= 25 && !isBoilerplate(text) && !seen[text] {
-			seen[text] = true
-			paragraphs = append(paragraphs, "<p>"+html.EscapeString(text)+"</p>")
+		inner, _ := paragraph.Html()
+		for _, text := range lines(inner) {
+			if len([]rune(text)) >= 25 && !isBoilerplate(text) && !seen[text] {
+				seen[text] = true
+				paragraphs = append(paragraphs, "<p>"+html.EscapeString(text)+"</p>")
+			}
 		}
 	})
 	if len(paragraphs) == 0 {
@@ -359,6 +329,17 @@ func normalizeText(value string) string {
 
 func isBoilerplate(text string) bool {
 	lower := strings.ToLower(text)
+	// Dateline and print-edition stamps ("প্রকাশ: ১৪ নভেম্বর ২০২৬ …").
+	if utf8.RuneCountInString(text) < 90 {
+		for _, p := range []string{"প্রকাশ:", "প্রকাশিত:", "প্রিন্ট:", "আপডেট:", "সর্বশেষ আপডেট"} {
+			if strings.HasPrefix(text, p) {
+				return true
+			}
+		}
+	}
+	if strings.HasPrefix(text, "সম্পাদক") && strings.Contains(text, "প্রকাশক") {
+		return true // the paper's imprint in the footer
+	}
 	return strings.HasPrefix(text, "ছবির উৎস") || strings.HasPrefix(text, "ছবি ক্যাপশন") ||
 		strings.Contains(lower, "all rights reserved") || strings.HasPrefix(text, "বিজ্ঞাপন :") ||
 		strings.Contains(lower, "blazing-fast frontend")
