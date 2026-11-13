@@ -3,39 +3,41 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>নিউজ জার্নি — অ্যাডমিন</title>
+  <title>নিউজ জার্নি — দ্য ডেইলি স্টার অ্যাডমিন</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@700&display=swap">
   <link rel="stylesheet" href="/static/css/style.css">
   <style>
     .jr-steps { display:flex; flex-direction:column; gap:3px; font-size:12px; }
-    .jr-steps .muted { color:#9ca3af; }
-    .jr-reason { font-size:12px; color:#6b7280; margin-top:2px; max-width:320px; }
-    .jr-fake { color:#b91c1c; font-weight:600; }
-    .jr-real { color:#047857; font-weight:600; }
-    .jr-src a { display:block; font-size:12px; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .jr-steps .muted { color:#94a3b8; }
+    .jr-reason { font-size:12px; color:#64748b; margin-top:2px; max-width:320px; line-height: 1.4; }
+    .jr-fake { color:#dc2626; font-weight:700; background: #fef2f2; padding: 2px 8px; border-radius: 4px; display: inline-block; }
+    .jr-real { color:#16a34a; font-weight:700; background: #f0fdf4; padding: 2px 8px; border-radius: 4px; display: inline-block; }
+    .jr-src a { display:block; font-size:12px; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#2563eb; }
+    .jr-src a:hover { text-decoration: underline; }
     .status-pending { background:#e0e7ff; color:#3730a3; }
     .status-rejected { background:#fee2e2; color:#991b1b; }
     .status-suspected_fake { background:#fef3c7; color:#92400e; }
     .status-needs_editor { background:#ffedd5; color:#9a3412; }
     .status-updated { background:#dbeafe; color:#1e40af; }
-    .jr-agent { font-size:12px; color:#374151; margin-top:4px; max-width:340px; }
-    .status-duplicate { background:#f3f4f6; color:#4b5563; }
+    .jr-agent { font-size:12px; color:#334155; margin-top:4px; max-width:340px; }
+    .status-duplicate { background:#f1f5f9; color:#475569; }
   </style>
 </head>
-<body>
+<body class="admin-body">
   <div class="admin-shell">
     {{ template "admin_sidebar" . }}
 
     <div class="admin-main">
       <div class="toolbar">
-        <h1>নিউজ জার্নি ({{ .Total }})</h1>
-        <div>
-          <a href="/admin/journey" class="btn btn-sm btn-primary">সব</a>
-          <a href="/admin/journey?status=pending" class="btn btn-sm btn-primary">⏳ চলমান</a>
-          <a href="/admin/journey?status=published" class="btn btn-sm btn-primary">✅ প্রকাশিত</a>
-          <a href="/admin/journey?status=pending_review" class="btn btn-sm btn-primary">👀 পর্যালোচনা</a>
-          <a href="/admin/journey?status=needs_editor" class="btn btn-sm btn-primary">🙋 এজেন্টের প্রশ্ন</a>
-          <a href="/admin/journey?status=suspected_fake" class="btn btn-sm btn-primary">⚠ ফেক সন্দেহ — সিদ্ধান্ত দিন</a>
-          <a href="/admin/journey?status=rejected" class="btn btn-sm btn-primary">⛔ বাতিল</a>
+        <h1>🧭 নিউজ জার্নি ({{ .Total }})</h1>
+        <div class="filter-group">
+          <a href="/admin/journey" class="btn btn-sm {{ if not .Status }}active{{ end }}">সব</a>
+          <a href="/admin/journey?status=pending" class="btn btn-sm {{ if eq .Status "pending" }}active{{ end }}">⏳ চলমান</a>
+          <a href="/admin/journey?status=published" class="btn btn-sm {{ if eq .Status "published" }}active{{ end }}">✅ প্রকাশিত</a>
+          <a href="/admin/journey?status=pending_review" class="btn btn-sm {{ if eq .Status "pending_review" }}active{{ end }}">👀 পর্যালোচনা</a>
+          <a href="/admin/journey?status=needs_editor" class="btn btn-sm {{ if eq .Status "needs_editor" }}active{{ end }}">🙋 এজেন্টের প্রশ্ন</a>
+          <a href="/admin/journey?status=suspected_fake" class="btn btn-sm {{ if eq .Status "suspected_fake" }}active{{ end }}">⚠ ফেক সন্দেহ</a>
+          <a href="/admin/journey?status=rejected" class="btn btn-sm {{ if eq .Status "rejected" }}active{{ end }}">⛔ বাতিল</a>
         </div>
       </div>
 
@@ -47,9 +49,9 @@
           {{ range .Rows }}
           <tr>
             <td>
-              <a href="{{ .SourceURL }}" target="_blank" rel="noopener">{{ .OriginalTitle }}</a>
-              <div class="jr-reason">{{ .SourceName }} · {{ .Category }} · <code>{{ .NewsID }}</code></div>
-              {{ if .RewrittenTitle }}<div class="jr-reason">✍ {{ .RewrittenTitle }}</div>{{ end }}
+              <a href="{{ .SourceURL }}" target="_blank" rel="noopener" style="font-weight: 500;">{{ .OriginalTitle }}</a>
+              <div class="jr-reason">{{ .SourceName }} · {{ .Category }} · <code style="font-size:11px; background:#f1f5f9; padding:1px 4px; border-radius:3px;">{{ .NewsID }}</code></div>
+              {{ if .RewrittenTitle }}<div class="jr-reason" style="color:var(--red); font-weight:500;">✍ {{ .RewrittenTitle }}</div>{{ end }}
             </td>
             <td><span class="status-pill status-{{ .PublishedStatus }}">{{ .PublishedStatus }}</span></td>
             <td>
@@ -72,9 +74,9 @@
                 {{ if .PublishedAt }}<span>✅ সেভ: {{ dhakaClock .PublishedAt "15:04" }}</span>{{ else }}<span class="muted">✅ সেভ: —</span>{{ end }}
               </div>
             </td>
-            <td>
+            <td style="white-space: nowrap;">
               <a class="btn btn-sm btn-primary" href="/admin/journey/{{ .NewsID }}/trace">🧭 ট্রেস{{ if .AgentSteps }} ({{ .AgentSteps }}){{ end }}</a>
-              {{ if .ArticleID }}<a class="btn btn-sm btn-primary" href="/article/{{ .ArticleID }}" target="_blank">খবর দেখুন</a>{{ end }}
+              {{ if .ArticleID }}<a class="btn btn-sm btn-secondary" href="/article/{{ .ArticleID }}" target="_blank">খবর দেখুন</a>{{ end }}
               {{ if eq .PublishedStatus "needs_editor" }}<div class="jr-agent">🙋 {{ .AgentQuestion }}</div>{{ end }}
               {{ if .AgentSummary }}<div class="jr-agent">🤖 {{ .AgentSummary }}</div>{{ end }}
               {{ if eq .PublishedStatus "suspected_fake" }}
@@ -86,7 +88,7 @@
               {{ if or (eq .PublishedStatus "rejected") (eq .PublishedStatus "suspected_fake") }}
               <form method="POST" action="/admin/journey/{{ .NewsID }}/requeue" style="display:inline;" onsubmit="return confirm('এটা ফেক না — আবার প্রসেস করতে চান?');">
                 <input type="hidden" name="_csrf" value="{{ $.CSRFToken }}">
-                <button class="btn btn-sm btn-primary" type="submit">ফেক নয়, আবার চালাও</button>
+                <button class="btn btn-sm btn-secondary" type="submit">ফেক নয়, আবার চালাও</button>
               </form>
               {{ end }}
             </td>
@@ -97,12 +99,13 @@
         </tbody>
       </table>
 
-      <div style="text-align:center; margin: 24px 0;">
+      <div class="admin-pagination">
         {{ if gt .Page 1 }}
-          <a class="btn btn-primary" href="/admin/journey?page={{ sub .Page 1 }}&status={{ .Status }}">&laquo; আগের</a>
+          <a class="btn btn-secondary" href="/admin/journey?page={{ sub .Page 1 }}&status={{ .Status }}">&laquo; আগের</a>
         {{ end }}
+        <span style="color:#64748b; font-size:13px;">পাতা {{ .Page }}</span>
         {{ if .HasNext }}
-          <a class="btn btn-primary" href="/admin/journey?page={{ add .Page 1 }}&status={{ .Status }}">পরের &raquo;</a>
+          <a class="btn btn-secondary" href="/admin/journey?page={{ add .Page 1 }}&status={{ .Status }}">পরের &raquo;</a>
         {{ end }}
       </div>
     </div>

@@ -1,42 +1,356 @@
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="bn" dir="ltr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>অ্যাডমিন লগইন — বাংলা নিউজ</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600;700&family=Noto+Serif+Bengali:wght@700&display=swap">
-  <link rel="stylesheet" href="/static/css/style.css">
+  <title>অ্যাডমিন প্রবেশদ্বার — দ্য ডেইলি স্টার বাংলা</title>
+  <link rel="icon" href="/static/ds/favicon.ico" type="image/vnd.microsoft.icon">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@600;700&display=swap">
+  <style>
+    :root {
+      --primary: #c8102e;
+      --primary-hover: #a50d26;
+      --navy-900: #0b1120;
+      --navy-800: #0f172a;
+      --navy-700: #1e293b;
+      --navy-600: #334155;
+      --text-muted: #94a3b8;
+      --serif: 'Noto Serif Bengali', serif;
+      --sans: 'Hind Siliguri', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--sans);
+      min-height: 100vh;
+      background: var(--navy-900);
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* Ambient background glows matching portal aesthetic */
+    body::before {
+      content: "";
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(200, 16, 46, 0.18) 0%, transparent 70%);
+      top: -100px;
+      right: -100px;
+      pointer-events: none;
+    }
+
+    body::after {
+      content: "";
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(30, 41, 59, 0.8) 0%, transparent 70%);
+      bottom: -150px;
+      left: -150px;
+      pointer-events: none;
+    }
+
+    /* Subtle subtle newsprint dot grid */
+    .bg-grid {
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+      background-size: 24px 24px;
+      pointer-events: none;
+    }
+
+    .auth-card {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 440px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 40px 36px;
+      box-shadow: 
+        0 25px 50px -12px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      animation: cardFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes cardFadeUp {
+      from { opacity: 0; transform: translateY(18px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Header & Logo */
+    .auth-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .logo-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      padding: 10px 20px;
+      border-radius: 12px;
+      margin-bottom: 18px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
+
+    .logo-badge img {
+      height: 30px;
+      width: auto;
+      display: block;
+    }
+
+    .auth-title {
+      font-family: var(--serif);
+      font-size: 24px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: -0.2px;
+      margin-bottom: 6px;
+    }
+
+    .auth-subtitle {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .auth-subtitle .badge {
+      display: inline-block;
+      background: rgba(200, 16, 46, 0.18);
+      color: #ff6b81;
+      border: 1px solid rgba(200, 16, 46, 0.35);
+      padding: 1px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    /* Alert Banner */
+    .alert {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(220, 38, 38, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 13.5px;
+      margin-bottom: 22px;
+      animation: shake 0.4s ease-in-out;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-5px); }
+      40%, 80% { transform: translateX(5px); }
+    }
+
+    /* Form Inputs */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #cbd5e1;
+      margin-bottom: 8px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 14px;
+      color: #64748b;
+      font-size: 16px;
+      pointer-events: none;
+      transition: color 0.2s;
+    }
+
+    .form-input {
+      width: 100%;
+      height: 48px;
+      background: rgba(2, 6, 23, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 0 16px 0 42px;
+      color: #ffffff;
+      font-family: inherit;
+      font-size: 14.5px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: rgba(2, 6, 23, 0.7);
+      box-shadow: 0 0 0 4px rgba(200, 16, 46, 0.18);
+    }
+
+    .form-input:focus + .input-icon,
+    .form-input:focus ~ .input-icon {
+      color: #ff6b81;
+    }
+
+    .form-input::placeholder {
+      color: #475569;
+    }
+
+    /* Submit Button */
+    .btn-submit {
+      width: 100%;
+      height: 48px;
+      background: linear-gradient(135deg, var(--primary) 0%, #b30d27 100%);
+      color: #ffffff;
+      border: none;
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 8px;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 4px 18px rgba(200, 16, 46, 0.35);
+    }
+
+    .btn-submit:hover {
+      background: linear-gradient(135deg, #d81232 0%, var(--primary) 100%);
+      box-shadow: 0 6px 24px rgba(200, 16, 46, 0.5);
+      transform: translateY(-1px);
+    }
+
+    .btn-submit:active {
+      transform: translateY(1px);
+      box-shadow: 0 2px 10px rgba(200, 16, 46, 0.3);
+    }
+
+    /* Footer links */
+    .auth-footer {
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12.5px;
+      color: #64748b;
+    }
+
+    .auth-footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: color 0.15s;
+    }
+
+    .auth-footer a:hover {
+      color: #ffffff;
+    }
+  </style>
 </head>
 <body>
-  <div class="login-wrap">
-    <div class="login-box">
-      <div class="login-logo">
-        <span class="dot" style="font-size:1.8rem; line-height:1;">●</span>
-        বাংলা নিউজ
+  <div class="bg-grid"></div>
+
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="logo-badge">
+        <img src="/static/ds/logo.png" alt="দ্য ডেইলি স্টার বাংলা">
       </div>
-      <p class="login-sub">অ্যাডমিন প্যানেলে প্রবেশ করুন</p>
+      <h1 class="auth-title">অ্যাডমিন কন্ট্রোল</h1>
+      <div class="auth-subtitle">
+        <span>নিউজ রুম ম্যানেজমেন্ট সিস্টেম</span>
+        <span class="badge">PRO</span>
+      </div>
+    </div>
 
-      {{ if .Error }}
-        <div class="alert alert-error">{{ .Error }}</div>
-      {{ end }}
+    {{ if .Error }}
+      <div class="alert" role="alert">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span>{{ .Error }}</span>
+      </div>
+    {{ end }}
 
-      <form method="POST" action="/admin/login" id="login-form">
-        <div class="field">
-          <label>ইউজারনেম</label>
-          <input type="text" name="username" id="username" required autofocus autocomplete="username" placeholder="admin">
+    <form method="POST" action="/admin/login" id="login-form">
+      <div class="form-group">
+        <label class="form-label" for="username">ইউজারনেম</label>
+        <div class="input-wrapper">
+          <input type="text" name="username" id="username" class="form-input" required autofocus autocomplete="username" placeholder="ইউজারনেম লিখুন">
+          <span class="input-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+          </span>
         </div>
-        <div class="field">
-          <label>পাসওয়ার্ড</label>
-          <input type="password" name="password" id="password" required autocomplete="current-password" placeholder="••••••••">
-        </div>
-        <button type="submit" class="btn btn-primary" style="width:100%; padding:11px; font-size:15px; margin-top:4px;">
-          লগইন করুন →
-        </button>
-      </form>
+      </div>
 
-      <p style="text-align:center; margin-top:20px; font-size:12px; color:#999;">
-        <a href="/" style="color:#999;">← পোর্টালে ফিরে যান</a>
-      </p>
+      <div class="form-group">
+        <label class="form-label" for="password">পাসওয়ার্ড</label>
+        <div class="input-wrapper">
+          <input type="password" name="password" id="password" class="form-input" required autocomplete="current-password" placeholder="••••••••">
+          <span class="input-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" radius="2" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </span>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-submit">
+        <span>প্যানেলে প্রবেশ করুন</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+          <polyline points="12 5 19 12 12 19"></polyline>
+        </svg>
+      </button>
+    </form>
+
+    <div class="auth-footer">
+      <a href="/">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>মূল সাইটে ফিরে যান</span>
+      </a>
+      <span>নিরাপদ সংযোগ &bull; TLS</span>
     </div>
   </div>
 </body>

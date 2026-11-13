@@ -2,14 +2,16 @@
 <html lang="bn">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AI সম্পাদকীয় স্টাইল — বাংলা নিউজ</title>
+  <title>AI সম্পাদকীয় স্টাইল — দ্য ডেইলি স্টার</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@700&display=swap">
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body class="admin-body">
+  <div class="admin-shell">
   {{ template "admin_sidebar" . }}
   <main class="admin-main">
-    <h1>AI সম্পাদকীয় স্টাইল (House Style)</h1>
-    <p style="color:#666; max-width:640px; margin-bottom:1rem;">
+    <h1>✍️ AI সম্পাদকীয় স্টাইল (House Style)</h1>
+    <p style="color:#64748b; max-width:660px; margin:-12px 0 24px; font-size:14px; line-height:1.7;">
       প্রতিটি নতুন খবর প্রকাশের আগে, এজেন্ট প্রথমে একটি খসড়া (draft) লেখে এবং তারপর
       মূল খবরের সাথে মিলিয়ে নিজে তা যাচাই (self-review) করে, যাতে মূল তথ্যের বাইরে কিছু
       যোগ না হয়ে যায়। নিচের নির্দেশনা অনুযায়ী এজেন্ট লেখার সুর/স্টাইল ঠিক করবে।
@@ -22,16 +24,17 @@
       <input type="hidden" name="_csrf" value="{{ .CSRFToken }}">
       <label>
         স্টাইল নির্দেশনা (বাংলায় লিখুন — টোন, বাক্যের দৈর্ঘ্য, কোন শব্দ এড়িয়ে চলতে হবে ইত্যাদি)
-        <textarea name="style" rows="10" required minlength="10" maxlength="4000" style="width:100%; font-family:inherit;">{{ .Style }}</textarea>
+        <textarea name="style" rows="10" required minlength="10" maxlength="4000" style="width:100%; font-family:inherit; border-radius:10px; padding:12px 14px;">{{ .Style }}</textarea>
       </label>
       <label style="margin-top:1rem; display:block;">
         সংবেদনশীল বিভাগ (কমা দিয়ে আলাদা করুন) — এই বিভাগের নতুন খবর অটো-পাবলিশ না হয়ে
         "পর্যালোচনা প্রয়োজন" স্ট্যাটাসে জমা থাকবে, আপনি ম্যানুয়ালি অনুমোদন না করা পর্যন্ত সাইটে দেখাবে না।
-        সম্ভাব্য মান: bangladesh, international, business, sports, technology, entertainment, general
-        <input type="text" name="sensitive_categories" value="{{ .SensitiveCSV }}" style="width:100%; font-family:inherit;">
+        <span style="display:block; color:#94a3b8; font-size:12px; margin-top:4px;">সম্ভাব্য মান: bangladesh, international, business, sports, technology, entertainment, general</span>
+        <input type="text" name="sensitive_categories" value="{{ .SensitiveCSV }}" style="width:100%; font-family:inherit; margin-top:6px;">
       </label>
-      <button type="submit" class="btn btn-primary">সংরক্ষণ করুন</button>
+      <button type="submit" class="btn btn-primary" style="margin-top:18px;">সংরক্ষণ করুন</button>
     </form>
   </main>
+  </div>
 </body>
 </html>

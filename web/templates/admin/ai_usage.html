@@ -2,15 +2,18 @@
 <html lang="bn">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AI ব্যবহার — বাংলা নিউজ</title>
+  <title>AI ব্যবহার — দ্য ডেইলি স্টার</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@700&display=swap">
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body class="admin-body">
+  <div class="admin-shell">
   {{ template "admin_sidebar" . }}
   <main class="admin-main">
-    <h1>AI ব্যবহার ও খরচ (সাম্প্রতিক ৫০০ কল)</h1>
+    <h1>📈 AI ব্যবহার ও খরচ</h1>
+    <p style="color:#64748b; font-size:13px; margin:-12px 0 24px;">সাম্প্রতিক ৫০০ কলের উপর ভিত্তি করে</p>
 
-    <h2 style="font-size:16px; font-weight:700; margin:18px 0 10px; color:#0f172a;">প্রোভাইডার অনুযায়ী</h2>
+    <h2 style="font-family:var(--serif); font-size:16px; font-weight:700; margin:0 0 14px; color:#0f172a;">প্রোভাইডার অনুযায়ী</h2>
     <table>
       <thead>
         <tr>
@@ -34,7 +37,7 @@
           <td>{{ printf "%.1f" .SuccessRate }}%</td>
           <td>{{ .TotalTokens }}</td>
           <td>{{ .AvgDurationMs }}ms</td>
-          <td style="max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#b91c1c;">{{ .LastError }}</td>
+          <td style="max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#b91c1c; font-size:12px;">{{ .LastError }}</td>
         </tr>
         {{ else }}
         <tr><td colspan="8" class="empty-state">এখনো কোনো AI কল লগ হয়নি — cron একবার চলার পর এখানে দেখা যাবে</td></tr>
@@ -42,7 +45,7 @@
       </tbody>
     </table>
 
-    <h2 style="font-size:16px; font-weight:700; margin:24px 0 10px; color:#0f172a;">সাম্প্রতিক কল (সর্বশেষ ৫০)</h2>
+    <h2 style="font-family:var(--serif); font-size:16px; font-weight:700; margin:28px 0 14px; color:#0f172a;">সাম্প্রতিক কল (সর্বশেষ ৫০)</h2>
     <table>
       <thead>
         <tr>
@@ -57,9 +60,9 @@
       <tbody>
         {{ range .Recent }}
         <tr>
-          <td>{{ .CreatedAt.Format "02 Jan, 15:04:05" }}</td>
+          <td style="white-space:nowrap;">{{ .CreatedAt.Format "02 Jan, 15:04:05" }}</td>
           <td>{{ .Provider }}</td>
-          <td>{{ .Model }}</td>
+          <td style="font-size:12px; color:#64748b;">{{ .Model }}</td>
           <td>
             {{ if .Success }}
               <span class="status-pill status-published">সফল</span>
@@ -76,5 +79,6 @@
       </tbody>
     </table>
   </main>
+  </div>
 </body>
 </html>

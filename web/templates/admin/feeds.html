@@ -4,17 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RSS ফিড — অ্যাডমিন</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@700&display=swap">
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
-<body>
+<body class="admin-body">
   <div class="admin-shell">
     {{ template "admin_sidebar" . }}
 
     <div class="admin-main">
-      <h1>RSS ফিড সোর্স</h1>
+      <h1>📡 RSS ফিড সোর্স</h1>
 
-      <div class="card" style="padding:20px; margin-bottom:24px; max-width:500px;">
-        <h3 style="margin-top:0;">নতুন ফিড যোগ করুন</h3>
+      <div class="card" style="padding:24px; margin-bottom:28px; max-width:520px;">
+        <h3 style="margin:0 0 16px; font-family: var(--serif); font-size:16px; font-weight:700; color:#0f172a;">নতুন ফিড যোগ করুন</h3>
         <form method="POST" action="/admin/feeds">
           <input type="hidden" name="_csrf" value="{{ .CSRFToken }}">
           <div class="field">
@@ -40,8 +41,8 @@
         <tbody>
           {{ range .Feeds }}
           <tr>
-            <td>{{ .Name }}</td>
-            <td style="max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ .URL }}</td>
+            <td style="font-weight:500;">{{ .Name }}</td>
+            <td style="max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#64748b; font-size:12px;">{{ .URL }}</td>
             <td>{{ .Category }}</td>
             <td>
               {{ if .Active }}
@@ -51,19 +52,19 @@
               {{ end }}
               {{ if .LastError }}<div class="error-text" style="margin:4px 0 0;">{{ .LastError }}</div>{{ end }}
             </td>
-            <td>{{ if .LastFetch.IsZero }}—{{ else }}{{ .LastFetch.Format "02 Jan, 15:04" }}{{ end }}</td>
-            <td>
+            <td style="white-space:nowrap;">{{ if .LastFetch.IsZero }}—{{ else }}{{ .LastFetch.Format "02 Jan, 15:04" }}{{ end }}</td>
+            <td style="white-space:nowrap;">
               {{ if .Active }}
               <form method="POST" action="/admin/feeds/{{ .ID }}/toggle" style="display:inline;">
                 <input type="hidden" name="_csrf" value="{{ $.CSRFToken }}">
                 <input type="hidden" name="active" value="false">
-                <button class="btn btn-sm btn-primary" type="submit">নিষ্ক্রিয় করুন</button>
+                <button class="btn btn-sm btn-secondary" type="submit">নিষ্ক্রিয়</button>
               </form>
               {{ else }}
               <form method="POST" action="/admin/feeds/{{ .ID }}/toggle" style="display:inline;">
                 <input type="hidden" name="_csrf" value="{{ $.CSRFToken }}">
                 <input type="hidden" name="active" value="true">
-                <button class="btn btn-sm btn-primary" type="submit">সক্রিয় করুন</button>
+                <button class="btn btn-sm btn-primary" type="submit">সক্রিয়</button>
               </form>
               {{ end }}
               <form method="POST" action="/admin/feeds/{{ .ID }}/delete" style="display:inline;" onsubmit="return confirm('মুছে ফেলতে চান?');">
