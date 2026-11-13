@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ .Article.Title }} | দ্য ডেইলি স্টার বাংলা</title>
+  <title>{{ .Article.Title }} | The Daily Star</title>
   <meta name="description" content="{{ stripHTML .Article.Summary }}">
   {{ if .CanonicalURL }}<link rel="canonical" href="{{ .CanonicalURL }}">{{ end }}
   <meta property="og:type" content="article">
@@ -65,18 +65,23 @@
                       <a href="/?category={{ .Category }}" class=""> {{ categoryLabel .Category }} </a>
                     </div>
                     {{ end }}
+                    {{ with .SourceName }}
+                    <div class="flex items-center flex-wrap gap-[4px]">
+                      <span class="w-[4px] h-[4px] bg-gray_7 rounded-full flex-none"></span> সূত্র: {{ outletLabel . }}
+                    </div>
+                    {{ end }}
+                    <div class="flex items-center flex-wrap gap-[4px]">
+                      <span class="w-[4px] h-[4px] bg-gray_7 rounded-full flex-none"></span> {{ readCount .Views }}
+                    </div>
+                    {{ if $.PopularRank }}
+                    <div class="flex items-center flex-wrap gap-[4px] color-red">
+                      <span class="w-[4px] h-[4px] bg-gray_7 rounded-full flex-none"></span> সর্বাধিক পঠিত: {{ outletLabel $.PopularOutlet }} · {{ banglaDigits (printf "%d" $.PopularRank) }} নম্বর
+                    </div>
+                    {{ end }}
                   </div>
                   <div class="flex-none flex">
                     <button type="button" class="no-style info-item ds-save" data-save data-id="{{ .ID }}" data-title="{{ .Title }}" data-img="{{ .ImageURL }}" data-cat="{{ categoryLabel .Category }}" aria-pressed="false"><span>সংরক্ষণ</span></button>
-                    <div class="relative share-dropdown">
-                      <button type="button" class="no-style info-item share-toggle" title="শেয়ার করুন"><span>SHARE</span> {{ template "ico_share" }}</button>
-                      <div class="share-menu absolute border-[1px] border-gray_1 top-full right-0 bg-white hidden" data-share data-title="{{ .Title }}">
-                        <a href="#" data-share-to="x" target="_blank" rel="noopener" class="info-item" aria-label="X">{{ template "ico_x" }}</a>
-                        <a href="#" data-share-to="facebook" target="_blank" rel="noopener" class="info-item" aria-label="Facebook">{{ template "ico_fb" }}</a>
-                        <a href="#" data-share-to="linkedin" target="_blank" rel="noopener" class="info-item" aria-label="LinkedIn">{{ template "ico_li" }}</a>
-                        <button type="button" class="no-style info-item copy-link-btn" data-copy-link aria-label="লিংক কপি করুন">{{ template "ico_copy" }}</button>
-                      </div>
-                    </div>
+                    {{ template "share_menu" .Title }}
                   </div>
                 </div>
               </div>
@@ -97,17 +102,28 @@
               </div>
               {{ end }}
               <div class="block block-layout-builder block-field-blocknodenewsbody">
-                <span class="clearfix text-formatted">{{ safeHTML .Content }}</span>
+                <span class="clearfix text-formatted">
+                  {{ safeHTML $.BodyHead }}
+                  {{ with $.MoreRead }}
+                  <div class="related-card-news flex pmb gap-[16px] related-left">
+                    <div class="img"><a href="/article/{{ .ID }}"><img src="{{ .ImageURL }}" alt="{{ .Title }}" class="img-responsive" loading="lazy" onerror="dsImgFail(this)"></a></div>
+                    <div class="text flex-1 flex flex-col gap-[12px]">
+                      <div class="related-more-link"><a href="/article/{{ .ID }}">আরও পড়ুন</a></div>
+                      <h3 class="card-title mb-0"><a href="/article/{{ .ID }}">{{ .Title }}</a></h3>
+                    </div>
+                  </div>
+                  {{ end }}
+                  {{ with $.BodyTail }}{{ safeHTML . }}{{ end }}
+                </span>
               </div>
-              {{ end }}
-              {{ with .Tags }}
               <div class="block block-rsi-blocks block-article-meta-block-footer">
                 <div class="mb-[14px] flex items-start gap-[16px] py-[12px] border-t-[1px] border-gray_1">
                   <div class="flex-1">
                     <div class="flex flex-wrap items-center gap-[12px]">
-                      {{ range . }}<a class="cta-small" href="/?q={{ . | urlquery }}"> {{ . }} </a>{{ end }}
+                      {{ range $.Tags }}<a class="cta-small" href="/?q={{ . | urlquery }}"> {{ . }} </a>{{ end }}
                     </div>
                   </div>
+                  <div class="flex-none flex">{{ template "share_menu" .Title }}</div>
                 </div>
               </div>
               {{ end }}
@@ -141,22 +157,22 @@
   <script>
     /* Share links point at this page; "copy" puts its address on the clipboard. */
     (function () {
-      var menu = document.querySelector('[data-share]');
-      if (!menu) return;
-      var url = encodeURIComponent(window.location.href.split('#')[0]);
-      var title = encodeURIComponent(menu.getAttribute('data-title') || document.title);
-      var to = {
-        x: 'https://x.com/intent/tweet?text=' + title + '&url=' + url,
-        facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + url,
-        linkedin: 'https://www.linkedin.com/shareArticle?mini=true&url=' + url + '&title=' + title
-      };
-      menu.querySelectorAll('[data-share-to]').forEach(function (a) { a.href = to[a.getAttribute('data-share-to')]; });
-      var copy = menu.querySelector('[data-copy-link]');
-      if (copy) copy.addEventListener('click', function () {
-        var link = window.location.href.split('#')[0];
-        (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject())
-          .then(function () { DS.toast('লিংক কপি করা হয়েছে'); })
-          .catch(function () { window.prompt('লিংকটি কপি করুন', link); });
+      var link = window.location.href.split('#')[0];
+      var url = encodeURIComponent(link);
+      document.querySelectorAll('[data-share]').forEach(function (menu) {
+        var title = encodeURIComponent(menu.getAttribute('data-title') || document.title);
+        var to = {
+          x: 'https://x.com/intent/tweet?text=' + title + '&url=' + url,
+          facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + url,
+          linkedin: 'https://www.linkedin.com/shareArticle?mini=true&url=' + url + '&title=' + title
+        };
+        menu.querySelectorAll('[data-share-to]').forEach(function (a) { a.href = to[a.getAttribute('data-share-to')]; });
+        var copy = menu.querySelector('[data-copy-link]');
+        if (copy) copy.addEventListener('click', function () {
+          (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject())
+            .then(function () { DS.toast('লিংক কপি করা হয়েছে'); })
+            .catch(function () { window.prompt('লিংকটি কপি করুন', link); });
+        });
       });
     })();
   </script>

@@ -49,6 +49,7 @@ func main() {
 	// ---- Cron worker (RSS -> agentic AI rewrite -> DB pipeline) ----
 	worker := cron.NewWorker(cfg, feedRepo, articleRepo, usageRepo, settingsRepo, repository.NewSeenURLRepository(db))
 	worker.SetJourneyRepo(repository.NewJourneyRepository(db))
+	worker.SetPopularRepo(repository.NewPopularRepository(db))
 
 	cronCtx, cancelCron := context.WithCancel(context.Background())
 	workerDone := make(chan struct{})
@@ -68,6 +69,7 @@ func main() {
 
 	// ---- HTTP handlers & router ----
 	publicH := handler.NewPublicHandler(articleUC, cfg.PublicBaseURL)
+	publicH.SetPopular(repository.NewPopularRepository(db))
 	adminH := handler.NewAdminHandler(authUC, articleUC, feedUC, settingsUC, usageUC, worker, cfg.JWTExpiry)
 	// ---- Agentic news desk (see internal/agentic) ----
 	journeyRepo := repository.NewJourneyRepository(db)

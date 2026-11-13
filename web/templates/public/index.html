@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ if .Query }}“{{ .Query }}” — খোঁজার ফলাফল | {{ else if .Category }}{{ categoryLabel .Category }} | {{ else if .Latest }}সর্বশেষ | {{ end }}দ্য ডেইলি স্টার বাংলা</title>
+  <title>{{ if .Query }}“{{ .Query }}” — খোঁজার ফলাফল | The Daily Star{{ else if .Category }}{{ categoryLabel .Category }} | The Daily Star{{ else if .Latest }}সর্বশেষ | The Daily Star{{ else }}বাংলাদেশ ও বিশ্বের সর্বশেষ সংবাদ | দ্য ডেইলি স্টার বাংলা{{ end }}</title>
   <meta name="description" content="বাংলাদেশ ও বিশ্বের সর্বশেষ সংবাদ — রাজনীতি, বাণিজ্য, খেলা, বিনোদন, প্রযুক্তি।">
   {{ if .CanonicalURL }}<link rel="canonical" href="{{ .CanonicalURL }}">{{ end }}
   <meta property="og:type" content="website">
@@ -45,6 +45,7 @@
                 <div class="card-content">
                   <h2 class="card-title "><a href="/article/{{ .ID }}">{{ .Title }}</a></h2>
                   <div class="lp-0 card-intro line-clamp-4">{{ template "ds_intro" . }}</div>
+{{ template "ds_info" . }}
                 </div>
               </div>
               {{ end }}
@@ -53,6 +54,7 @@
                 <div class="card-content">
                   <h3 class="card-title "><a href="/article/{{ .ID }}">{{ .Title }}</a></h3>
                   <div class="lp-0 card-intro line-clamp-4">{{ template "ds_intro" . }}</div>
+{{ template "ds_info" . }}
                 </div>
               </div>
               {{ end }}
@@ -68,6 +70,7 @@
                 <div class="card-content !grow">
                   <h5 class="card-title "><a href="/article/{{ .ID }}">{{ .Title }}</a></h5>
                   <div class="lp-0 card-intro line-clamp-2">{{ template "ds_intro" . }}</div>
+{{ template "ds_info" . }}
                 </div>
               </div>
               {{ end }}
@@ -79,7 +82,7 @@
                 <ul class="type-counter !list-none !m-0 flex flex-col gap-[20px]">
                   {{ range . }}
                   <li class="border-b-[1px] border-gray_1 last:border-b-0 pb-[20px]">
-                    <h4 class="card-title"><a class="!no-underline hover:!underline" href="/article/{{ .ID }}">{{ .Title }}</a></h4>
+                    <div class="flex flex-col gap-[8px]"><h4 class="card-title"><a class="!no-underline hover:!underline" href="/article/{{ .ID }}">{{ .Title }}</a></h4>{{ template "ds_ranked" . }}</div>
                   </li>
                   {{ end }}
                 </ul>
@@ -101,6 +104,7 @@
                   <div class="card-content !gap-[20px]">
                     <h5 class="card-title "><a href="/article/{{ .ID }}">{{ .Title }}</a></h5>
                     <div class="lp-0 card-intro line-clamp-3">{{ template "ds_intro" . }}</div>
+{{ template "ds_info" . }}
                   </div>
                 </div>
                 {{ end }}
@@ -140,7 +144,7 @@
             <div class="tabs-panel is-active" id="panel-latest">
               <ul class="type-counter !list-none !m-0 flex flex-col gap-[20px]">
                 {{ range part $l 12 17 }}
-                <li class="border-b-[1px] border-gray_1 last:border-b-0 pb-[20px]"><h4 class="card-title"><a class="!no-underline hover:!underline" href="/article/{{ .ID }}">{{ .Title }}</a></h4></li>
+                <li class="border-b-[1px] border-gray_1 last:border-b-0 pb-[20px]"><div class="flex flex-col gap-[8px]"><h4 class="card-title"><a class="!no-underline hover:!underline" href="/article/{{ .ID }}">{{ .Title }}</a></h4>{{ template "ds_note" . }}</div></li>
                 {{ end }}
               </ul>
             </div>
@@ -148,7 +152,7 @@
             <div class="tabs-panel" id="panel-bangladesh">
               <ul class="type-counter !list-none !m-0 flex flex-col gap-[20px]">
                 {{ range . }}
-                <li class="border-b-[1px] border-gray_1 last:border-b-0 pb-[20px]"><h4 class="card-title"><a class="!no-underline hover:!underline" href="/article/{{ .ID }}">{{ .Title }}</a></h4></li>
+                <li class="border-b-[1px] border-gray_1 last:border-b-0 pb-[20px]"><div class="flex flex-col gap-[8px]"><h4 class="card-title"><a class="!no-underline hover:!underline" href="/article/{{ .ID }}">{{ .Title }}</a></h4>{{ template "ds_note" . }}</div></li>
                 {{ end }}
               </ul>
             </div>
@@ -171,6 +175,7 @@
                   <div class="card-content">
                     <h5 class="card-title title h3 pb-[20px]"><a href="/article/{{ .ID }}">{{ .Title }}</a></h5>
                     <div class="lp-0 card-intro">{{ template "ds_intro" . }}</div>
+{{ template "ds_info" . }}
                   </div>
                 </div>
               </div>
@@ -235,7 +240,7 @@
                     <a href="/article/{{ .ID }}" aria-label="{{ .Title }}">{{ template "ds_pic" . }}</a>
                     <div class="card-content max-sm:!p-[16px] max-sm:!gap-[10px]">
                       <h3 class="card-title "><a href="/article/{{ .ID }}">{{ .Title }}</a></h3>
-                      <div class="card-info "><span class="flex items-center gap-[4px]"><span class="rounded-full bg-gray_7"></span> {{ dsAgo .PublishedAt }} </span></div>
+                      <div class="card-info "><span class="flex items-center gap-[4px]"><span class="rounded-full bg-gray_7"></span> {{ dsAgo .PublishedAt }} </span>{{ template "ds_source" . }}</div>
                     </div>
                   </div>
                 </div>
@@ -347,15 +352,60 @@
           {{ end }}
           {{ end }}
 
-          {{ $rest := $l }}{{ if $top }}{{ $rest = part $l 11 20 }}{{ end }}
-          <div class="grid grid-cols-1 md:grid-cols-5 lg:grid-cols-5 gap-[32px] my-10" data-listing>
-            {{ range $rest }}{{ template "card_grid" . }}{{ end }}
-          </div>
+        </div>
+      </div>
+    </div>
 
-          <nav class="ds-pager" aria-label="আরও খবর" data-pager>
-            {{ if gt .Page 1 }}<a href="{{ if .Latest }}/latest{{ else }}/{{ end }}?page={{ sub .Page 1 }}{{ if .Category }}&amp;category={{ .Category }}{{ end }}{{ if .Query }}&amp;q={{ .Query | urlquery }}{{ end }}" class="button type-gray">← আগের পাতা</a>{{ end }}
-            {{ if .HasMore }}<a href="{{ if .Latest }}/latest{{ else }}/{{ end }}?page={{ add .Page 1 }}{{ if .Category }}&amp;category={{ .Category }}{{ end }}{{ if .Query }}&amp;q={{ .Query | urlquery }}{{ end }}" class="button" data-next>আরও খবর</a>{{ end }}
-          </nav>
+    {{/* The rest as a list (time, headline and intro, photo), with "Show more". */}}
+    {{ $rest := $l }}{{ if $top }}{{ $rest = part $l 11 20 }}{{ end }}
+    <div class="block block-rsi-blocks block-category-show-more">
+      <div class="row">
+        <div class="column small-12">
+          <div class="flex flex-col md:flex-row gap-[77px]">
+            <div class="node-content flex-1">
+              <div class="view-content" data-listing>
+                {{ range $rest }}
+                <div data-item>
+                  <div class="row my-[32px] relative">
+                    <div class="columns small-12">
+                      <div class="flex flex-col md:flex-row gap-[20px] md:gap-[32px] pb-[32px] border-b-[1px] border-gray_1">
+                        <div class="order-1 md:order-2 flex-none w-full md:w-[33%]">
+                          <div class="card-image relative overflow-hidden"><a href="/article/{{ .ID }}" aria-label="{{ .Title }}">{{ template "ds_pic" . }}</a></div>
+                        </div>
+                        <div class="order-2 md:order-1 flex-1 flex flex-col md:flex-row gap-[20px] md:gap-[56px]">
+                          <div class="order-1 md:order-2 flex-1 flex flex-col gap-[20px]">
+                            <h3 class="card-title"><a href="/article/{{ .ID }}">{{ .Title }}</a></h3>
+                            <div class="card-intro">{{ template "ds_intro" . }}</div>
+                          </div>
+                          <div class="order-2 md:order-1 flex-none w-[200px]">
+                            <div class="card-info"><span class=""><time class="rsi-ago rsi-ago--bn" datetime="{{ iso .PublishedAt }}">{{ dsAgo .PublishedAt }}</time></span>{{ template "ds_source" . }}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {{ end }}
+              </div>
+              <nav role="navigation" aria-label="আরও খবর" data-pager>
+                <ul class="js-pager__items pager__items pager-show-more">
+                  {{ if .HasMore }}<li class="pager__item"><a href="{{ if .Latest }}/latest{{ else }}/{{ end }}?page={{ add .Page 1 }}{{ if .Category }}&amp;category={{ .Category }}{{ end }}{{ if .Query }}&amp;q={{ .Query | urlquery }}{{ end }}" title="পরের পাতা" data-next>Show more</a></li>{{ end }}
+                </ul>
+              </nav>
+            </div>
+            <div class="sidebar flex-none w-full md:w-[300px]">
+              {{ with .MostRead }}
+              <div class="flex flex-col gap-[30px] my-[32px]">
+                <h2 class="h4 double-line-title">সর্বাধিক পঠিত</h2>
+                <ul class="type-counter !list-none !m-0 flex flex-col gap-[20px]">
+                  {{ range . }}
+                  <li class="border-b-[1px] border-gray_1 last:border-b-0 pb-[20px]"><div class="flex flex-col gap-[8px]"><h4 class="card-title"><a class="!no-underline hover:!underline" href="/article/{{ .ID }}">{{ .Title }}</a></h4>{{ template "ds_ranked" . }}</div></li>
+                  {{ end }}
+                </ul>
+              </div>
+              {{ end }}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -378,10 +428,11 @@
         next.textContent = 'লোড হচ্ছে…';
         fetch(next.href).then(function (r) { return r.text(); }).then(function (html) {
           var doc = new DOMParser().parseFromString(html, 'text/html');
-          doc.querySelectorAll('[data-listing] > .card').forEach(function (card) { grid.appendChild(card); });
+          doc.querySelectorAll('[data-listing] > [data-item]').forEach(function (item) { grid.appendChild(item); });
           var more = doc.querySelector('[data-pager] [data-next]');
-          pager.innerHTML = '';
-          if (more) pager.appendChild(more);
+          var list = pager.querySelector('ul');
+          list.innerHTML = '';
+          if (more) list.appendChild(more.closest('li'));
         }).catch(function () { window.location.href = next.href; });
       });
     })();
@@ -425,7 +476,7 @@
         <a href="/article/{{ $first.ID }}" aria-label="{{ $first.Title }}">{{ template "ds_pic" $first }}</a>
       </div>
     </div>
-    <div class="card-content"><h5 class="card-title "><a href="/article/{{ $first.ID }}">{{ $first.Title }}</a></h5></div>
+    <div class="card-content"><h5 class="card-title "><a href="/article/{{ $first.ID }}">{{ $first.Title }}</a></h5>{{ template "ds_info" $first }}</div>
   </div>
   {{ range part . 1 5 }}
   <div class="card relative card-image-aside border-b last-no-border">
@@ -434,7 +485,7 @@
         <a href="/article/{{ .ID }}" aria-label="{{ .Title }}">{{ template "ds_pic" . }}</a>
       </div>
     </div>
-    <div class="card-content !gap-6 !order-2 !w-[60%]"><h6 class="card-title "><a href="/article/{{ .ID }}">{{ .Title }}</a></h6></div>
+    <div class="card-content !gap-6 !order-2 !w-[60%]"><h6 class="card-title "><a href="/article/{{ .ID }}">{{ .Title }}</a></h6>{{ template "ds_note" . }}</div>
   </div>
   {{ end }}
 </div>

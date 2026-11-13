@@ -40,23 +40,22 @@
 .share-menu { display: none; }
 .ds-save.is-saved { color: var(--color-red); }
 
-.ds-pager { display: flex; justify-content: center; gap: 16px; margin: 0 0 40px; }
 .ds-empty { font-size: 18px; color: var(--color-gray_6); margin: 0 0 40px; }
 .ds-empty a { color: var(--color-red); text-decoration: underline; }
 .ds-saved-tools { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; font-family: var(--font-inter); font-size: 14px; color: var(--color-gray_6); }
 .ds-unsave { margin-left: auto; color: var(--color-red); font-size: 10px; text-transform: uppercase; }
 
-.ds-fresh {
-  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 40;
-  transform: translate(-50%, 160%); transition: transform .25s ease;
+button.ds-fresh {
+  display: none; position: fixed; left: 50%; transform: translateX(-50%); z-index: 40;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
 }
-.ds-fresh.show { transform: translate(-50%, 0); }
+button.ds-fresh.show { display: inline-flex; }
 .ds-toast {
-  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 41;
-  transform: translate(-50%, 200%); transition: transform .25s ease;
+  display: none; position: fixed; left: 50%; transform: translateX(-50%); z-index: 41;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   background: var(--color-black_01); color: var(--color-white); padding: 10px 16px; border-radius: 4px; font-size: 14px;
 }
-.ds-toast.show { transform: translate(-50%, 0); }
+.ds-toast.show { display: block; }
 
 /* The Daily Star crops its photos on the server (580×435, 16:9 …), so its
    theme has no aspect-ratio for .aspect-video. These are the proportions its
@@ -69,3 +68,22 @@
 .card-image picture { display: block; width: 100%; height: 100%; }
 /* Its tall photos are all the same width there; ours differ, so share the row. */
 .news-section-layout-3 .card-overlay { flex: 1 1 0; min-width: 0; }
+
+/* Drupal core hides these; its stylesheet is not part of the theme. */
+.visually-hidden { position: absolute !important; overflow: hidden; clip: rect(1px, 1px, 1px, 1px); width: 1px; height: 1px; word-wrap: normal; }
+.visually-hidden.focusable:active, .visually-hidden.focusable:focus { position: static !important; overflow: visible; clip: auto; width: auto; height: auto; }
+
+/* On phones the site's search box opens over the ad above the masthead;
+   with no ad here it opens just below the masthead instead. */
+@media not all and (min-width: 1025px) {
+  .site-header .search-form { top: 100%; bottom: auto; }
+  .search-open .site-header .headar-icon.search-icon { position: static; }
+}
+
+/* The "Show more" list uses 373×210 photos. */
+.block-category-show-more .card-image { aspect-ratio: 373 / 210; }
+
+/* Outlet and read count under a headline, separated like the theme's info line. */
+.card-info .ds-dot::before { content: "·"; margin-right: 4px; }
+.ds-note .ds-dot:first-child::before { content: none; }
+.ds-note { margin-top: 2px; }

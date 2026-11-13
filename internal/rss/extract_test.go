@@ -13,7 +13,7 @@ func extract(t *testing.T, page string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return extractArticleText(doc)
+	return extractArticleText(doc, "")
 }
 
 // Some sites split one story into many body blocks; taking only the biggest

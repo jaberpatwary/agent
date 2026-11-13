@@ -39,7 +39,7 @@ func TestFrontPageFillsEveryDailyStarSection(t *testing.T) {
 	for _, k := range homeCategories {
 		cats[k] = testArticles(k, 14)
 	}
-	html := render(t, "index.html", gin.H{"Front": true, "Cat": cats, "MostRead": testArticles("sports", 5),
+	html := render(t, "index.html", gin.H{"Front": true, "Cat": cats, "MostRead": ranked(testArticles("sports", 5)),
 		"HeaderNews": testArticles("bangladesh", 3), "Articles": testArticles("bangladesh", 20), "Page": 1})
 	for _, want := range []string{"news-section-layout-35", "news-section-layout-36", "most-popular-layout-2", "news-section-layout-9",
 		"news-section-layout-3", "news-section-layout-31", "header-news-card", "/static/ds/logo.png", "সর্বাধিক পঠিত",
@@ -64,7 +64,7 @@ func TestSectionPageShowsEveryStoryOnce(t *testing.T) {
 		list := testArticles("sports", n)
 		html := render(t, "index.html", gin.H{"Category": "sports", "Articles": list, "Page": 1, "HasMore": true})
 		for _, a := range list {
-			if c := strings.Count(html, `<h5 class="card-title "><a href="/article/`+a.ID.String()) + strings.Count(html, `<h3 class="card-title "><a href="/article/`+a.ID.String()); c != 1 {
+			if c := strings.Count(html, `<a href="/article/`+a.ID.String()+`">`); c != 1 {
 				t.Fatalf("%d stories: %q shown %d times", n, a.Title, c)
 			}
 		}
@@ -77,8 +77,16 @@ func TestSectionPageShowsEveryStoryOnce(t *testing.T) {
 
 func TestArticleSavedAndErrorPagesRender(t *testing.T) {
 	a := testArticles("bangladesh", 1)[0]
-	html := render(t, "article.html", gin.H{"Article": &a, "Category": a.Category, "Tags": []string{"আগুন"},
+	head, tail := splitBody(a.Content+"<p>তৃতীয়</p>", 2)
+	more := testArticles("international", 1)[0]
+	html := render(t, "article.html", gin.H{"Article": &a, "Category": a.Category, "Tags": []string{"আগুন"}, "BodyHead": head, "BodyTail": tail, "MoreRead": &more,
 		"Related": testArticles("bangladesh", 4), "Latest": testArticles("sports", 5), "HeaderNews": testArticles("bangladesh", 3)})
+	if strings.Index(html, "দ্বিতীয়") > strings.Index(html, "আরও পড়ুন") || strings.Index(html, "আরও পড়ুন") > strings.Index(html, "তৃতীয়") {
+		t.Error("the আরও পড়ুন card belongs between the second and third paragraphs")
+	}
+	if strings.Count(html, "data-share ") != 2 {
+		t.Error("SHARE belongs under the title and next to the tags")
+	}
 	for _, want := range []string{"পড়তে পারেন", "সম্পর্কিত খবর", "<h3>উপশিরোনাম</h3>", "cta-small", "অনলাইন ডেস্ক", "data-save"} {
 		if !strings.Contains(html, want) {
 			t.Errorf("article page lacks %q", want)
@@ -98,5 +106,52 @@ func TestDailyStarDates(t *testing.T) {
 	}
 	if part(nil, 0, 2) != nil {
 		t.Error("part of nothing is nothing")
+	}
+}
+
+func TestSplitBodyAfterTheSecondParagraph(t *testing.T) {
+	head, tail := splitBody("<p>এক</p>\n<h3>শিরোনাম</h3><p>দুই</p><p>তিন</p>", 2)
+	if head != "<p>এক</p>\n<h3>শিরোনাম</h3><p>দুই</p>" || tail != "<p>তিন</p>" {
+		t.Errorf("got %q | %q", head, tail)
+	}
+	for _, short := range []string{"<p>এক</p><p>দুই</p>", "<p>এক</p>", "শুধু লেখা"} {
+		if head, tail := splitBody(short, 2); head != short || tail != "" {
+			t.Errorf("%q should not be cut, got %q | %q", short, head, tail)
+		}
+	}
+}
+
+func ranked(list []domain.Article) []domain.RankedArticle {
+	out := make([]domain.RankedArticle, len(list))
+	for i, a := range list {
+		out[i] = domain.RankedArticle{Article: a}
+	}
+	return out
+}
+
+func TestStoriesShowTheirOutletReadsAndMostReadRank(t *testing.T) {
+	list := testArticles("bangladesh", 20)
+	for i := range list {
+		list[i].SourceName, list[i].Views = "Prothom Alo", int64(i)
+	}
+	most := ranked(testArticles("sports", 3))
+	most[0].SourceName, most[0].Views, most[0].PopularOutlet, most[0].PopularRank = "BBC News বাংলা", 1234, "BBC News বাংলা", 2
+	cats := map[string][]domain.Article{"sports": list[:5]}
+	html := render(t, "index.html", gin.H{"Front": true, "Cat": cats, "MostRead": most, "Articles": list, "Page": 1})
+	for _, want := range []string{"সর্বাধিক পঠিত: বিবিসি বাংলা · ২ নম্বর", "১২৩৪ বার পড়া হয়েছে", "সূত্র: প্রথম আলো", "১৬ বার পড়া হয়েছে", "এখনো পড়া হয়নি"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("front page lacks %q", want)
+		}
+	}
+	section := render(t, "index.html", gin.H{"Category": "bangladesh", "Articles": list, "MostRead": most, "Page": 1})
+	if strings.Count(section, "সূত্র: প্রথম আলো") < len(list) {
+		t.Error("every story on a section page shows its outlet")
+	}
+	a := list[3]
+	page := render(t, "article.html", gin.H{"Article": &a, "BodyHead": a.Content, "PopularOutlet": "Prothom Alo", "PopularRank": 1})
+	for _, want := range []string{"সূত্র: প্রথম আলো", "৩ বার পড়া হয়েছে", "সর্বাধিক পঠিত: প্রথম আলো · ১ নম্বর"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("article page lacks %q", want)
+		}
 	}
 }
