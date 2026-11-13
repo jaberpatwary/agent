@@ -1,11 +1,11 @@
-/* বাংলা নিউজ service worker: makes the site installable and readable offline.
+/* Service worker: makes the site installable and readable offline.
    - static assets and cached photos: cache first
    - pages: network first, falling back to the last cached copy when offline
    - admin, API and anything non-GET is never cached */
-const VERSION = 'bn-v1';
+const VERSION = 'ds-v1';
 const STATIC = VERSION + '-static';
 const PAGES = VERSION + '-pages';
-const PRECACHE = ['/', '/saved', '/static/css/portal.css?v=3', '/static/icon.svg', '/manifest.webmanifest'];
+const PRECACHE = ['/', '/saved', '/static/ds/swallow.css?v=1', '/static/ds/logo.css?v=1', '/static/ds/extra.css?v=3', '/static/ds/logo.png', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(STATIC).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));

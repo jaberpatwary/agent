@@ -27,20 +27,20 @@ func NewPublicHandler(articleUC usecase.ArticleUsecase, baseURL string) *PublicH
 	return &PublicHandler{articleUC: articleUC, baseURL: strings.TrimRight(baseURL, "/")}
 }
 
-// homeSection is one category block on the front page.
-type homeSection struct {
-	Key      string
-	Label    string
-	Articles []domain.Article
-}
+// homeCategories are the front page's category blocks, in the Daily Star
+// Bangla layout: the blocks take the stories they need from each list.
+var homeCategories = []string{"bangladesh", "international", "sports", "business", "entertainment", "technology", "general"}
 
-var homeSectionOrder = []string{"bangladesh", "international", "sports", "business", "entertainment", "technology"}
-
-// Home renders a paginated list of the latest published articles.
+// Home renders the front page, a category, search results, or (at /latest)
+// every story newest first.
 func (h *PublicHandler) Home(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if page < 1 {
+		page = 1
+	}
 	category := c.Query("category")
 	query := c.Query("q")
+	latest := c.FullPath() == "/latest"
 
 	var articles []domain.Article
 	var total int64
@@ -55,26 +55,24 @@ func (h *PublicHandler) Home(c *gin.Context) {
 		return
 	}
 
-	// The front page (no filter, first page) also gets one block per section,
-	// a "most read" list and the trending topics.
-	var sections []homeSection
+	front := page == 1 && category == "" && query == "" && !latest
+	cats := map[string][]domain.Article{}
 	var mostRead []domain.Article
-	var trending []string
-	if page <= 1 && category == "" && query == "" {
-		for _, key := range homeSectionOrder {
-			list, _, err := h.articleUC.List(1, 5, key, "published")
-			if err == nil && len(list) > 0 {
-				sections = append(sections, homeSection{Key: key, Label: categoryLabel(key), Articles: list})
+	if front {
+		for _, key := range homeCategories {
+			if list, _, err := h.articleUC.List(1, 14, key, "published"); err == nil {
+				cats[key] = list
 			}
 		}
-		mostRead, _ = h.articleUC.MostRead(6)
-		trending, _ = h.articleUC.TrendingTags(12)
+		mostRead, _ = h.articleUC.MostRead(5)
 	}
 
 	c.HTML(http.StatusOK, "index.html", gin.H{
-		"Sections":     sections,
+		"Front":        front,
+		"Latest":       latest,
+		"Cat":          cats,
 		"MostRead":     mostRead,
-		"Trending":     trending,
+		"HeaderNews":   h.headerNews(),
 		"Articles":     articles,
 		"Total":        total,
 		"Page":         page,
@@ -84,6 +82,15 @@ func (h *PublicHandler) Home(c *gin.Context) {
 		"CanonicalURL": h.absoluteURL("/"),
 		"BaseURL":      h.baseURL,
 	})
+}
+
+// headerNews are the three newest stories shown in every page's masthead.
+func (h *PublicHandler) headerNews() []domain.Article {
+	list, _, err := h.articleUC.List(1, 3, "", "published")
+	if err != nil {
+		return nil
+	}
+	return list
 }
 
 // ArticleDetail renders a single article by ID.
@@ -116,12 +123,23 @@ func (h *PublicHandler) ArticleDetail(c *gin.Context) {
 		}
 	}
 
+	var latest []domain.Article
+	if list, _, err := h.articleUC.List(1, 6, "", "published"); err == nil {
+		for _, a := range list {
+			if a.ID != article.ID && len(latest) < 5 {
+				latest = append(latest, a)
+			}
+		}
+	}
+
 	canonicalURL := h.absoluteURL("/article/" + article.ID.String())
 	c.HTML(http.StatusOK, "article.html", gin.H{
 		"Article":      article,
 		"Category":     article.Category,
 		"Tags":         tags,
 		"Related":      related,
+		"Latest":       latest,
+		"HeaderNews":   h.headerNews(),
 		"CanonicalURL": canonicalURL,
 		"BaseURL":      h.baseURL,
 		"JSONLD":       newsArticleJSONLD(article, canonicalURL),
@@ -139,7 +157,7 @@ type jsonLDPerson struct {
 // authorList credits the portal's own news desk. The originating outlet is
 // deliberately not exposed on public pages (it stays in the admin panel).
 func authorList(_ *domain.Article) []jsonLDPerson {
-	return []jsonLDPerson{{Type: "Organization", Name: "বাংলা নিউজ ডেস্ক"}}
+	return []jsonLDPerson{{Type: "Organization", Name: "অনলাইন ডেস্ক"}}
 }
 
 func newsArticleJSONLD(a *domain.Article, canonicalURL string) template.JS {
@@ -165,7 +183,7 @@ func newsArticleJSONLD(a *domain.Article, canonicalURL string) template.JS {
 		DatePublished: a.PublishedAt.Format(time.RFC3339),
 		DateModified:  a.UpdatedAt.Format(time.RFC3339),
 		Author:        authorList(a),
-		Publisher:     jsonLDPerson{Type: "Organization", Name: "বাংলা নিউজ"},
+		Publisher:     jsonLDPerson{Type: "Organization", Name: siteName},
 	}
 	if a.ImageURL != "" {
 		doc.Image = []string{a.ImageURL}
@@ -217,7 +235,7 @@ func (h *PublicHandler) Suggest(c *gin.Context) {
 // Saved renders the reader's bookmarks page; the list itself lives in the
 // browser (localStorage) and is drawn client-side.
 func (h *PublicHandler) Saved(c *gin.Context) {
-	c.HTML(http.StatusOK, "saved.html", gin.H{"Category": "__saved"})
+	c.HTML(http.StatusOK, "saved.html", gin.H{"Category": "__saved", "HeaderNews": h.headerNews()})
 }
 
 // HealthCheck is a simple liveness probe for Render.com / uptime monitors.
@@ -331,7 +349,7 @@ func (h *PublicHandler) NewsSitemap(c *gin.Context) {
 		urlSet.URLs = append(urlSet.URLs, newsSitemapURL{
 			Loc: h.absoluteURL("/article/" + a.ID.String()),
 			News: newsSitemapArticle{
-				Publication:     newsSitemapPublication{Name: "বাংলা নিউজ", Language: "bn"},
+				Publication:     newsSitemapPublication{Name: siteName, Language: "bn"},
 				PublicationDate: a.PublishedAt.Format(time.RFC3339),
 				Title:           a.Title,
 			},

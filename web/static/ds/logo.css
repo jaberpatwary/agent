@@ -1,0 +1,19 @@
+/* Loaded directly so logo sizing is available without a front-end rebuild. */
+.site-header .logo {
+  flex: 0 0 120px;
+  width: 120px;
+}
+
+@media (min-width: 768px) {
+  .site-header .logo {
+    flex-basis: 140px;
+    width: 140px;
+  }
+}
+
+@media (min-width: 1025px) {
+  .site-header .logo {
+    flex-basis: 220px;
+    width: 220px;
+  }
+}

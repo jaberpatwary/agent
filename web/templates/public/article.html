@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="bn" dir="ltr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ .Article.Title }} | বাংলা নিউজ</title>
+  <title>{{ .Article.Title }} | দ্য ডেইলি স্টার বাংলা</title>
   <meta name="description" content="{{ stripHTML .Article.Summary }}">
   {{ if .CanonicalURL }}<link rel="canonical" href="{{ .CanonicalURL }}">{{ end }}
   <meta property="og:type" content="article">
-  <meta property="og:site_name" content="বাংলা নিউজ">
+  <meta property="og:site_name" content="দ্য ডেইলি স্টার বাংলা">
   <meta property="og:title" content="{{ .Article.Title }}">
   <meta property="og:description" content="{{ stripHTML .Article.Summary }}">
   {{ if .CanonicalURL }}<meta property="og:url" content="{{ .CanonicalURL }}">{{ end }}
@@ -22,193 +22,141 @@
   {{ if .JSONLD }}<script type="application/ld+json">{{ .JSONLD }}</script>{{ end }}
   {{ template "portal_assets" . }}
 </head>
-<body>
-  <div class="progress" data-progress aria-hidden="true"></div>
+<body class="page-node-type-news">
+<div class="page-wrapper">
   {{ template "portal_header" . }}
 
-  <main class="page">
-    <div class="wrap article-shell">
-      <article class="article cat-{{ .Article.Category }}">
-        <nav class="crumbs" aria-label="অবস্থান">
-          <a href="/">প্রথম পাতা</a><span aria-hidden="true">›</span>
-          {{ if .Article.Category }}<a href="/?category={{ .Article.Category }}">{{ categoryLabel .Article.Category }}</a>{{ end }}
-        </nav>
+  <main role="main" class="main" id="main-content">
+    <article class="node">
+      <div class="row">
+        <div class="column">
+          <div class="layout layout--threecol-section layout--threecol-section--25-50-25 flex max-lg:flex-wrap max-sm:flex-col gap-[32px] desktop_ex_lg:gap-[77px] py-[42px]">
 
-        <span class="chip">{{ categoryLabel .Article.Category }}</span>
-        <h1 class="article-title">{{ .Article.Title }}</h1>
-
-        <div class="article-meta">
-          <span class="byline"><span class="brand-mark" aria-hidden="true">ব</span>বাংলা নিউজ ডেস্ক</span>
-          <span class="meta-dot" aria-hidden="true"></span>
-          <time datetime="{{ .Article.PublishedAt.Format "2006-01-02T15:04:05Z07:00" }}">{{ banglaFullDateTime .Article.PublishedAt }}</time>
-          <span class="meta-dot" aria-hidden="true"></span>
-          <span>{{ banglaDigits (printf "%d" (readMinutes .Article.Content)) }} মিনিটে পড়ুন</span>
-          <span class="meta-tools">
-            <button type="button" class="tool-listen" data-listen hidden aria-label="খবরটি শুনুন">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg><span data-listen-label>শুনুন</span>
-            </button>
-            <button type="button" data-font="-1" aria-label="লেখা ছোট করুন">অ−</button>
-            <button type="button" data-font="1" aria-label="লেখা বড় করুন">অ+</button>
-            {{ template "save_btn" .Article }}
-          </span>
-        </div>
-
-        {{ if .Article.ImageURL }}
-        <figure class="article-figure">
-          {{ template "media" .Article }}
-          <figcaption>ছবি: সংগৃহীত</figcaption>
-        </figure>
-        {{ end }}
-
-        {{ if .Article.Summary }}
-        <section class="glance">
-          <h2>এক নজরে</h2>
-          <p>{{ stripHTML .Article.Summary }}</p>
-        </section>
-        {{ end }}
-
-        <div class="prose" data-prose>{{ safeHTML .Article.Content }}</div>
-
-        {{ $shareURL := .CanonicalURL }}{{ if not $shareURL }}{{ $shareURL = printf "/article/%s" .Article.ID.String }}{{ end }}
-        <div class="share" data-share-url="{{ $shareURL }}" data-share-title="{{ .Article.Title }}">
-          <span>শেয়ার করুন</span>
-          <a href="https://www.facebook.com/sharer/sharer.php?u={{ $shareURL }}" target="_blank" rel="noopener" data-share="fb">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 8h3V4h-3a4 4 0 0 0-4 4v2H8v4h2v6h4v-6h3l1-4h-4V8a0 0 0 0 1 0 0Z"/></svg>Facebook</a>
-          <a href="https://twitter.com/intent/tweet?url={{ $shareURL }}&amp;text={{ .Article.Title }}" target="_blank" rel="noopener" data-share="x">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4l16 16M20 4 4 20"/></svg>X</a>
-          <a href="https://wa.me/?text={{ .Article.Title }}%20{{ $shareURL }}" target="_blank" rel="noopener" data-share="wa">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.3-4A8 8 0 1 1 8 18.7L4 20Z"/></svg>WhatsApp</a>
-          <button type="button" data-copy>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h9"/></svg><span data-copy-label>লিংক কপি</span></button>
-        </div>
-
-        {{ if .Tags }}
-        <div class="tags">
-          {{ range .Tags }}<a href="/?q={{ . | urlquery }}">#{{ . }}</a>{{ end }}
-        </div>
-        {{ end }}
-      </article>
-
-      <aside class="aside-sticky" aria-label="আরও পড়ুন">
-        {{ if .Related }}
-        <div class="aside-box">
-          <h3>আরও পড়ুন</h3>
-          {{ range .Related }}
-          <article class="row-card">
-            <a href="/article/{{ .ID }}">{{ template "media" . }}</a>
-            <div>
-              <h4 class="headline"><a href="/article/{{ .ID }}">{{ .Title }}</a></h4>
-              <span class="time">{{ banglaTimeAgo .PublishedAt }}</span>
+            <div class="sidebar flex-none w-[300px] max-sm:w-full max-lg:order-2">
+              {{ with .Latest }}
+              <div class="most view section-spacer">
+                <div class="column small-12 flex flex-col gap-[30px]">
+                  <h2 class="h4 double-line-title"> পড়তে পারেন </h2>
+                  {{ range . }}
+                  <div class="card relative border-b border-gray_1 last:!border-b-0">
+                    <div class="card-content">
+                      <h5 class="card-title !font-normal"><a href="/article/{{ .ID }}">{{ .Title }}</a></h5>
+                      {{ template "ds_info" . }}
+                    </div>
+                  </div>
+                  {{ end }}
+                </div>
+              </div>
+              {{ end }}
             </div>
-          </article>
-          {{ end }}
-        </div>
-        {{ end }}
-        <div class="aside-box">
-          <h3>বিভাগসমূহ</h3>
-          <div class="tags">
-            <a href="/?category=bangladesh">বাংলাদেশ</a>
-            <a href="/?category=international">বিশ্ব</a>
-            <a href="/?category=business">ব্যবসা</a>
-            <a href="/?category=sports">খেলা</a>
-            <a href="/?category=entertainment">বিনোদন</a>
-            <a href="/?category=technology">প্রযুক্তি</a>
+
+            <div class="node-content flex-1 max-lg:w-full max-lg:flex-none max-lg:order-1">
+              {{ with .Article }}
+              <div class="block block-layout-builder block-field-blocknodenewstitle">
+                <h1 class="mb-[20px]">{{ .Title }}</h1>
+              </div>
+              <div class="block block-rsi-blocks block-article-meta-block">
+                <div class="mb-[14px] flex items-start gap-[16px]">
+                  <div class="flex-1 text-[10px] leading-[1.2] font-medium uppercase font-inter text-gray_7 flex items-center gap-[4px] flex-wrap py-[6px]">
+                    <span class="text-gray-600 font-medium"><time class="rsi-ago rsi-ago--bn" datetime="{{ iso .PublishedAt }}">{{ dsDateTime .PublishedAt }}</time></span>
+                    {{ if .Category }}
+                    <div class="flex items-center flex-wrap gap-[4px]">
+                      <span class="w-[4px] h-[4px] bg-gray_7 rounded-full flex-none"></span>
+                      <a href="/?category={{ .Category }}" class=""> {{ categoryLabel .Category }} </a>
+                    </div>
+                    {{ end }}
+                  </div>
+                  <div class="flex-none flex">
+                    <button type="button" class="no-style info-item ds-save" data-save data-id="{{ .ID }}" data-title="{{ .Title }}" data-img="{{ .ImageURL }}" data-cat="{{ categoryLabel .Category }}" aria-pressed="false"><span>সংরক্ষণ</span></button>
+                    <div class="relative share-dropdown">
+                      <button type="button" class="no-style info-item share-toggle" title="শেয়ার করুন"><span>SHARE</span> {{ template "ico_share" }}</button>
+                      <div class="share-menu absolute border-[1px] border-gray_1 top-full right-0 bg-white hidden" data-share data-title="{{ .Title }}">
+                        <a href="#" data-share-to="x" target="_blank" rel="noopener" class="info-item" aria-label="X">{{ template "ico_x" }}</a>
+                        <a href="#" data-share-to="facebook" target="_blank" rel="noopener" class="info-item" aria-label="Facebook">{{ template "ico_fb" }}</a>
+                        <a href="#" data-share-to="linkedin" target="_blank" rel="noopener" class="info-item" aria-label="LinkedIn">{{ template "ico_li" }}</a>
+                        <button type="button" class="no-style info-item copy-link-btn" data-copy-link aria-label="লিংক কপি করুন">{{ template "ico_copy" }}</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="block block-rsi-blocks block-author-info-block">
+                <div class="mb-[20px] py-[12px] border-y-[1px] border-gray_1 flex items-center gap-[10px]">
+                  <div class="flex-1 flex flex-col gap-[8px]">
+                    <div class="text-[16px] leading-none tracking-[0.01em] font-light font-secondary text-black_01"><span class="font-medium">অনলাইন ডেস্ক</span></div>
+                  </div>
+                </div>
+              </div>
+              {{ if .ImageURL }}
+              <div class="block block-rsi-blocks block-news-featured-image">
+                <div class="news-master-block">
+                  <div class="featured-image pmb">
+                    <picture><img src="{{ .ImageURL }}" alt="{{ .Title }}" decoding="async" onerror="dsImgFail(this)"></picture>
+                  </div>
+                </div>
+              </div>
+              {{ end }}
+              <div class="block block-layout-builder block-field-blocknodenewsbody">
+                <span class="clearfix text-formatted">{{ safeHTML .Content }}</span>
+              </div>
+              {{ end }}
+              {{ with .Tags }}
+              <div class="block block-rsi-blocks block-article-meta-block-footer">
+                <div class="mb-[14px] flex items-start gap-[16px] py-[12px] border-t-[1px] border-gray_1">
+                  <div class="flex-1">
+                    <div class="flex flex-wrap items-center gap-[12px]">
+                      {{ range . }}<a class="cta-small" href="/?q={{ . | urlquery }}"> {{ . }} </a>{{ end }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {{ end }}
+            </div>
+
+            <div class="sidebar flex-none w-[300px] max-sm:w-full max-lg:order-3">
+              {{ with .Related }}
+              <div class="columns flex flex-col gap-[30px]">
+                <h2 class="h4 double-line-title">সম্পর্কিত খবর</h2>
+                {{ range . }}
+                <div class="card relative border-b last:!border-none">
+                  <div class="card-content !gap-[20px]">
+                    <h5 class="card-title "><a href="/article/{{ .ID }}">{{ .Title }}</a></h5>
+                    {{ template "ds_info" . }}
+                  </div>
+                </div>
+                {{ end }}
+              </div>
+              {{ end }}
+            </div>
+
           </div>
         </div>
-      </aside>
-    </div>
+      </div>
+    </article>
   </main>
 
   {{ template "portal_footer" . }}
+</div>
   {{ template "portal_scripts" . }}
   <script>
-    /* Reading progress */
+    /* Share links point at this page; "copy" puts its address on the clipboard. */
     (function () {
-      var bar = document.querySelector('[data-progress]');
-      var prose = document.querySelector('[data-prose]');
-      if (!bar || !prose) return;
-      function update() {
-        var r = prose.getBoundingClientRect();
-        var total = r.height - window.innerHeight * 0.6;
-        var done = Math.min(Math.max(-r.top + window.innerHeight * 0.2, 0), Math.max(total, 1));
-        bar.style.width = (done / Math.max(total, 1) * 100) + '%';
-      }
-      window.addEventListener('scroll', update, { passive: true });
-      window.addEventListener('resize', update);
-      update();
-    })();
-
-    /* Listen: read the article aloud with the browser's own Bangla voice (shown only if one exists). */
-    (function () {
-      var btn = document.querySelector('[data-listen]');
-      var label = document.querySelector('[data-listen-label]');
-      var prose = document.querySelector('[data-prose]');
-      if (!btn || !prose || !('speechSynthesis' in window)) return;
-      var synth = window.speechSynthesis, voice = null, playing = false;
-      function pickVoice() {
-        voice = synth.getVoices().find(function (v) { return /^bn/i.test(v.lang); }) || null;
-        btn.hidden = !voice;
-      }
-      pickVoice();
-      if (synth.onvoiceschanged !== undefined) synth.onvoiceschanged = pickVoice;
-      function chunks() {
-        var title = document.querySelector('.article-title').textContent.trim();
-        var text = title + '। ' + prose.innerText.replace(/\s+/g, ' ');
-        return text.match(/[^।!?]+[।!?]?/g).map(function (s) { return s.trim(); }).filter(Boolean);
-      }
-      function stop() { synth.cancel(); playing = false; label.textContent = 'শুনুন'; btn.classList.remove('is-on'); }
-      btn.addEventListener('click', function () {
-        if (playing) { stop(); return; }
-        playing = true; label.textContent = 'থামান'; btn.classList.add('is-on');
-        var parts = chunks();
-        parts.forEach(function (part, i) {
-          var u = new SpeechSynthesisUtterance(part);
-          u.voice = voice; u.lang = voice.lang; u.rate = 0.95;
-          if (i === parts.length - 1) u.onend = stop;
-          synth.speak(u);
-        });
-      });
-      window.addEventListener('pagehide', function () { synth.cancel(); });
-    })();
-
-    /* Text size (remembered per reader) */
-    (function () {
-      var prose = document.querySelector('[data-prose]');
-      if (!prose) return;
-      var size = 19;
-      try { size = parseInt(localStorage.getItem('bn-font'), 10) || 19; } catch (e) {}
-      function apply() { prose.style.setProperty('--fs', size + 'px'); }
-      apply();
-      document.querySelectorAll('[data-font]').forEach(function (b) {
-        b.addEventListener('click', function () {
-          size = Math.min(26, Math.max(15, size + parseInt(b.getAttribute('data-font'), 10)));
-          apply();
-          try { localStorage.setItem('bn-font', String(size)); } catch (e) {}
-        });
-      });
-    })();
-
-    /* Share links need an absolute URL even without PUBLIC_BASE_URL. */
-    (function () {
-      var box = document.querySelector('[data-share-url]');
-      if (!box) return;
-      var raw = box.getAttribute('data-share-url');
-      var abs = /^https?:/.test(raw) ? raw : window.location.origin + raw;
-      var title = box.getAttribute('data-share-title') || document.title;
-      var e = encodeURIComponent;
-      var links = {
-        fb: 'https://www.facebook.com/sharer/sharer.php?u=' + e(abs),
-        x: 'https://twitter.com/intent/tweet?url=' + e(abs) + '&text=' + e(title),
-        wa: 'https://wa.me/?text=' + e(title + ' ' + abs)
+      var menu = document.querySelector('[data-share]');
+      if (!menu) return;
+      var url = encodeURIComponent(window.location.href.split('#')[0]);
+      var title = encodeURIComponent(menu.getAttribute('data-title') || document.title);
+      var to = {
+        x: 'https://x.com/intent/tweet?text=' + title + '&url=' + url,
+        facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + url,
+        linkedin: 'https://www.linkedin.com/shareArticle?mini=true&url=' + url + '&title=' + title
       };
-      box.querySelectorAll('[data-share]').forEach(function (a) { a.href = links[a.getAttribute('data-share')]; });
-      var copy = box.querySelector('[data-copy]');
-      var label = box.querySelector('[data-copy-label]');
+      menu.querySelectorAll('[data-share-to]').forEach(function (a) { a.href = to[a.getAttribute('data-share-to')]; });
+      var copy = menu.querySelector('[data-copy-link]');
       if (copy) copy.addEventListener('click', function () {
-        (navigator.clipboard ? navigator.clipboard.writeText(abs) : Promise.reject())
-          .then(function () { label.textContent = 'কপি হয়েছে ✓'; })
-          .catch(function () { label.textContent = abs; });
-        setTimeout(function () { label.textContent = 'লিংক কপি'; }, 2500);
+        var link = window.location.href.split('#')[0];
+        (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject())
+          .then(function () { DS.toast('লিংক কপি করা হয়েছে'); })
+          .catch(function () { window.prompt('লিংকটি কপি করুন', link); });
       });
     })();
   </script>

@@ -1,0 +1,71 @@
+/* Additions to The Daily Star theme for what this portal has and the theme
+   leaves to Drupal modules: tabs, justified body text, search suggestions,
+   "new story" notice, bookmarks. Colours are the theme's own variables. */
+
+.tabs-panel { display: none; }
+.tabs-panel.is-active { display: block; }
+.tabs.counter-tabs .tabs-title { position: relative; z-index: 1; }
+
+.card-image, .featured-image picture { background-color: var(--color-gray_1); }
+.card-image.no-img { min-height: 100px; }
+.featured-image img { display: block; width: 100%; height: auto; }
+
+.text-formatted p { text-align: justify; }
+.block-field-blocknodenewsbody :is(h2, h3, h4) {
+  font-family: var(--font-secondary);
+  font-weight: var(--font-weight-bold);
+  font-size: 22px;
+  line-height: 1.4;
+  margin: 1.4em 0 .6em;
+}
+.block-field-blocknodenewsbody img { max-width: 100%; height: auto; }
+
+/* Search suggestions under the theme's search box. */
+.search-form { flex-wrap: wrap; }
+.ds-suggest {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 30;
+  margin: 0; padding: 0; list-style: none;
+  background: var(--color-white); border: 1px solid var(--color-gray_1);
+  box-shadow: 0 8px 24px #0000001a; max-height: 70vh; overflow-y: auto;
+}
+.ds-suggest li a { display: flex; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--color-gray_1); text-decoration: none; color: var(--color-black_01); }
+.ds-suggest li a:hover { background: var(--color-light_gray); }
+.ds-suggest img { width: 64px; height: 44px; object-fit: cover; flex: none; }
+.ds-suggest strong { display: block; font-weight: var(--font-weight-medium); font-size: 16px; line-height: 1.35; }
+.ds-suggest small { display: block; margin-top: 4px; font-family: var(--font-inter); font-size: 11px; color: var(--color-gray_7); }
+.ds-suggest-empty { padding: 12px 14px; font-size: 14px; color: var(--color-gray_6); }
+
+/* Touch screens have no hover: open the share menu on tap too. */
+.share-dropdown:focus-within .share-menu { z-index: 2; display: block; }
+.share-menu { display: none; }
+.ds-save.is-saved { color: var(--color-red); }
+
+.ds-pager { display: flex; justify-content: center; gap: 16px; margin: 0 0 40px; }
+.ds-empty { font-size: 18px; color: var(--color-gray_6); margin: 0 0 40px; }
+.ds-empty a { color: var(--color-red); text-decoration: underline; }
+.ds-saved-tools { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; font-family: var(--font-inter); font-size: 14px; color: var(--color-gray_6); }
+.ds-unsave { margin-left: auto; color: var(--color-red); font-size: 10px; text-transform: uppercase; }
+
+.ds-fresh {
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 40;
+  transform: translate(-50%, 160%); transition: transform .25s ease;
+}
+.ds-fresh.show { transform: translate(-50%, 0); }
+.ds-toast {
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 41;
+  transform: translate(-50%, 200%); transition: transform .25s ease;
+  background: var(--color-black_01); color: var(--color-white); padding: 10px 16px; border-radius: 4px; font-size: 14px;
+}
+.ds-toast.show { transform: translate(-50%, 0); }
+
+/* The Daily Star crops its photos on the server (580×435, 16:9 …), so its
+   theme has no aspect-ratio for .aspect-video. These are the proportions its
+   pages show, measured section by section. */
+.card-image.aspect-video { aspect-ratio: 16 / 9; }
+.news-section-layout-35 .card-image.aspect-video,
+.news-section-layout-9 .lg\:col-span-7 .card-image.aspect-video,
+.news-section-layout-8 .card-aside-feature .card-image.aspect-video { aspect-ratio: 4 / 3; }
+.card-image > a { display: block; height: 100%; }
+.card-image picture { display: block; width: 100%; height: 100%; }
+/* Its tall photos are all the same width there; ours differ, so share the row. */
+.news-section-layout-3 .card-overlay { flex: 1 1 0; min-width: 0; }
