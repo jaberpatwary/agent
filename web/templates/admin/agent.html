@@ -4,22 +4,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>এজেন্ট ডেস্ক — অ্যাডমিন</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@700&display=swap">
   <link rel="stylesheet" href="/static/css/style.css">
   <style>
-    .agent-grid { display:grid; grid-template-columns: 1.2fr 1fr; gap:20px; align-items:start; }
-    .panel { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:18px 20px; }
-    .panel h2 { margin:0 0 12px; font-size:17px; }
-    .live { display:inline-flex; align-items:center; gap:8px; font-weight:600; }
-    .dot { width:10px; height:10px; border-radius:50%; background:#9ca3af; }
-    .dot.on { background:#16a34a; box-shadow:0 0 0 4px rgba(22,163,74,.18); animation:blink 1.4s infinite; }
-    @keyframes blink { 50% { opacity:.45; } }
-    .field { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0; border-bottom:1px dashed #eee; }
+    .agent-grid { display:grid; grid-template-columns: 1.2fr 1fr; gap:22px; align-items:start; }
+    .panel { background:#fff; border:1px solid rgba(0,0,0,.06); border-radius:14px; padding:22px 24px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+    .panel h2 { margin:0 0 14px; font-family: var(--serif); font-size:17px; font-weight:700; color:#0f172a; }
+    .live { display:inline-flex; align-items:center; gap:10px; font-weight:600; font-size:14px; }
+    .dot { width:10px; height:10px; border-radius:50%; background:#94a3b8; flex-shrink:0; }
+    .dot.on { background:#22c55e; box-shadow:0 0 0 4px rgba(34,197,94,.18); animation:agentBlink 1.4s infinite; }
+    @keyframes agentBlink { 50% { opacity:.4; } }
+    .field { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid #f1f5f9; }
     .field:last-of-type { border-bottom:0; }
-    .field small { display:block; color:#6b7280; font-weight:400; margin-top:2px; }
-    .field input[type=number] { width:120px; padding:6px 8px; border:1px solid #d1d5db; border-radius:6px; }
-    .flow { margin:0; padding-left:18px; color:#374151; line-height:1.9; }
+    .field small { display:block; color:#94a3b8; font-weight:400; margin-top:3px; font-size:12px; }
+    .field input[type=number] { width:120px; padding:8px 10px; border:1px solid #e2e8f0; border-radius:8px; font-family:inherit; transition: border-color .2s; }
+    .field input[type=number]:focus { outline:none; border-color:var(--red); box-shadow: 0 0 0 3px rgba(227,27,35,.08); }
+    .flow { margin:0; padding-left:18px; color:#374151; line-height:2; font-size:13.5px; }
+    .flow li { padding-left:4px; }
     .runs td, .runs th { font-size:13px; vertical-align:top; }
-    .note { color:#6b7280; font-size:12px; max-width:420px; }
+    .note { color:#94a3b8; font-size:12px; max-width:420px; line-height:1.5; }
     @media (max-width: 1000px) { .agent-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -47,16 +50,16 @@
               {{ if .Status.Running }}কাজ করছে: {{ .Status.Current }}{{ else }}অপেক্ষায় — n8n প্রতি ১৫ মিনিটে চালায়{{ end }}</div>
           </div>
 
-          <div class="panel" style="margin-top:20px;">
+          <div class="panel" style="margin-top:22px;">
             <h2>সাম্প্রতিক রান</h2>
             <table class="runs">
               <thead><tr><th>শুরু</th><th>কে চালাল</th><th>অবস্থা</th><th>খবর</th><th>টোকেন</th><th>সম্পাদক এজেন্টের সিদ্ধান্ত</th></tr></thead>
               <tbody>
               {{ range .Status.Recent }}
                 <tr>
-                  <td>{{ dhakaClock .StartedAt "02 Jan 15:04" }}</td>
+                  <td style="white-space:nowrap;">{{ dhakaClock .StartedAt "02 Jan 15:04" }}</td>
                   <td>{{ .Trigger }}</td>
-                  <td><span class="status-pill">{{ .Status }}</span>{{ if .Error }}<div class="note">{{ .Error }}</div>{{ end }}</td>
+                  <td><span class="status-pill">{{ .Status }}</span>{{ if .Error }}<div class="note" style="margin-top:4px;">{{ .Error }}</div>{{ end }}</td>
                   <td>{{ .Processed }} / {{ .Candidates }}</td>
                   <td>{{ .Tokens }}</td>
                   <td class="note">{{ .PlanNote }}</td>
@@ -66,7 +69,7 @@
               {{ end }}
               </tbody>
             </table>
-            <p class="note" style="margin-top:10px;">প্রতিটি খবরে এজেন্ট কী ভাবল ও কী করল — <a href="/admin/journey">নিউজ জার্নি</a> থেকে খবরের “ট্রেস” দেখুন।</p>
+            <p class="note" style="margin-top:12px;">প্রতিটি খবরে এজেন্ট কী ভাবল ও কী করল — <a href="/admin/journey" style="color:var(--red); font-weight:600;">নিউজ জার্নি</a> থেকে খবরের "ট্রেস" দেখুন।</p>
           </div>
         </div>
 
@@ -75,22 +78,22 @@
             <input type="hidden" name="_csrf" value="{{ .CSRFToken }}">
             <h2>নিয়ন্ত্রণ ও সীমা</h2>
             <label class="field"><span>এজেন্ট চালু<small>বন্ধ করলে কোনো রানই কাজ করবে না (ইমার্জেন্সি স্টপ)</small></span>
-              <input type="checkbox" name="enabled" {{ if .Settings.Enabled }}checked{{ end }}></label>
+              <input type="checkbox" name="enabled" {{ if .Settings.Enabled }}checked{{ end }} style="width:20px; height:20px; accent-color:var(--red);"></label>
             <label class="field"><span>নিজে প্রকাশ করতে পারবে<small>বন্ধ করলে সব খবর আপনার অনুমোদনের অপেক্ষায় থাকবে। বাংলাদেশ/বিশ্ব খবর নিজে প্রকাশ হয় কেবল অন্তত ২টি অন্য সংবাদমাধ্যমে একই খবর মিললে।</small></span>
-              <input type="checkbox" name="autopublish" {{ if .Settings.Autopublish }}checked{{ end }}></label>
+              <input type="checkbox" name="autopublish" {{ if .Settings.Autopublish }}checked{{ end }} style="width:20px; height:20px; accent-color:var(--red);"></label>
             <label class="field"><span>প্রতি খবরে সর্বোচ্চ ধাপ<small>এজেন্ট এর বেশি সিদ্ধান্ত নিতে পারবে না</small></span>
               <input type="number" name="max_turns" min="4" max="40" value="{{ .Settings.MaxTurns }}"></label>
             <label class="field"><span>প্রতি রানে খবর<small>প্রতিবার কয়টি খবর নিয়ে কাজ করবে</small></span>
               <input type="number" name="stories_per_run" min="1" max="5" value="{{ .Settings.StoriesPerRun }}"></label>
             <label class="field"><span>প্রতি খবরে টোকেন সীমা<small>এর বেশি খরচ হলে এজেন্ট থামবে</small></span>
               <input type="number" name="story_budget" min="20000" step="10000" value="{{ .Settings.StoryBudget }}"></label>
-            <label style="display:block; padding-top:10px;"><b>ডেস্কের জানা তথ্য</b>
-              <small style="display:block; color:#6b7280; margin:2px 0 6px;">এখনকার সত্য তথ্য (যেমন কে কোন পদে আছেন) — এজেন্টের পুরনো স্মৃতির চেয়ে এগুলোকে বেশি গুরুত্ব দেয়। প্রতি লাইনে একটি। এজেন্ট ২+ সংবাদমাধ্যমে প্রমাণ পেলে নিজেও যোগ করে; ভুল হলে মুছে দিন।</small>
-              <textarea name="facts" rows="6" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px; font:inherit;">{{ .Settings.Facts }}</textarea></label>
-            <button class="btn btn-primary" type="submit" style="margin-top:12px;">সংরক্ষণ</button>
+            <label style="display:block; padding-top:14px;"><b>ডেস্কের জানা তথ্য</b>
+              <small style="display:block; color:#94a3b8; margin:3px 0 8px; font-size:12px; line-height:1.5;">এখনকার সত্য তথ্য (যেমন কে কোন পদে আছেন) — এজেন্টের পুরনো স্মৃতির চেয়ে এগুলোকে বেশি গুরুত্ব দেয়। প্রতি লাইনে একটি। এজেন্ট ২+ সংবাদমাধ্যমে প্রমাণ পেলে নিজেও যোগ করে; ভুল হলে মুছে দিন।</small>
+              <textarea name="facts" rows="6" style="width:100%; padding:10px 14px; border:1px solid #e2e8f0; border-radius:10px; font:inherit; transition: border-color .2s;">{{ .Settings.Facts }}</textarea></label>
+            <button class="btn btn-primary" type="submit" style="margin-top:16px;">সংরক্ষণ</button>
           </form>
 
-          <div class="panel" style="margin-top:20px;">
+          <div class="panel" style="margin-top:22px;">
             <h2>এজেন্ট কীভাবে কাজ করে</h2>
             <ol class="flow">
               <li><b>সম্পাদক এজেন্ট</b> নতুন খবরগুলো দেখে ঠিক করে কোনটা আগে করবে।</li>

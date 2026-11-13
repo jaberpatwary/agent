@@ -1,25 +1,58 @@
 {{ define "admin_sidebar" }}
 <aside class="admin-sidebar">
   <div class="sidebar-logo">
-    <span style="color:#e31b23; font-size:1.4rem;">●</span>
-    বাংলা নিউজ
+    <span class="logo-dot"></span>
+    দ্য ডেইলি স্টার
   </div>
   <nav>
-    <a href="/admin/dashboard" class="icon">📊</a>
-    <a href="/admin/dashboard"><span class="icon">📊</span> ড্যাশবোর্ড</a>
-    <a href="/admin/articles"><span class="icon">📄</span> নিবন্ধসমূহ</a>
-    <a href="/admin/feeds"><span class="icon">📡</span> RSS ফিড</a>
-    <a href="/admin/style"><span class="icon">🤖</span> AI স্টাইল</a>
-    <a href="/admin/ai-usage"><span class="icon">📈</span> AI ব্যবহার</a>
-    <a href="/admin/agent"><span class="icon">🤖</span> এজেন্ট ডেস্ক</a>
-    <a href="/admin/journey"><span class="icon">🧭</span> নিউজ জার্নি</a>
-    <a href="/admin/password"><span class="icon">🔑</span> পাসওয়ার্ড</a>
-    <a href="/" target="_blank"><span class="icon">🌐</span> সাইট দেখুন</a>
+    <div class="nav-section">প্রধান</div>
+    <a href="/admin/dashboard" data-nav="dashboard">
+      <span class="icon">📊</span> ড্যাশবোর্ড
+    </a>
+    <a href="/admin/articles" data-nav="articles">
+      <span class="icon">📄</span> নিবন্ধসমূহ
+    </a>
+    <a href="/admin/feeds" data-nav="feeds">
+      <span class="icon">📡</span> RSS ফিড
+    </a>
+    <div class="nav-section">AI ও এজেন্ট</div>
+    <a href="/admin/style" data-nav="style">
+      <span class="icon">✍️</span> AI স্টাইল
+    </a>
+    <a href="/admin/ai-usage" data-nav="ai-usage">
+      <span class="icon">📈</span> AI ব্যবহার
+    </a>
+    <a href="/admin/agent" data-nav="agent">
+      <span class="icon">🤖</span> এজেন্ট ডেস্ক
+    </a>
+    <a href="/admin/journey" data-nav="journey">
+      <span class="icon">🧭</span> নিউজ জার্নি
+    </a>
+    <div class="nav-section">সেটিংস</div>
+    <a href="/admin/password" data-nav="password">
+      <span class="icon">🔑</span> পাসওয়ার্ড
+    </a>
+    <a href="/" target="_blank">
+      <span class="icon">🌐</span> সাইট দেখুন
+    </a>
   </nav>
-  <div style="flex:1;"></div>
-  <form method="post" action="/admin/logout" class="logout-form">
-    <input type="hidden" name="_csrf" value="{{ .CSRFToken }}">
-    <button type="submit">🚪 লগআউট</button>
-  </form>
+  <div class="sidebar-footer">
+    <form method="post" action="/admin/logout" class="logout-form">
+      <input type="hidden" name="_csrf" value="{{ .CSRFToken }}">
+      <button type="submit">🚪 লগআউট</button>
+    </form>
+  </div>
 </aside>
+<script>
+(function(){
+  var p = location.pathname;
+  var links = document.querySelectorAll('.admin-sidebar nav a[data-nav]');
+  links.forEach(function(a) {
+    var nav = a.getAttribute('data-nav');
+    if (p === '/admin/' + nav || p.indexOf('/admin/' + nav) === 0) {
+      a.classList.add('active');
+    }
+  });
+})();
+</script>
 {{ end }}

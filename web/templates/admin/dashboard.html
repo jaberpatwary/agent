@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ড্যাশবোর্ড — বাংলা নিউজ অ্যাডমিন</title>
+  <title>ড্যাশবোর্ড — দ্য ডেইলি স্টার অ্যাডমিন</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@700&display=swap">
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
@@ -13,7 +13,7 @@
 
     <div class="admin-main">
       <div class="toolbar">
-        <h1>ড্যাশবোর্ড</h1>
+        <h1>📊 ড্যাশবোর্ড</h1>
         <form method="POST" action="/admin/cron/run">
           <input type="hidden" name="_csrf" value="{{ .CSRFToken }}">
           <button class="btn btn-primary" type="submit">⚡ এখনই ফিড ফেচ করুন</button>
@@ -23,27 +23,31 @@
       <!-- Stat cards -->
       <div class="stat-grid">
         <div class="stat-card">
+          <span class="stat-icon">📰</span>
           <div class="num">{{ .TotalCount }}</div>
           <div class="label">মোট নিবন্ধ</div>
         </div>
         <div class="stat-card">
+          <span class="stat-icon">📡</span>
           <div class="num">{{ len .Feeds }}</div>
           <div class="label">RSS ফিড সোর্স</div>
         </div>
         <div class="stat-card">
           <a href="/admin/articles?status=pending_review" style="text-decoration:none; color:inherit;">
+            <span class="stat-icon">⏳</span>
             <div class="num" style="{{ if gt .PendingCount 0 }}color:#c2410c;{{ end }}">{{ .PendingCount }}</div>
-            <div class="label">⏳ পর্যালোচনা প্রয়োজন</div>
+            <div class="label">পর্যালোচনা প্রয়োজন</div>
           </a>
         </div>
         <div class="stat-card">
+          <span class="stat-icon">👤</span>
           <div class="num" style="font-size:1.2rem;">{{ .Username }}</div>
           <div class="label">লগইন করা আছেন</div>
         </div>
       </div>
 
       <!-- Recent articles table -->
-      <h2 style="font-size:16px; font-weight:700; margin-bottom:14px; color:#0f172a;">সাম্প্রতিক নিবন্ধ</h2>
+      <h2 style="font-family: var(--serif); font-size:17px; font-weight:700; margin-bottom:16px; color:#0f172a;">সাম্প্রতিক নিবন্ধ</h2>
       <table>
         <thead>
           <tr>
