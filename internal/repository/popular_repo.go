@@ -13,10 +13,11 @@ type PopularRepository interface {
 	// Replace swaps one outlet's list for a freshly read one.
 	Replace(outlet string, list []domain.PopularStory) error
 	// Published returns published articles whose source is on a most-read
-	// list read since the given time, best ranked first.
-	Published(since time.Time, limit int) ([]domain.RankedArticle, error)
-	// RankOf returns the outlet and rank of a source URL, if it is on a list.
-	RankOf(sourceURL string, since time.Time) (string, int, error)
+	// list read since the given time (in one category, unless it is empty):
+	// the most read by the outlets' own counts first, then by rank.
+	Published(category string, since time.Time, limit int) ([]domain.RankedArticle, error)
+	// RankOf returns where a source URL stands on a most-read list, if it is on one.
+	RankOf(sourceURL string, since time.Time) (domain.PopularStory, error)
 	Handled(keys []string) (map[string]bool, error)
 }
 
@@ -41,21 +42,23 @@ func (r *popularRepository) Replace(outlet string, list []domain.PopularStory) e
 	})
 }
 
-func (r *popularRepository) Published(since time.Time, limit int) ([]domain.RankedArticle, error) {
+func (r *popularRepository) Published(category string, since time.Time, limit int) ([]domain.RankedArticle, error) {
 	var out []domain.RankedArticle
-	err := r.db.Table("articles AS a").
-		Select("a.*, p.outlet AS popular_outlet, p.rank AS popular_rank").
+	q := r.db.Table("articles AS a").
+		Select("a.*, p.outlet AS popular_outlet, p.rank AS popular_rank, p.hits AS popular_hits").
 		Joins("JOIN popular_stories p ON p.url = "+sourceKey).
-		Where("a.status = ? AND p.fetched_at >= ?", "published", since).
-		Order("p.rank ASC, a.published_at DESC").
-		Limit(limit).Scan(&out).Error
+		Where("a.status = ? AND p.fetched_at >= ?", "published", since)
+	if category != "" {
+		q = q.Where("a.category = ?", category)
+	}
+	err := q.Order("p.hits DESC, p.rank ASC, a.published_at DESC").Limit(limit).Scan(&out).Error
 	return out, err
 }
 
-func (r *popularRepository) RankOf(sourceURL string, since time.Time) (string, int, error) {
+func (r *popularRepository) RankOf(sourceURL string, since time.Time) (domain.PopularStory, error) {
 	var p domain.PopularStory
 	err := r.db.Where("url = ? AND fetched_at >= ?", domain.PopularKey(sourceURL), since).Limit(1).Find(&p).Error
-	return p.Outlet, p.Rank, err
+	return p, err
 }
 
 // Handled returns which of the given URLs (as lists store them) the desk has

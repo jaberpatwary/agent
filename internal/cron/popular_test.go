@@ -41,3 +41,26 @@ func TestPopularKeyMatchesFeedLinksWithTrackingParameters(t *testing.T) {
 		t.Error("feed hosts are matched without www")
 	}
 }
+
+func TestJugantorMostReadKeepsReadCounts(t *testing.T) {
+	hits, err := parseJugantorMostRead([]byte(`[
+		{"id":2,"title":"দ্বিতীয়","link":"https:\/\/www.jugantor.com\/national\/2","total_hit":800,"created_at":"2026-11-14 01:00:00"},
+		{"id":1,"title":"প্রথম","link":"https:\/\/www.jugantor.com\/campus\/1183602","total_hit":19713,"created_at":"2026-11-14 02:00:03"}]`))
+	if err != nil || len(hits) != 2 || hits[0].Hits != 19713 || hits[0].URL != "https://www.jugantor.com/campus/1183602" || hits[1].Hits != 800 || hits[0].Published.IsZero() {
+		t.Fatalf("got %+v, %v", hits, err)
+	}
+}
+
+func TestEveryOutletWithAMostReadListIsWiredToItsFeed(t *testing.T) {
+	for feed, want := range map[string]bool{
+		"https://www.prothomalo.com/feed":                  true,
+		"https://feeds.bbci.co.uk/bengali/rss.xml":         true,
+		"https://www.jugantor.com/news_sitemap.xml":        true,
+		"https://samakal.com/rss":                          false,
+		"https://dailynayadiganta.com/sitemap/news/{date}": false,
+	} {
+		if _, ok := popularSources[feedHost(feed)]; ok != want {
+			t.Errorf("%s: most-read reader wired = %v, want %v", feed, ok, want)
+		}
+	}
+}

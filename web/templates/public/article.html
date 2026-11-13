@@ -65,22 +65,9 @@
                       <a href="/?category={{ .Category }}" class=""> {{ categoryLabel .Category }} </a>
                     </div>
                     {{ end }}
-                    {{ with .SourceName }}
-                    <div class="flex items-center flex-wrap gap-[4px]">
-                      <span class="w-[4px] h-[4px] bg-gray_7 rounded-full flex-none"></span> সূত্র: {{ outletLabel . }}
-                    </div>
-                    {{ end }}
-                    <div class="flex items-center flex-wrap gap-[4px]">
-                      <span class="w-[4px] h-[4px] bg-gray_7 rounded-full flex-none"></span> {{ readCount .Views }}
-                    </div>
-                    {{ if $.PopularRank }}
-                    <div class="flex items-center flex-wrap gap-[4px] color-red">
-                      <span class="w-[4px] h-[4px] bg-gray_7 rounded-full flex-none"></span> সর্বাধিক পঠিত: {{ outletLabel $.PopularOutlet }} · {{ banglaDigits (printf "%d" $.PopularRank) }} নম্বর
-                    </div>
-                    {{ end }}
+                    {{ $rank := 0 }}{{ $hits := 0 }}{{ with $.Popular }}{{ $rank = .Rank }}{{ $hits = .Hits }}{{ end }}
                   </div>
                   <div class="flex-none flex">
-                    <button type="button" class="no-style info-item ds-save" data-save data-id="{{ .ID }}" data-title="{{ .Title }}" data-img="{{ .ImageURL }}" data-cat="{{ categoryLabel .Category }}" aria-pressed="false"><span>সংরক্ষণ</span></button>
                     {{ template "share_menu" .Title }}
                   </div>
                 </div>
@@ -90,13 +77,19 @@
                   <div class="flex-1 flex flex-col gap-[8px]">
                     <div class="text-[16px] leading-none tracking-[0.01em] font-light font-secondary text-black_01"><span class="font-medium">অনলাইন ডেস্ক</span></div>
                   </div>
+                  {{ with .SourceName }}<div class="flex-none text-[16px] leading-none tracking-[0.01em] font-light font-secondary text-black_01 ds-source"><span class="font-medium">{{ template "source_reads" (dict "Outlet" . "Rank" $rank "Hits" $hits) }}</span></div>{{ end }}
                 </div>
               </div>
               {{ if .ImageURL }}
               <div class="block block-rsi-blocks block-news-featured-image">
                 <div class="news-master-block">
                   <div class="featured-image pmb">
-                    <picture><img src="{{ .ImageURL }}" alt="{{ .Title }}" decoding="async" onerror="dsImgFail(this)"></picture>
+                    <div class="news-featured-image-gallery">
+                      <span class="lg-gallery" data-src="{{ .ImageURL }}" data-ds-gallery>
+                        <span class="open-popup"><i class="expand"></i></span>
+                        <picture><img src="{{ .ImageURL }}" alt="{{ .Title }}" decoding="async" onerror="dsImgFail(this)"></picture>
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -154,6 +147,27 @@
   {{ template "portal_footer" . }}
 </div>
   {{ template "portal_scripts" . }}
+  <script>
+    /* The featured photo opens full size, like The Daily Star's gallery. */
+    (function () {
+      var g = document.querySelector('[data-ds-gallery]');
+      if (!g) return;
+      g.addEventListener('click', function () {
+        var box = document.createElement('div');
+        box.className = 'ds-lightbox';
+        box.setAttribute('role', 'dialog');
+        var img = document.createElement('img');
+        img.src = g.getAttribute('data-src');
+        img.alt = '';
+        box.appendChild(img);
+        function close() { box.remove(); document.removeEventListener('keydown', onKey); }
+        function onKey(e) { if (e.key === 'Escape') close(); }
+        box.addEventListener('click', close);
+        document.addEventListener('keydown', onKey);
+        document.body.appendChild(box);
+      });
+    })();
+  </script>
   <script>
     /* Share links point at this page; "copy" puts its address on the clipboard. */
     (function () {

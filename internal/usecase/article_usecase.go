@@ -20,7 +20,7 @@ type ArticleUsecase interface {
 	UpdateStatus(id uuid.UUID, status string) error
 	Related(a *domain.Article, limit int) ([]domain.Article, error)
 	RecordView(id uuid.UUID)
-	MostRead(limit int) ([]domain.Article, error)
+	MostRead(category string, limit int) ([]domain.Article, error)
 	TrendingTags(limit int) ([]string, error)
 }
 
@@ -105,12 +105,12 @@ func (u *articleUsecase) RecordView(id uuid.UUID) {
 
 // MostRead is the "most read" list: the last 48 hours, widened to a week
 // when the site is quiet and the short window has too few stories.
-func (u *articleUsecase) MostRead(limit int) ([]domain.Article, error) {
-	list, err := u.repo.MostRead(time.Now().Add(-48*time.Hour), limit)
+func (u *articleUsecase) MostRead(category string, limit int) ([]domain.Article, error) {
+	list, err := u.repo.MostRead(category, time.Now().Add(-48*time.Hour), limit)
 	if err != nil || len(list) >= limit {
 		return list, err
 	}
-	return u.repo.MostRead(time.Now().Add(-7*24*time.Hour), limit)
+	return u.repo.MostRead(category, time.Now().Add(-7*24*time.Hour), limit)
 }
 
 // TrendingTags counts topic tags across the newest published stories and

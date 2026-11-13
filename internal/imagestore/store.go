@@ -136,6 +136,8 @@ func (s *Store) Fetch(ctx context.Context, sourceURL string) (string, error) {
 		os.Remove(tmpPath)
 		return "", fmt.Errorf("imagestore: finalize file: %w", err)
 	}
+	// An advertiser's strip stamped on the photo is not part of the news.
+	_, _ = TrimSponsorBand(fullPath)
 
 	return publicPath, nil
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"html/template"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -31,7 +32,7 @@ func NewPublicHandler(articleUC usecase.ArticleUsecase, baseURL string) *PublicH
 
 // homeCategories are the front page's category blocks, in the Daily Star
 // Bangla layout: the blocks take the stories they need from each list.
-var homeCategories = []string{"bangladesh", "international", "sports", "business", "entertainment", "technology", "general"}
+var homeCategories = []string{"bangladesh", "international", "opinion", "sports", "business", "entertainment", "lifestyle", "technology", "analysis", "literature", "education", "environment"}
 
 // Home renders the front page, a category, search results, or (at /latest)
 // every story newest first.
@@ -43,6 +44,11 @@ func (h *PublicHandler) Home(c *gin.Context) {
 	category := c.Query("category")
 	query := c.Query("q")
 	latest := c.FullPath() == "/latest"
+	if query != "" {
+		// Searches live at /search, as on The Daily Star.
+		c.Redirect(http.StatusMovedPermanently, "/search?t="+url.QueryEscape(query))
+		return
+	}
 
 	var articles []domain.Article
 	var total int64
@@ -65,8 +71,13 @@ func (h *PublicHandler) Home(c *gin.Context) {
 				cats[key] = list
 			}
 		}
+		// সংস্কৃতি and বিশ্লেষণ are thin in the outlets' feeds; like The Daily
+		// Star's own সংস্কৃতি (arts, music, film), they take the stories the front page
+		// has not shown yet: বিনোদন beyond its column, মতামত beyond its box.
+		cats["literature"] = topUp(cats["literature"], part(cats["entertainment"], 5, 14), 12)
+		cats["analysis"] = topUp(cats["analysis"], part(cats["opinion"], 2, 14), 5)
 	}
-	mostRead := h.mostRead(5)
+	mostRead := h.mostRead(category, 5)
 
 	c.HTML(http.StatusOK, "index.html", gin.H{
 		"Front":        front,
@@ -124,12 +135,12 @@ func (h *PublicHandler) ArticleDetail(c *gin.Context) {
 		}
 	}
 
-	var popularOutlet string
-	var popularRank int
+	// Where the story stands on its outlet's own most-read list, and how
+	// often it was read there, if the outlet says.
+	var popular domain.PopularStory
 	if h.popular != nil {
-		popularOutlet, popularRank, _ = h.popular.RankOf(article.SourceURL, time.Now().Add(-popularFresh))
+		popular, _ = h.popular.RankOf(article.SourceURL, time.Now().Add(-popularFresh))
 	}
-	article.Views++ // this reading counts too
 
 	// The first related story sits inside the text, as "আরও পড়ুন".
 	head, tail := splitBody(article.Content, 2)
@@ -149,20 +160,19 @@ func (h *PublicHandler) ArticleDetail(c *gin.Context) {
 
 	canonicalURL := h.absoluteURL("/article/" + article.ID.String())
 	c.HTML(http.StatusOK, "article.html", gin.H{
-		"Article":       article,
-		"Category":      article.Category,
-		"Tags":          tags,
-		"Related":       related,
-		"Latest":        latest,
-		"HeaderNews":    h.headerNews(),
-		"CanonicalURL":  canonicalURL,
-		"BaseURL":       h.baseURL,
-		"JSONLD":        newsArticleJSONLD(article, canonicalURL),
-		"BodyHead":      head,
-		"BodyTail":      tail,
-		"MoreRead":      more,
-		"PopularOutlet": popularOutlet,
-		"PopularRank":   popularRank,
+		"Article":      article,
+		"Category":     article.Category,
+		"Tags":         tags,
+		"Related":      related,
+		"Latest":       latest,
+		"HeaderNews":   h.headerNews(),
+		"CanonicalURL": canonicalURL,
+		"BaseURL":      h.baseURL,
+		"JSONLD":       newsArticleJSONLD(article, canonicalURL),
+		"BodyHead":     head,
+		"BodyTail":     tail,
+		"MoreRead":     more,
+		"Popular":      popular,
 	})
 }
 
@@ -424,9 +434,10 @@ func (h *PublicHandler) LatestCheck(c *gin.Context) {
 // SetPopular gives the "most read" box the source outlets' own lists.
 func (h *PublicHandler) SetPopular(repo repository.PopularRepository) { h.popular = repo }
 
-// mostRead fills the "most read" box: stories on the source outlets' own
-// most-read lists first, then this portal's most read.
-func (h *PublicHandler) mostRead(limit int) []domain.RankedArticle {
+// mostRead fills a section's (or, with no category, the front page's)
+// "সর্বাধিক পঠিত": stories on the source outlets' own most-read lists first,
+// then this portal's most read in that section.
+func (h *PublicHandler) mostRead(category string, limit int) []domain.RankedArticle {
 	var out []domain.RankedArticle
 	seen := map[uuid.UUID]bool{}
 	add := func(a domain.RankedArticle) {
@@ -436,16 +447,53 @@ func (h *PublicHandler) mostRead(limit int) []domain.RankedArticle {
 		}
 	}
 	if h.popular != nil {
-		list, _ := h.popular.Published(time.Now().Add(-popularFresh), limit)
+		list, _ := h.popular.Published(category, time.Now().Add(-popularFresh), limit)
 		for _, a := range list {
 			add(a)
 		}
 	}
 	if len(out) < limit {
-		own, _ := h.articleUC.MostRead(limit)
+		own, _ := h.articleUC.MostRead(category, limit)
 		for _, a := range own {
 			add(domain.RankedArticle{Article: a})
 		}
 	}
 	return out
+}
+
+// searchPageSize is how many results a search page lists, as Google's
+// search box on The Daily Star does.
+const searchPageSize = 10
+
+// Search handles GET /search?t= — The Daily Star's search page.
+func (h *PublicHandler) Search(c *gin.Context) {
+	query := strings.TrimSpace(c.Query("t"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if page < 1 {
+		page = 1
+	}
+	start := time.Now()
+	var results []domain.Article
+	var total int64
+	if query != "" {
+		var err error
+		results, total, err = h.articleUC.Search(page, searchPageSize, query, "", "published")
+		if err != nil {
+			c.HTML(http.StatusInternalServerError, "error.html", gin.H{"message": "খোঁজা যায়নি"})
+			return
+		}
+	}
+	pages := int((total + searchPageSize - 1) / searchPageSize)
+	if pages > 10 {
+		pages = 10
+	}
+	c.HTML(http.StatusOK, "search.html", gin.H{
+		"Query":      query,
+		"Results":    results,
+		"Total":      total,
+		"Page":       page,
+		"Pages":      pages,
+		"Seconds":    time.Since(start).Seconds(),
+		"HeaderNews": h.headerNews(),
+	})
 }

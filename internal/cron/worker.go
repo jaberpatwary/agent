@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html"
 	"log"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -65,6 +66,12 @@ func NewWorker(
 	var images *imagestore.Store
 	if cfg.ImageStorageDir != "" {
 		images = imagestore.New(cfg.ImageStorageDir, "/img")
+		// Photos cached before sponsor strips were cut get checked once.
+		go func() {
+			if checked, trimmed := images.TrimExisting(); checked > 0 {
+				log.Printf("images: checked %d cached photos, cut the sponsor strip from %d", checked, trimmed)
+			}
+		}()
 	}
 	return &Worker{
 		cfg:          cfg,
@@ -663,7 +670,11 @@ func detectCategory(title, content, defaultCategory string) string {
 		{"technology", countMatches(text, techKeywords) * 3},
 		{"entertainment", countMatches(text, entertainmentKeywords) * 3},
 		{"international", countMatches(text, intlKeywords) * 2},
+		{"literature", countMatches(text, literatureKeywords) * 3},
 		{"bangladesh", countMatches(text, bangladeshKeywords) * 2},
+		// After বাংলাদেশ: a tie (a student or a flood in a Bangladesh story) stays there.
+		{"education", countMatches(text, educationKeywords) * 2},
+		{"environment", countMatches(text, environmentKeywords) * 2},
 	}
 
 	bestCat := ""
@@ -693,7 +704,17 @@ func ClassifyCategory(title, content, defaultCategory string) string {
 }
 
 func classifyItemCategory(title string, feedCategories []string, defaultCategory string) string {
-	hasBangladeshLabel := false
+	// An outlet's own section decides, the more specific one first
+	// (/opinion/analysis/… is analysis).
+	best, bestRank := "", len(sectionLabels)
+	for _, raw := range feedCategories {
+		if c, r := sectionCategory(strings.ToLower(strings.TrimSpace(raw))); c != "" && r < bestRank {
+			best, bestRank = c, r
+		}
+	}
+	if best != "" {
+		return best
+	}
 	for _, raw := range feedCategories {
 		label := strings.ToLower(strings.TrimSpace(raw))
 		switch {
@@ -707,13 +728,86 @@ func classifyItemCategory(title string, feedCategories []string, defaultCategory
 			return "entertainment"
 		case strings.Contains(label, "international"), strings.Contains(label, "world"), strings.Contains(label, "আন্তর্জাতিক"), strings.Contains(label, "বিশ্ব"), strings.Contains(label, "ভারত"):
 			return "international"
-		case strings.Contains(label, "bangladesh"), strings.Contains(label, "বাংলাদেশ"), strings.Contains(label, "জাতীয়"), strings.Contains(label, "রাজনীতি"):
-			hasBangladeshLabel = true
 		}
 	}
 	category := detectCategory(title, "", defaultCategory)
-	if category != "general" || !hasBangladeshLabel {
-		return category
+	if category == "general" {
+		// The Daily Star layout has no "general" section: home news is বাংলাদেশ.
+		return "bangladesh"
 	}
-	return "bangladesh"
+	return category
 }
+
+// sectionLabels map an outlet's own section names (from its feed or the
+// story's URL path) to The Daily Star Bangla's sections that have no
+// keyword list of their own.
+var sectionLabels = []struct {
+	category string
+	labels   []string
+}{
+	// Analysis and explainers first: outlets file them under opinion (/opinion/analysis/…).
+	{"analysis", []string{"analysis", "বিশ্লেষণ"}},
+	{"explainer", []string{"explainer", "এক্সপ্লেইনার"}},
+	{"opinion", []string{"opinion", "মতামত", "column", "কলাম", "editorial", "সম্পাদকীয়", "উপসম্পাদকীয়", "উপ-সম্পাদকীয়", "মুক্তমত", "op-ed"}},
+	{"literature", []string{"literature", "সাহিত্য", "art-and-literature", "arts-and-literature", "onnoalo", "culture", "সংস্কৃতি", "কবিতা"}},
+	{"lifestyle", []string{"lifestyle", "life-style", "life-living", "জীবনযাপন", "লাইফস্টাইল", "জীবনধারা", "health", "স্বাস্থ্য", "fashion", "ফ্যাশন", "recipe", "রেসিপি", "রান্না", "travel", "ভ্রমণ", "রূপচর্চা"}},
+	{"education", []string{"education", "শিক্ষা", "campus", "ক্যাম্পাস", "শিক্ষাঙ্গন"}},
+	{"environment", []string{"environment", "পরিবেশ", "climate", "জলবায়ু", "প্রকৃতি"}},
+}
+
+// sectionCategory matches English labels as whole words ("agriculture" is not
+// "culture") and Bangla ones anywhere in the label.
+func sectionCategory(label string) (string, int) {
+	words := strings.FieldsFunc(label, func(r rune) bool { return r == '-' || r == '_' || r == ' ' || r == '/' })
+	for i, s := range sectionLabels {
+		for _, l := range s.labels {
+			if label == l {
+				return s.category, i
+			}
+			if l[0] < 0x80 {
+				for _, w := range words {
+					if w == l {
+						return s.category, i
+					}
+				}
+			} else if strings.Contains(label, l) {
+				return s.category, i
+			}
+		}
+	}
+	return "", -1
+}
+
+// sectionHints are the first segments of a story's URL path, which name the
+// outlet's section on most Bangla news sites ("/opinion/column/…").
+func sectionHints(link string) []string {
+	u, err := url.Parse(link)
+	if err != nil {
+		return nil
+	}
+	seg := strings.Split(strings.Trim(u.Path, "/"), "/")
+	if len(seg) > 2 {
+		seg = seg[:2]
+	}
+	return seg
+}
+
+// Headline words for The Daily Star sections with no keyword list before.
+// Short words that are also parts of names or other words (কবি/কবির,
+// আমন/আমন্ত্রণ, হাতি/হাতিয়া) are left out.
+var (
+	literatureKeywords = []string{
+		"সাহিত্য", "কবিতা", "উপন্যাস", "লেখক", "বইমেলা", "সংস্কৃতি", "সাংস্কৃতিক", "জন্মবার্ষিকী",
+		"মৃত্যুবার্ষিকী", "শিল্পকলা", "চিত্রকলা", "চিত্রপ্রদর্শনী", "জাদুঘর", "ঐতিহ্য", "পহেলা বৈশাখ",
+		"ছায়ানট", "রবীন্দ্র", "নজরুল", "লালন",
+	}
+	educationKeywords = []string{
+		"শিক্ষার্থী", "শিক্ষক", "শিক্ষা", "বিশ্ববিদ্যালয়", "ভর্তি পরীক্ষা", "এইচএসসি", "এসএসসি", "ক্যাম্পাস",
+		"ঢাবি", "জাবি", "রাবি", "চবি", "বুয়েট", "পাঠ্যবই", "প্রাথমিক বিদ্যালয়", "শিক্ষা বোর্ড",
+	}
+	environmentKeywords = []string{
+		"জলবায়ু", "পরিবেশ", "দূষণ", "ঘূর্ণিঝড়", "বন্যা", "ভূমিকম্প", "শৈত্যপ্রবাহ", "তাপপ্রবাহ", "আবহাওয়া",
+		"বৃষ্টি", "নিম্নচাপ", "বজ্রপাত", "বন্যপ্রাণী", "সুন্দরবন", "নদী ভাঙন", "কৃষি", "ফসল", "কৃষক",
+		"জ্বালানি", "এলপিজি", "লোডশেডিং", "বিদ্যুৎ",
+	}
+)

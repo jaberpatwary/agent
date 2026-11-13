@@ -2,9 +2,11 @@ package handler
 
 import (
 	"fmt"
+	"html/template"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"bangla-news-aggregator/internal/domain"
 )
@@ -109,14 +111,74 @@ func outletLabel(name string) string {
 	return strings.TrimSpace(name)
 }
 
-// readCount is how often a story has been read on this portal.
-func readCount(n int64) string {
-	if n <= 0 {
-		return "এখনো পড়া হয়নি"
+// hitCount writes a read count the Bangla way: ১৯,৭১৩ and ১,২৩,৪৫৬.
+func hitCount(n int64) string {
+	s := strconv.FormatInt(n, 10)
+	if len(s) > 3 {
+		head, tail := s[:len(s)-3], s[len(s)-3:]
+		var parts []string
+		for len(head) > 2 {
+			parts = append([]string{head[len(head)-2:]}, parts...)
+			head = head[:len(head)-2]
+		}
+		parts = append([]string{head}, parts...)
+		s = strings.Join(append(parts, tail), ",")
 	}
-	return toBanglaDigits(strconv.FormatInt(n, 10)) + " বার পড়া হয়েছে"
+	return toBanglaDigits(s)
+}
+
+// dict lets a template hand several values to another template.
+func dict(kv ...any) map[string]any {
+	m := map[string]any{}
+	for i := 0; i+1 < len(kv); i += 2 {
+		if k, ok := kv[i].(string); ok {
+			m[k] = kv[i+1]
+		}
+	}
+	return m
 }
 
 // popularFresh is how long an outlet's most-read list counts after it was
 // read; the desk reads the lists on every run.
 const popularFresh = 12 * time.Hour
+
+// highlight escapes text and puts the searched words in bold, as a search
+// results page does.
+func highlight(text, query string) template.HTML {
+	out := template.HTMLEscapeString(text)
+	for _, w := range strings.Fields(query) {
+		if utf8.RuneCountInString(w) < 2 {
+			continue
+		}
+		e := template.HTMLEscapeString(w)
+		out = strings.ReplaceAll(out, e, "<b>"+e+"</b>")
+	}
+	return template.HTML(out)
+}
+
+// pageNumbers is 1..n, for a pager.
+func pageNumbers(n int) []int {
+	out := make([]int, n)
+	for i := range out {
+		out[i] = i + 1
+	}
+	return out
+}
+
+// topUp fills list up to n from more, without repeating a story.
+func topUp(list, more []domain.Article, n int) []domain.Article {
+	seen := map[string]bool{}
+	for _, a := range list {
+		seen[a.ID.String()] = true
+	}
+	for _, a := range more {
+		if len(list) >= n {
+			break
+		}
+		if !seen[a.ID.String()] {
+			seen[a.ID.String()] = true
+			list = append(list, a)
+		}
+	}
+	return list
+}
