@@ -29,6 +29,7 @@ type popularList func(ctx context.Context, c *http.Client) ([]popularHit, error)
 type popularHit struct {
 	URL, Title string
 	Published  time.Time // zero if the list doesn't say
+	Hits       int64     // the outlet's own read count, 0 if it doesn't publish one
 }
 
 // popularSources maps a feed's host to the reader of its outlet's list.
@@ -37,6 +38,7 @@ var popularSources = map[string]popularList{
 	"bbc.co.uk":        bbcBanglaMostRead,
 	"bbc.com":          bbcBanglaMostRead,
 	"feeds.bbci.co.uk": bbcBanglaMostRead,
+	"jugantor.com":     jugantorMostRead,
 }
 
 // SetPopularRepo turns on the most-read lists.
@@ -79,7 +81,7 @@ func (w *Worker) refreshPopular(ctx context.Context, feeds []domain.FeedSource) 
 				continue
 			}
 			seen[key] = true
-			p := domain.PopularStory{URL: key, Outlet: f.Name, Title: strings.TrimSpace(h.Title), Rank: len(list) + 1, FetchedAt: now}
+			p := domain.PopularStory{URL: key, Outlet: f.Name, Title: strings.TrimSpace(h.Title), Rank: len(list) + 1, Hits: h.Hits, FetchedAt: now}
 			list = append(list, p)
 			out[key] = p
 		}
@@ -232,3 +234,60 @@ func httpGet(ctx context.Context, c *http.Client, u string) ([]byte, error) {
 	}
 	return io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 }
+
+// jugantorMostRead reads Jugantor's most-read list, which carries each
+// story's read count (total_hit). It answers only the site's own pages.
+func jugantorMostRead(ctx context.Context, c *http.Client) ([]popularHit, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://www.jugantor.com/ajax/load/popularnews/15/0", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+	req.Header.Set("X-Requested-With", "XMLHttpRequest")
+	req.Header.Set("Referer", "https://www.jugantor.com/")
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("jugantor most read: HTTP %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if err != nil {
+		return nil, err
+	}
+	return parseJugantorMostRead(body)
+}
+
+func parseJugantorMostRead(body []byte) ([]popularHit, error) {
+	var list []struct {
+		Title   string `json:"title"`
+		Link    string `json:"link"`
+		Hits    int64  `json:"total_hit"`
+		Created string `json:"created_at"`
+	}
+	if err := json.Unmarshal(body, &list); err != nil {
+		return nil, err
+	}
+	sort.SliceStable(list, func(i, j int) bool { return list[i].Hits > list[j].Hits })
+	var out []popularHit
+	for _, it := range list {
+		if it.Link == "" {
+			continue
+		}
+		h := popularHit{URL: it.Link, Title: it.Title, Hits: it.Hits}
+		if t, err := time.ParseInLocation("2006-01-02 15:04:05", it.Created, dhakaZone); err == nil {
+			h.Published = t
+		}
+		out = append(out, h)
+	}
+	return out, nil
+}
+
+var dhakaZone = func() *time.Location {
+	if loc, err := time.LoadLocation("Asia/Dhaka"); err == nil {
+		return loc
+	}
+	return time.FixedZone("BST", 6*3600)
+}()

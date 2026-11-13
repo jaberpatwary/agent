@@ -20,36 +20,15 @@
 }
 .block-field-blocknodenewsbody img { max-width: 100%; height: auto; }
 
-/* Search suggestions under the theme's search box. */
-.search-form { flex-wrap: wrap; }
-.ds-suggest {
-  position: absolute; top: 100%; left: 0; right: 0; z-index: 30;
-  margin: 0; padding: 0; list-style: none;
-  background: var(--color-white); border: 1px solid var(--color-gray_1);
-  box-shadow: 0 8px 24px #0000001a; max-height: 70vh; overflow-y: auto;
-}
-.ds-suggest li a { display: flex; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--color-gray_1); text-decoration: none; color: var(--color-black_01); }
-.ds-suggest li a:hover { background: var(--color-light_gray); }
-.ds-suggest img { width: 64px; height: 44px; object-fit: cover; flex: none; }
-.ds-suggest strong { display: block; font-weight: var(--font-weight-medium); font-size: 16px; line-height: 1.35; }
-.ds-suggest small { display: block; margin-top: 4px; font-family: var(--font-inter); font-size: 11px; color: var(--color-gray_7); }
-.ds-suggest-empty { padding: 12px 14px; font-size: 14px; color: var(--color-gray_6); }
-
 /* Touch screens have no hover: open the share menu on tap too. */
 .share-dropdown:focus-within .share-menu { z-index: 2; display: block; }
 .share-menu { display: none; }
-.ds-save.is-saved { color: var(--color-red); }
 
 .ds-empty { font-size: 18px; color: var(--color-gray_6); margin: 0 0 40px; }
 .ds-empty a { color: var(--color-red); text-decoration: underline; }
 .ds-saved-tools { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; font-family: var(--font-inter); font-size: 14px; color: var(--color-gray_6); }
 .ds-unsave { margin-left: auto; color: var(--color-red); font-size: 10px; text-transform: uppercase; }
 
-button.ds-fresh {
-  display: none; position: fixed; left: 50%; transform: translateX(-50%); z-index: 40;
-  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
-}
-button.ds-fresh.show { display: inline-flex; }
 .ds-toast {
   display: none; position: fixed; left: 50%; transform: translateX(-50%); z-index: 41;
   bottom: calc(24px + env(safe-area-inset-bottom, 0px));
@@ -83,7 +62,40 @@ button.ds-fresh.show { display: inline-flex; }
 /* The "Show more" list uses 373×210 photos. */
 .block-category-show-more .card-image { aspect-ratio: 373 / 210; }
 
-/* Outlet and read count under a headline, separated like the theme's info line. */
-.card-info .ds-dot::before { content: "·"; margin-right: 4px; }
-.ds-note .ds-dot:first-child::before { content: none; }
-.ds-note { margin-top: 2px; }
+/* Search page: The Daily Star's search is Google's search box; this is its look. */
+.gsc-control-cse { max-width: 660px; padding: 26px 0 40px; font-family: arial, sans-serif; }
+.gsc-search-box { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 14px; margin: 10px 0 18px; border: 1px solid #dfe1e5; background: #fff; }
+.gsc-search-box svg { flex: none; width: 16px; height: 16px; color: #5f6368; }
+.gsc-search-box input { flex: 1; min-width: 0; height: 100%; margin: 0; padding: 0; border: 0 !important; outline: 0; box-shadow: none; background: transparent; font-size: 16px; color: #202124; }
+.gsc-clear { color: #5f6368; font-size: 22px; line-height: 1; text-decoration: none; }
+.gsc-above-wrapper { display: flex; justify-content: space-between; gap: 12px; margin: 0 0 12px; font-family: arial, sans-serif; font-size: 13px; color: #70757a; }
+.gsc-result { padding: 12px 0; }
+a.gs-title { font-size: 20px; line-height: 1.3; color: #1a0dab; text-decoration: none; }
+a.gs-title:hover { text-decoration: underline; }
+a.gs-title b, .gs-snippet b { font-weight: 700; }
+.gs-visibleUrl { margin: 3px 0 4px; font-family: arial, sans-serif; font-size: 12px; color: #202124; }
+.gs-visibleUrl span + span { color: #4d5156; }
+.gsc-table-result { display: flex; gap: 16px; align-items: flex-start; }
+.gs-snippet { flex: 1; min-width: 0; font-size: 14px; line-height: 1.55; color: #4d5156; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.gs-image { display: block; width: 104px; height: 104px; object-fit: cover; }
+.gsc-cursor { display: flex; justify-content: center; gap: 10px; margin: 28px 0 0; font-family: arial, sans-serif; font-size: 14px; }
+.gsc-cursor a { color: #1a0dab; text-decoration: none; }
+.gsc-cursor .gsc-cursor-current-page { color: #202124; font-weight: 700; }
+.gs-no-results-result { padding: 12px 0; font-size: 14px; color: #4d5156; }
+
+/* The not-found page, as on bangla.thedailystar.net. */
+.error-404-page { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.error-404-page .site-logo { width: 920px; max-width: 86vw; height: auto; }
+.error-404-page h1 { font-size: 44px; line-height: 1.1; font-weight: 400; color: var(--color-secondary); }
+.error-404-page a { font-size: 16px; color: var(--color-secondary); }
+
+/* The featured photo opens full size, as The Daily Star's gallery does. */
+.lg-gallery { display: block; }
+.ds-lightbox { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0, 0, 0, .9); cursor: zoom-out; }
+.ds-lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+/* The outlet and its read count sit where The Daily Star names the reporter. */
+@media not all and (min-width: 640px) {
+  .block-author-info-block .ds-source { flex: 1 1 100%; }
+  .block-author-info-block > div { flex-wrap: wrap; }
+}

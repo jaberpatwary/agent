@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="bn" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Search | The Daily Star</title>
+  <meta name="robots" content="noindex">
+  {{ template "portal_assets" . }}
+</head>
+<body class="path-search">
+<div class="page-wrapper">
+  {{ template "portal_header" . }}
+
+  <main role="main" class="main" id="main-content">
+    <article class="node">
+      <div class="node-content row">
+        <div class="column">
+          <div class="layout layout--onecol">
+            <div class="layout__region layout__region--content">
+              <div class="block block-layout-builder block-inline-blockbasic">
+                <span class="clearfix text-formatted">
+                  <div class="container">
+                    <div class="row">
+                      <div class="columns medium-12" style="min-height:1000px;">
+                        <div class="gsc-control-cse">
+                          <form class="gsc-search-box" action="/search" method="get" role="search">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16a6.47 6.47 0 0 0 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                            <input type="text" name="t" value="{{ .Query }}" aria-label="খুঁজুন" autocomplete="off">
+                            {{ if .Query }}<a class="gsc-clear" href="/search" aria-label="মুছুন">×</a>{{ end }}
+                          </form>
+                          {{ if .Query }}
+                          {{ if .Results }}
+                          <div class="gsc-above-wrapper">
+                            <div class="gsc-result-info">মোটামুটি {{ hitCount .Total }}টি ফলাফল ({{ printf "%.2f" .Seconds }} সেকেন্ড)</div>
+                            <div class="gsc-orderby">এই অনুযায়ী সাজান: তারিখ</div>
+                          </div>
+                          {{ range .Results }}
+                          <div class="gsc-webResult gsc-result">
+                            <div class="gs-title"><a class="gs-title" href="/article/{{ .ID }}">{{ highlight .Title $.Query }} | The Daily Star</a></div>
+                            <div class="gs-visibleUrl gs-visibleUrl-breadcrumb"><span>The Daily Star</span> <span>› {{ .Category }} › news</span></div>
+                            <div class="gsc-table-result">
+                              <div class="gs-snippet">{{ dsAgo .PublishedAt }} ... {{ highlight (stripHTML .Summary) $.Query }}</div>
+                              {{ if .ImageURL }}<div class="gsc-thumbnail"><a href="/article/{{ .ID }}" tabindex="-1"><img class="gs-image" src="{{ .ImageURL }}" alt="" loading="lazy" onerror="this.remove()"></a></div>{{ end }}
+                            </div>
+                          </div>
+                          {{ end }}
+                          {{ if gt .Pages 1 }}
+                          <div class="gsc-cursor-box">
+                            <div class="gsc-cursor">
+                              {{ range pageNumbers .Pages }}{{ if eq . $.Page }}<span class="gsc-cursor-page gsc-cursor-current-page">{{ . }}</span>{{ else }}<a class="gsc-cursor-page" href="/search?t={{ $.Query | urlquery }}&amp;page={{ . }}">{{ . }}</a>{{ end }}{{ end }}
+                            </div>
+                          </div>
+                          {{ end }}
+                          {{ else }}
+                          <div class="gs-no-results-result">কোনো ফলাফল নেই</div>
+                          {{ end }}
+                          {{ end }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="clear:both;">&nbsp;</div>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+  </main>
+
+  {{ template "portal_footer" . }}
+</div>
+  {{ template "portal_scripts" . }}
+</body>
+</html>

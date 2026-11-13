@@ -2,10 +2,10 @@
    - static assets and cached photos: cache first
    - pages: network first, falling back to the last cached copy when offline
    - admin, API and anything non-GET is never cached */
-const VERSION = 'ds-v1';
+const VERSION = 'ds-v2';
 const STATIC = VERSION + '-static';
 const PAGES = VERSION + '-pages';
-const PRECACHE = ['/', '/saved', '/static/ds/swallow.css?v=1', '/static/ds/logo.css?v=1', '/static/ds/extra.css?v=6', '/static/ds/logo.png', '/manifest.webmanifest'];
+const PRECACHE = ['/', '/saved', '/static/ds/swallow.css?v=1', '/static/ds/logo.css?v=1', '/static/ds/extra.css?v=10', '/static/ds/logo.png', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(STATIC).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));

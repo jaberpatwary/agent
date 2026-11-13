@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+Bengali:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/static/ds/swallow.css?v=1">
   <link rel="stylesheet" href="/static/ds/logo.css?v=1">
-  <link rel="stylesheet" href="/static/ds/extra.css?v=6">
+  <link rel="stylesheet" href="/static/ds/extra.css?v=10">
   <script>
     /* A reload opens the page at its top; Back returns to where the reader was. */
     (function () {
@@ -38,18 +38,21 @@
 {{ $cat := "" }}{{ with .Category }}{{ $cat = . }}{{ end }}
 <li><a href="/?category=bangladesh" {{ if eq $cat "bangladesh" }}class="is-active"{{ end }}>বাংলাদেশ</a></li>
 <li><a href="/?category=international" {{ if eq $cat "international" }}class="is-active"{{ end }}>আন্তর্জাতিক</a></li>
+<li><a href="/?category=opinion" {{ if eq $cat "opinion" }}class="is-active"{{ end }}>মতামত</a></li>
 <li><a href="/?category=sports" {{ if eq $cat "sports" }}class="is-active"{{ end }}>খেলা</a></li>
 <li><a href="/?category=business" {{ if eq $cat "business" }}class="is-active"{{ end }}>বাণিজ্য</a></li>
 <li><a href="/?category=entertainment" {{ if eq $cat "entertainment" }}class="is-active"{{ end }}>বিনোদন</a></li>
+<li><a href="/?category=lifestyle" {{ if eq $cat "lifestyle" }}class="is-active"{{ end }}>জীবনযাপন</a></li>
 <li><a href="/?category=technology" {{ if eq $cat "technology" }}class="is-active"{{ end }}>প্রযুক্তি ও স্টার্টআপ</a></li>
-<li><a href="/?category=general" {{ if eq $cat "general" }}class="is-active"{{ end }}>সাধারণ</a></li>
+{{ if .Mega }}<li><a href="/?category=literature">সাহিত্য</a></li>{{ end }}
+<li><a href="/?category=explainer" {{ if eq $cat "explainer" }}class="is-active"{{ end }}>এক্সপ্লেইনার</a></li>
+<li><a href="/?category=analysis" {{ if eq $cat "analysis" }}class="is-active"{{ end }}>বিশ্লেষণ</a></li>
 {{ end }}
 
 {{ define "search_form" }}
-<form class="search-form {{ . }}" action="/" method="get" autocomplete="off" data-search-form>
-  <input type="text" name="q" placeholder="ডেইলি স্টারে খুঁজুন" aria-label="খুঁজুন">
+<form class="search-form {{ . }}" action="/search" method="get">
+  <input type="text" name="t" placeholder="Search With Daily Star" aria-label="খুঁজুন">
   <button type="submit" aria-label="খুঁজুন">{{ template "ico_search_btn" }}</button>
-  <ul class="ds-suggest" data-suggest hidden></ul>
 </form>
 {{ end }}
 
@@ -132,17 +135,13 @@
         <div class="text-center uppercase font-inter text-gray_6 text-[12px] leading-none font-semibold">{{ dsToday }}</div>
         <div class="header-nav font-inter font-semibold">
           <ul class="!gap-0 justify-center">
-            <li class="!gap-0"><a href="https://www.thedailystar.net" target="_blank" rel="noopener">English</a></li>
-            <li class="!gap-0"><a href="/latest">সর্বশেষ</a></li>
+            <li class="!gap-0"><a href="https://epaper.thedailystar.net/" target="_blank" rel="noopener">E-paper</a></li>
+            <li class="!gap-0"><a href="/latest">Today’s News</a></li>
           </ul>
         </div>
       </div>
       <div class="mega-menu-wrapper flex-1">
-        <ul>
-          {{ template "nav_items" . }}
-          <li><a href="/latest">সর্বশেষ</a></li>
-          <li><a href="/saved">সংরক্ষিত খবর</a></li>
-        </ul>
+        <ul>{{ template "nav_items" (dict "Category" .Category "Mega" true) }}</ul>
       </div>
       {{ template "footer_bottom" }}
     </div>
@@ -155,23 +154,22 @@
   <div class="region region-footer">
     <nav aria-label="ফুটার" class="block block-menu navigation menu--footer">
       <ul>
-        <li><a href="/?category=bangladesh">বাংলাদেশ</a></li>
-        <li><a href="/?category=international">আন্তর্জাতিক</a></li>
-        <li><a href="/?category=sports">খেলা</a></li>
-        <li><a href="/?category=business">বাণিজ্য</a></li>
-        <li><a href="/latest">সর্বশেষ</a></li>
-        <li><a href="/saved">সংরক্ষিত খবর</a></li>
+        <li><a href="https://bangla.thedailystar.net/node/3895441">আমাদের সম্পর্কে</a></li>
+        <li><a href="https://bangla.thedailystar.net/node/3895446">যোগাযোগ করুন</a></li>
+        <li><a href="https://bangla.thedailystar.net/node/3895456">মন্তব্য নীতি</a></li>
+        <li><a href="https://bangla.thedailystar.net/node/3895451">অ্যাপস</a></li>
+        <li><a href="https://bangla.thedailystar.net/node/3895461">গোপনীয়তা নীতি</a></li>
+        <li><a href="https://www.thedailystar.net/advertisement">বিজ্ঞাপন</a></li>
       </ul>
     </nav>
     <div class="block block-rsi-blocks block-copyright-block">
-      <div class="copyright py-[40px] lg:py-[20px]"> © {{ (now).Year }} thedailystar.net <p class="mt-4 text-sm text-gray-600"> Copyright: Any unauthorized use or reproduction of The Daily Star content for commercial purposes <br> is strictly prohibited and constitutes copyright infringement liable to legal action.</p></div>
+      <div class="copyright py-[40px] lg:py-[20px]"> © {{ (now).Year }} thedailystar.net | Powered by: RSI Lab <p class="mt-4 text-sm text-gray-600"> Copyright: Any unauthorized use or reproduction of The Daily Star content for commercial purposes <br> is strictly prohibited and constitutes copyright infringement liable to legal action.</p></div>
     </div>
   </div>
 </div>
 {{ end }}
 
 {{ define "portal_footer" }}
-<button type="button" class="ds-fresh" data-fresh>নতুন খবর এসেছে — দেখুন ↑</button>
 <div class="ds-toast" data-toast role="status" aria-live="polite"></div>
 <footer role="contentinfo" class="site-footer">
   <div class="row">
@@ -212,25 +210,48 @@
 <div class="card-info ">
   <span class=""><time class="rsi-ago rsi-ago--bn" datetime="{{ iso .PublishedAt }}">{{ dsAgo .PublishedAt }}</time></span>
   <span class="flex items-center gap-[4px]"><span class="rounded-full bg-gray_7"></span> {{ categoryLabel .Category }} </span>
-  {{ template "ds_source" . }}
 </div>
 {{ end }}
 
-{{/* The outlet a story came from and how often it has been read here. */}}
-{{ define "ds_source" }}
-  {{ with .SourceName }}<span class="flex items-center gap-[4px] ds-dot">সূত্র: {{ outletLabel . }}</span>{{ end }}
-  <span class="flex items-center gap-[4px] ds-dot">{{ readCount .Views }}</span>
-{{ end }}
+{{/* How a story did on its source outlet: the outlet's own read count where
+     it publishes one, otherwise its place on the outlet's most-read list.
+     Takes the outlet name, rank and hits. */}}
+{{ define "source_reads" }}{{ with .Outlet }}সূত্র: {{ outletLabel . }}{{ end }}{{ if .Hits }} · {{ hitCount .Hits }} বার পড়া হয়েছে{{ else if .Rank }} · সর্বাধিক পঠিত {{ banglaDigits (printf "%d" .Rank) }} নম্বর{{ end }}{{ end }}
 
-{{/* Title-only lists: just the outlet and the read count. */}}
-{{ define "ds_note" }}<div class="card-info ds-note">{{ template "ds_source" . }}</div>{{ end }}
-
-{{/* A "most read" entry (domain.RankedArticle): its place on the outlet's own list, the outlet, the read count. */}}
-{{ define "ds_ranked" }}
-<div class="card-info ds-note">
-  {{ if .PopularRank }}<span class="flex items-center gap-[4px] color-red">সর্বাধিক পঠিত: {{ outletLabel .PopularOutlet }} · {{ banglaDigits (printf "%d" .PopularRank) }} নম্বর</span>{{ end }}
-  {{ template "ds_source" .Article }}
+{{/* "সর্বশেষ | সর্বাধিক পঠিত" for a section, in the theme's tab box.
+     Takes Latest ([]domain.Article), Most ([]domain.RankedArticle) and an Id. */}}
+{{ define "tab_box" }}
+{{ if or .Latest .Most }}
+<div class="most-popular-tabs">
+  <ul class="tabs counter-tabs !list-none !flex-row">
+    {{ if .Latest }}<li class="flex-1 text-center tabs-title is-active"><a href="#{{ .Id }}-latest">সর্বশেষ</a></li>{{ end }}
+    {{ if .Most }}<li class="flex-1 text-center tabs-title {{ if not .Latest }}is-active{{ end }}"><a href="#{{ .Id }}-most">সর্বাধিক পঠিত</a></li>{{ end }}
+  </ul>
+  <div class="tabs-content">
+    {{ with .Latest }}
+    <div class="tabs-panel is-active" id="{{ $.Id }}-latest">
+      <ul class="type-counter !list-none !m-0 flex flex-col gap-[20px]">
+        {{ range . }}<li class="border-b-[1px] border-gray_1 last:border-b-0 pb-[20px]"><h4 class="card-title"><a class="!no-underline hover:!underline" href="/article/{{ .ID }}">{{ .Title }}</a></h4></li>{{ end }}
+      </ul>
+    </div>
+    {{ end }}
+    {{ with .Most }}
+    <div class="tabs-panel {{ if not $.Latest }}is-active{{ end }}" id="{{ $.Id }}-most">
+      <ul class="type-counter !list-none !m-0 flex flex-col gap-[20px]">
+        {{ range . }}
+        <li class="border-b-[1px] border-gray_1 last:border-b-0 pb-[20px]">
+          <div class="flex flex-col gap-[8px]">
+            <h4 class="card-title"><a class="!no-underline hover:!underline" href="/article/{{ .ID }}">{{ .Title }}</a></h4>
+            {{ if or .PopularHits .PopularRank }}<div class="card-info">{{ template "source_reads" (dict "Outlet" .PopularOutlet "Rank" .PopularRank "Hits" .PopularHits) }}</div>{{ end }}
+          </div>
+        </li>
+        {{ end }}
+      </ul>
+    </div>
+    {{ end }}
+  </div>
 </div>
+{{ end }}
 {{ end }}
 
 {{ define "ds_intro" }}{{ with .Summary }}{{ stripHTML . }}{{ end }}{{ end }}
@@ -306,37 +327,6 @@
     });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') { body.classList.remove('search-open', 'main-nav-open'); setAll(searchBtns, false); setAll(menuBtns, false); }
-    });
-  })();
-
-  /* Headline suggestions under the search box. */
-  (function () {
-    function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
-    document.querySelectorAll('[data-search-form]').forEach(function (form) {
-      var input = form.querySelector('input');
-      var list = form.querySelector('[data-suggest]');
-      var timer, seq = 0;
-      input.addEventListener('input', function () {
-        clearTimeout(timer);
-        var q = input.value.trim();
-        if (q.length < 2) { list.hidden = true; list.innerHTML = ''; return; }
-        timer = setTimeout(function () {
-          var my = ++seq;
-          fetch('/api/suggest?q=' + encodeURIComponent(q), { cache: 'no-store' })
-            .then(function (r) { return r.json(); })
-            .then(function (d) {
-              if (my !== seq) return;
-              var items = (d && d.items) || [];
-              list.innerHTML = items.length ? items.map(function (it) {
-                return '<li><a href="/article/' + esc(it.id) + '">' + (it.image ? '<img src="' + esc(it.image) + '" alt="" loading="lazy">' : '') +
-                  '<span><strong>' + esc(it.title) + '</strong><small>' + esc(it.category) + ' · ' + esc(it.ago) + '</small></span></a></li>';
-              }).join('') : '<li class="ds-suggest-empty">কোনো খবর মেলেনি — Enter চাপলে পুরো খোঁজ</li>';
-              list.hidden = false;
-            })
-            .catch(function () {});
-        }, 180);
-      });
-      document.addEventListener('click', function (e) { if (!form.contains(e.target)) list.hidden = true; });
     });
   })();
 

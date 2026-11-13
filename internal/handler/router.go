@@ -103,6 +103,20 @@ func categoryLabel(category string) string {
 		return "বিনোদন"
 	case "technology":
 		return "প্রযুক্তি ও স্টার্টআপ"
+	case "opinion":
+		return "মতামত"
+	case "lifestyle":
+		return "জীবনযাপন"
+	case "explainer":
+		return "এক্সপ্লেইনার"
+	case "analysis":
+		return "বিশ্লেষণ"
+	case "literature":
+		return "সাহিত্য"
+	case "education":
+		return "শিক্ষা"
+	case "environment":
+		return "পরিবেশ"
 	case "general":
 		return "সাধারণ"
 	default:
@@ -256,7 +270,10 @@ func templateFuncs() template.FuncMap {
 		"dsAgo":              dsAgo,
 		"part":               part,
 		"outletLabel":        outletLabel,
-		"readCount":          readCount,
+		"hitCount":           hitCount,
+		"dict":               dict,
+		"highlight":          highlight,
+		"pageNumbers":        pageNumbers,
 		"iso":                func(t time.Time) string { return inDhaka(t).Format(time.RFC3339) },
 	}
 }
@@ -298,6 +315,7 @@ func NewRouter(
 	// ---- Public routes ----
 	r.GET("/", publicH.Home)
 	r.GET("/latest", publicH.Home)
+	r.GET("/search", publicH.Search)
 	r.GET("/article/:id", publicH.ArticleDetail)
 	r.GET("/health", publicH.HealthCheck)
 	r.GET("/api/latest-check", publicH.LatestCheck)

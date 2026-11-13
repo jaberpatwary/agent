@@ -196,7 +196,7 @@ func (w *Worker) PendingItems(ctx context.Context, limit int) ([]PendingItem, er
 			Content:              item.Content,
 			ImageURL:             imageURL,
 			SourceName:           sourceName,
-			Category:             classifyItemCategory(item.Title, item.Categories, feed.Category),
+			Category:             classifyItemCategory(item.Title, append(append([]string(nil), item.Categories...), sectionHints(item.Link)...), feed.Category),
 			PublishedAt:          item.Published,
 			SystemPrompt:         system,
 			DraftPrompt:          ai.BuildRewriteDraftPrompt(item.Title, item.Content),

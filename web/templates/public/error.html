@@ -1,27 +1,22 @@
 <!DOCTYPE html>
-<html lang="bn" dir="ltr">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>পাতাটি পাওয়া যায়নি | দ্য ডেইলি স্টার বাংলা</title>
+  <title>Page not found | The Daily Star</title>
   <meta name="robots" content="noindex">
   {{ template "portal_assets" . }}
 </head>
-<body class="path-taxonomy">
+<body class="path-not-found">
+<a href="#main-content" class="visually-hidden focusable skip-link"> Skip to main content </a>
 <div class="page-wrapper">
-  {{ template "portal_header" . }}
-  <main role="main" class="main" id="main-content">
-    <div class="news-section section-spacer mt-5">
-      <div class="row">
-        <div class="column small-12">
-          <div class="section-title-wrapper"><h1 class="section-title">দুঃখিত, পাতাটি খুঁজে পাওয়া যায়নি</h1></div>
-          <p class="ds-empty">{{ with .message }}{{ . }}{{ else }}লিংকটি ভুল হতে পারে, অথবা খবরটি সরিয়ে নেওয়া হয়েছে।{{ end }} <a href="/">প্রথম পাতায় ফিরুন</a></p>
-        </div>
-      </div>
+  <main role="main" class="main" id="main-content" style="min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+    <div class="error-404-page text-center">
+      <img class="site-logo" src="/static/ds/ds-logo.svg" alt="The Daily Star">
+      <h1> We're sorry, <br>the page you requested could not be found.</h1>
+      <a href="/" class="">Back to Homepage</a>
     </div>
   </main>
-  {{ template "portal_footer" . }}
 </div>
-  {{ template "portal_scripts" . }}
 </body>
 </html>

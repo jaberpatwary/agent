@@ -26,7 +26,7 @@ type ArticleRepository interface {
 	UpdateStatus(id uuid.UUID, status string) error
 	RelatedArticles(excludeID uuid.UUID, tags []string, category string, limit int) ([]domain.Article, error)
 	IncrementViews(id uuid.UUID) error
-	MostRead(since time.Time, limit int) ([]domain.Article, error)
+	MostRead(category string, since time.Time, limit int) ([]domain.Article, error)
 	RecentTags(limit int) ([]string, error)
 	UpdateStory(id uuid.UUID, title, content, summary, tags string) error
 }
@@ -221,10 +221,13 @@ func (r *articleRepository) IncrementViews(id uuid.UUID) error {
 }
 
 // MostRead returns the most viewed published articles published since the given time.
-func (r *articleRepository) MostRead(since time.Time, limit int) ([]domain.Article, error) {
+func (r *articleRepository) MostRead(category string, since time.Time, limit int) ([]domain.Article, error) {
 	var out []domain.Article
-	err := r.db.Where("status = ? AND published_at >= ? AND views > 0", "published", since).
-		Order("views DESC, published_at DESC").Limit(limit).Find(&out).Error
+	q := r.db.Where("status = ? AND published_at >= ? AND views > 0", "published", since)
+	if category != "" {
+		q = q.Where("category = ?", category)
+	}
+	err := q.Order("views DESC, published_at DESC").Limit(limit).Find(&out).Error
 	return out, err
 }
 

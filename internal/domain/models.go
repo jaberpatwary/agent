@@ -223,6 +223,7 @@ type PopularStory struct {
 	Outlet    string    `gorm:"type:varchar(255);index" json:"outlet"` // the feed's name, e.g. "Prothom Alo"
 	Title     string    `gorm:"type:text" json:"title"`
 	Rank      int       `json:"rank"` // 1 = most read
+	Hits      int64     `json:"hits"` // the outlet's own read count, where it publishes one (0 = unknown)
 	FetchedAt time.Time `gorm:"index" json:"fetched_at"`
 }
 
@@ -232,6 +233,7 @@ type RankedArticle struct {
 	Article
 	PopularOutlet string `json:"popular_outlet,omitempty"`
 	PopularRank   int    `json:"popular_rank,omitempty"`
+	PopularHits   int64  `json:"popular_hits,omitempty"`
 }
 
 // PopularKey is a URL as most-read lists are matched on: no query string
