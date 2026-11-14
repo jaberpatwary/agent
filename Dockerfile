@@ -29,6 +29,10 @@ COPY --from=builder /app/server /app/server
 # since html/template loads them from disk at startup (web/templates/**).
 COPY --from=builder /app/web ./web
 
+# Photos of the stories already published. Hosts without a persistent disk
+# (Render free) would otherwise lose every cached photo on each deploy.
+COPY seed-images /app/data/images
+
 ENV PORT=8080
 EXPOSE 8080
 

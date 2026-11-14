@@ -44,6 +44,6 @@ services:
       - key: PUBLIC_BASE_URL
         sync: false
       - key: IMAGE_STORAGE_DIR
-        value: ""
+        value: /app/data/images
       - key: AI_DAILY_TOKEN_BUDGET
         value: "0"
