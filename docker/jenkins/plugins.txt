@@ -5,3 +5,4 @@ job-dsl
 credentials-binding
 plain-credentials
 timestamper
+pipeline-graph-view
