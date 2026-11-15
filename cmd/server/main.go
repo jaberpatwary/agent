@@ -50,6 +50,8 @@ func main() {
 	worker := cron.NewWorker(cfg, feedRepo, articleRepo, usageRepo, settingsRepo, repository.NewSeenURLRepository(db))
 	worker.SetJourneyRepo(repository.NewJourneyRepository(db))
 	worker.SetPopularRepo(repository.NewPopularRepository(db))
+	imageBackup := repository.NewImageRepository(db)
+	worker.SetImageBackup(imageBackup)
 
 	cronCtx, cancelCron := context.WithCancel(context.Background())
 	workerDone := make(chan struct{})
@@ -90,7 +92,7 @@ func main() {
 		n8nH.SetDesk(desk)
 		log.Println("[main] n8n API enabled at /api/n8n and /api/agent")
 	}
-	router := handler.NewRouter(authUC, publicH, adminH, n8nH, cfg.ImageStorageDir)
+	router := handler.NewRouter(authUC, publicH, adminH, n8nH, cfg.ImageStorageDir, imageBackup)
 	if controlToken := os.Getenv("AUTONEWS_CONTROL_TOKEN"); controlToken != "" {
 		router.POST("/_control/shutdown", func(c *gin.Context) {
 			host, _, err := net.SplitHostPort(c.Request.RemoteAddr)

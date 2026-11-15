@@ -38,8 +38,9 @@ type Store struct {
 	Dir          string // filesystem directory to save files in
 	PublicPrefix string // URL path prefix this server serves Dir under, e.g. "/img"
 	MaxBytes     int64
-	MinBytes     int64 // smaller files are rejected as icons, logos or tracking pixels rather than real photos
-	MinWidth     int   // narrower images are rejected as thumbnails (checked for JPEG/PNG/GIF; other formats pass)
+	MinBytes     int64  // smaller files are rejected as icons, logos or tracking pixels rather than real photos
+	MinWidth     int    // narrower images are rejected as thumbnails (checked for JPEG/PNG/GIF; other formats pass)
+	Backup       Backup // optional: a second copy of every saved photo (see Backup)
 	http         *http.Client
 }
 
@@ -138,6 +139,11 @@ func (s *Store) Fetch(ctx context.Context, sourceURL string) (string, error) {
 	}
 	// An advertiser's strip stamped on the photo is not part of the news.
 	_, _ = TrimSponsorBand(fullPath)
+	if s.Backup != nil {
+		if data, err := os.ReadFile(fullPath); err == nil {
+			_ = s.Backup.Save(name, http.DetectContentType(data), data)
+		}
+	}
 
 	return publicPath, nil
 }
@@ -214,3 +220,11 @@ func imageWidth(path string) (int, bool) {
 // not localhost, not a private or metadata address). Shared with the agent's
 // read_page tool.
 func CheckURL(raw string) error { return rejectUnsafeURL(raw) }
+
+// Backup keeps a second copy of each saved photo somewhere that survives the
+// disk being wiped (the database). The server serves a photo from it when
+// the file is gone.
+type Backup interface {
+	Save(name, contentType string, data []byte) error
+	Load(name string) (data []byte, contentType string, err error)
+}

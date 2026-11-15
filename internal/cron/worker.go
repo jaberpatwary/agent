@@ -811,3 +811,10 @@ var (
 		"জ্বালানি", "এলপিজি", "লোডশেডিং", "বিদ্যুৎ",
 	}
 )
+
+// SetImageBackup keeps a database copy of every photo the worker caches.
+func (w *Worker) SetImageBackup(b imagestore.Backup) {
+	if w.images != nil {
+		w.images.Backup = b
+	}
+}

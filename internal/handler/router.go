@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	xhtml "golang.org/x/net/html"
 
+	"bangla-news-aggregator/internal/imagestore"
 	"bangla-news-aggregator/internal/usecase"
 )
 
@@ -287,6 +288,7 @@ func NewRouter(
 	adminH *AdminHandler,
 	n8nH *N8NHandler, // nil disables the /api/n8n routes
 	imageStorageDir string,
+	imageBackup imagestore.Backup, // optional
 ) *gin.Engine {
 	r := gin.Default()
 	r.Use(func(c *gin.Context) {
@@ -306,7 +308,8 @@ func NewRouter(
 	if imageStorageDir != "" {
 		// Serves cached article hero images back from this portal's own
 		// domain (see internal/imagestore) instead of hotlinking publishers.
-		r.Static("/img", imageStorageDir)
+		r.GET("/img/*filepath", serveImages(imageStorageDir, imageBackup))
+		r.HEAD("/img/*filepath", serveImages(imageStorageDir, imageBackup))
 	}
 
 	r.NoRoute(func(c *gin.Context) {

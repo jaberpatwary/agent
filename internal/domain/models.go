@@ -244,3 +244,13 @@ func PopularKey(u string) string {
 	}
 	return strings.TrimRight(strings.TrimSpace(u), "/")
 }
+
+// StoredImage is a copy of a cached photo kept in the database. Hosts with a
+// disk that is wiped on every restart (Render free) would otherwise lose the
+// photo of every story written since the last deploy.
+type StoredImage struct {
+	Name        string    `gorm:"primaryKey;size:80"`
+	ContentType string    `gorm:"size:60"`
+	Data        []byte    `gorm:"type:bytea"`
+	CreatedAt   time.Time `gorm:"autoCreateTime"`
+}
