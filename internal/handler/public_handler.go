@@ -106,6 +106,15 @@ func (h *PublicHandler) Home(c *gin.Context) {
 		cats["literature"] = topUp(cats["literature"], part(cats["entertainment"], 5, 14), 12)
 		cats["analysis"] = topUp(cats["analysis"], part(cats["opinion"], 2, 14), 5)
 	}
+	// A category page is a run of The Daily Star's sub-section blocks.
+	var blocks []Block
+	if category != "" && page == 1 && !latest {
+		if specs := categoryBlocks[category]; len(specs) > 0 {
+			if pool, _, err := h.articleUC.List(1, 80, category, "published"); err == nil {
+				blocks = buildBlocks(category, specs, h.withPhotos(pool, 0))
+			}
+		}
+	}
 	mostRead := h.mostRead(category, 5)
 	var videos []MultimediaItem
 	if front {
@@ -115,6 +124,9 @@ func (h *PublicHandler) Home(c *gin.Context) {
 	c.HTML(http.StatusOK, "index.html", gin.H{
 		"Front":        front,
 		"Multimedia":   videos,
+		"Blocks":       blocks,
+		"TabBeside":    len(blocks) > 0 && (blocks[0].Layout == 8 || blocks[0].Layout == 9),
+		"TabLatest":    part(articles, 0, 5),
 		"Latest":       latest,
 		"Cat":          cats,
 		"MostRead":     mostRead,

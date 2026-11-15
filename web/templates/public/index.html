@@ -332,6 +332,28 @@
       </div>
     </article>
 
+  {{ else if .Blocks }}
+    {{/* ======== CATEGORY PAGE: The Daily Star's sub-section blocks ======== */}}
+    {{ $first := index .Blocks 0 }}
+    <div class="row mt-5">
+      <div class="column small-12">
+        {{ if .TabBeside }}
+        <div class="flex max-lg:flex-col gap-[32px]">
+          <div class="flex-1 min-w-0">{{ template "cat_block" $first }}</div>
+          <div class="flex-none w-[300px] max-lg:w-full">
+            {{ template "tab_box" (dict "Id" "section" "Latest" .TabLatest "Most" .MostRead) }}
+          </div>
+        </div>
+        {{ else }}
+        {{ template "cat_block" $first }}
+        <div class="max-w-[420px] mb-10">
+          {{ template "tab_box" (dict "Id" "section" "Latest" .TabLatest "Most" .MostRead) }}
+        </div>
+        {{ end }}
+      </div>
+    </div>
+    {{ range slice .Blocks 1 }}{{ template "cat_block" . }}{{ end }}
+
   {{ else }}
     {{/* ======== SECTION ======== */}}
     <div class="news-section-layout-8 news-section section-spacer mt-5">
@@ -498,6 +520,25 @@
   <div class="card-content">
     <h5 class="card-title "><a href="/article/{{ .ID }}">{{ .Title }}</a></h5>
     {{ template "ds_info" . }}
+  </div>
+</div>
+{{ end }}
+
+{{/* One card of a generated block. A = the story; the rest is the markup The Daily Star gives that card. */}}
+{{ define "dscard" }}
+<div class="{{ .Card }}">
+  {{ if .HasImg }}<div class="{{ .Col }}"><div class="{{ .Img }}"><a href="/article/{{ .A.ID }}" aria-label="{{ .A.Title }}">{{ template "ds_pic" .A }}</a></div></div>{{ end }}
+  <div class="{{ .Content }}">
+    {{ range fields .Order }}
+      {{ if eq . "title" }}
+        {{ if eq $.Tag "h1" }}<h1 class="{{ $.TitleCls }}"><a href="/article/{{ $.A.ID }}">{{ $.A.Title }}</a></h1>
+        {{ else if eq $.Tag "h2" }}<h2 class="{{ $.TitleCls }}"><a href="/article/{{ $.A.ID }}">{{ $.A.Title }}</a></h2>
+        {{ else if eq $.Tag "h3" }}<h3 class="{{ $.TitleCls }}"><a href="/article/{{ $.A.ID }}">{{ $.A.Title }}</a></h3>
+        {{ else if eq $.Tag "h4" }}<h4 class="{{ $.TitleCls }}"><a href="/article/{{ $.A.ID }}">{{ $.A.Title }}</a></h4>
+        {{ else }}<h5 class="{{ $.TitleCls }}"><a href="/article/{{ $.A.ID }}">{{ $.A.Title }}</a></h5>{{ end }}
+      {{ else if eq . "intro" }}<div class="{{ $.IntroCls }}">{{ template "ds_intro" $.A }}</div>
+      {{ else if eq . "info" }}{{ template "ds_info" $.A }}{{ end }}
+    {{ end }}
   </div>
 </div>
 {{ end }}

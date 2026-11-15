@@ -270,6 +270,8 @@ func templateFuncs() template.FuncMap {
 		"dsDateTime":         dsDateTime,
 		"dsAgo":              dsAgo,
 		"part":               part,
+		"at":                 at,
+		"fields":             fields,
 		"videoPart":          videoPart,
 		"outletLabel":        outletLabel,
 		"hitCount":           hitCount,
