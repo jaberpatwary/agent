@@ -24,7 +24,7 @@
     <div class="news-section section-spacer mt-5">
       <div class="row"><div class="column small-12">
         <div class="section-title-wrapper"><h2 class="section-title">{{ if .Query }}“{{ .Query }}”{{ else if .Category }}{{ categoryLabel .Category }}{{ else }}সর্বশেষ{{ end }}</h2></div>
-        <p class="ds-empty">{{ if .Query }}এই শব্দে কোনো খবর পাওয়া যায়নি। অন্য শব্দে খুঁজে দেখুন।{{ else }}এই বিভাগে এখনো কোনো খবর নেই।{{ end }} <a href="/">প্রথম পাতায় ফিরে যান</a></p>
+        <p class="ds-empty">{{ if .Query }}এই শব্দে কোনো খবর পাওয়া যায়নি। অন্য শব্দে খুঁজে দেখুন।{{ else }}এই বিভাগে এখনো কোনো খবর নেই।{{ end }} <a href="/">প্রথম পাতায় ফিরে যান</a></p>
       </div></div>
     </div>
 
@@ -287,6 +287,23 @@
     {{ with index .Cat "education" }}{{ template "section31" (dict "Key" "education" "Title" "শিক্ষা" "List" .) }}{{ end }}
     {{ with index .Cat "environment" }}{{ template "section31" (dict "Key" "environment" "Title" "পরিবেশ" "List" .) }}{{ end }}
 
+    {{/* স্টার মাল্টিমিডিয়া: two large videos, then a row of five. */}}
+    {{ with .Multimedia }}
+    <div class="news-section-layout-30 news-section section-spacer ">
+      <div class="row">
+        <div class="column small-12">
+          <div class="section-title-wrapper"><h2 class="section-title"><a href="https://bangla.thedailystar.net/star-multimedia" target="_blank" rel="noopener"> স্টার মাল্টিমিডিয়া </a></h2></div>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {{ range videoPart . 0 2 }}{{ template "video_card" (dict "V" . "Tag" "h3") }}{{ end }}
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            {{ range videoPart . 2 7 }}{{ template "video_card" (dict "V" . "Tag" "h5") }}{{ end }}
+          </div>
+        </div>
+      </div>
+    </div>
+    {{ end }}
+
   {{ else if .Latest }}
     {{/* ======== সর্বশেষ, as The Daily Star's "Today's News" ======== */}}
     <article class="node">
@@ -481,6 +498,24 @@
   <div class="card-content">
     <h5 class="card-title "><a href="/article/{{ .ID }}">{{ .Title }}</a></h5>
     {{ template "ds_info" . }}
+  </div>
+</div>
+{{ end }}
+
+{{/* A video card of স্টার মাল্টিমিডিয়া. Takes V (the item) and Tag (h3 large, h5 small). */}}
+{{ define "video_card" }}
+<div class="card relative">
+  <div class="card-image-col">
+    <div class="card-image relative overflow-hidden aspect-video">
+      <a href="{{ .V.URL }}" target="_blank" rel="noopener" aria-label="{{ .V.Title }}"><img loading="lazy" decoding="async" src="{{ .V.Image }}" alt="{{ .V.Title }}" class="object-cover w-full h-full" onerror="dsImgFail(this)"></a>
+    </div>
+  </div>
+  <div class="card-content">
+    {{ if eq .Tag "h3" }}<h3 class="card-title "><a href="{{ .V.URL }}" target="_blank" rel="noopener">{{ .V.Title }}</a></h3>{{ else }}<h5 class="card-title "><a href="{{ .V.URL }}" target="_blank" rel="noopener">{{ .V.Title }}</a></h5>{{ end }}
+    <div class="card-info ">
+      <span><time datetime="{{ .V.Time }}">{{ .V.When }}</time></span>
+      {{ with .V.Label }}<span class="flex items-center gap-[4px]"><span class="rounded-full bg-gray_7"></span> {{ . }}</span>{{ end }}
+    </div>
   </div>
 </div>
 {{ end }}

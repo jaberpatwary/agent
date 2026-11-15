@@ -269,6 +269,7 @@ func templateFuncs() template.FuncMap {
 		"dsDateTime":         dsDateTime,
 		"dsAgo":              dsAgo,
 		"part":               part,
+		"videoPart":          videoPart,
 		"outletLabel":        outletLabel,
 		"hitCount":           hitCount,
 		"dict":               dict,

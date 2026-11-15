@@ -78,9 +78,14 @@ func (h *PublicHandler) Home(c *gin.Context) {
 		cats["analysis"] = topUp(cats["analysis"], part(cats["opinion"], 2, 14), 5)
 	}
 	mostRead := h.mostRead(category, 5)
+	var videos []MultimediaItem
+	if front {
+		videos = multimedia.get()
+	}
 
 	c.HTML(http.StatusOK, "index.html", gin.H{
 		"Front":        front,
+		"Multimedia":   videos,
 		"Latest":       latest,
 		"Cat":          cats,
 		"MostRead":     mostRead,
