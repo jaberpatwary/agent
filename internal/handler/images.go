@@ -42,3 +42,29 @@ func serveImages(dir string, backup imagestore.Backup) gin.HandlerFunc {
 		c.Status(http.StatusNotFound)
 	}
 }
+
+// photoCheck reports whether a story's photo can be served: remote and empty
+// addresses pass, a cached photo passes when its file exists or can be
+// brought back from the backup. The front page leaves out a story whose
+// cached photo is gone, because a blank grey box (and a header card with no
+// thumbnail) does not look like The Daily Star.
+func photoCheck(dir string, backup imagestore.Backup) func(string) bool {
+	return func(imageURL string) bool {
+		if !strings.HasPrefix(imageURL, "/img/") {
+			return true
+		}
+		name := filepath.Base(imageURL)
+		path := filepath.Join(dir, name)
+		if _, err := os.Stat(path); err == nil {
+			return true
+		}
+		if backup != nil {
+			if data, _, err := backup.Load(name); err == nil && len(data) > 0 {
+				_ = os.MkdirAll(dir, 0o755)
+				_ = os.WriteFile(path, data, 0o644)
+				return true
+			}
+		}
+		return false
+	}
+}

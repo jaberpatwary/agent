@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"bangla-news-aggregator/internal/domain"
+	"bangla-news-aggregator/internal/imagestore"
 	"bangla-news-aggregator/internal/repository"
 	"bangla-news-aggregator/internal/usecase"
 )
@@ -24,10 +25,37 @@ type PublicHandler struct {
 	articleUC usecase.ArticleUsecase
 	popular   repository.PopularRepository // optional; the source outlets' most-read lists
 	baseURL   string                       // may be empty if PUBLIC_BASE_URL isn't configured; callers fall back to relative URLs
+	photoOK   func(string) bool            // optional: false when a story's cached photo is gone
 }
 
 func NewPublicHandler(articleUC usecase.ArticleUsecase, baseURL string) *PublicHandler {
 	return &PublicHandler{articleUC: articleUC, baseURL: strings.TrimRight(baseURL, "/")}
+}
+
+// SetPhotoCheck makes the listings skip stories whose cached photo is gone.
+func (h *PublicHandler) SetPhotoCheck(dir string, backup imagestore.Backup) {
+	h.photoOK = photoCheck(dir, backup)
+}
+
+// withPhotos drops the stories whose photo cannot be served and keeps at most
+// max (0 means all).
+func (h *PublicHandler) withPhotos(list []domain.Article, max int) []domain.Article {
+	if h.photoOK == nil {
+		if max > 0 && len(list) > max {
+			return list[:max]
+		}
+		return list
+	}
+	out := make([]domain.Article, 0, len(list))
+	for _, a := range list {
+		if h.photoOK(a.ImageURL) {
+			out = append(out, a)
+		}
+	}
+	if max > 0 && len(out) > max {
+		out = out[:max]
+	}
+	return out
 }
 
 // homeCategories are the front page's category blocks, in the Daily Star
@@ -58,6 +86,7 @@ func (h *PublicHandler) Home(c *gin.Context) {
 	} else {
 		articles, total, err = h.articleUC.List(page, 20, category, "published")
 	}
+	articles = h.withPhotos(articles, 0)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html", gin.H{"message": "নিবন্ধ লোড করা যায়নি"})
 		return
@@ -68,7 +97,7 @@ func (h *PublicHandler) Home(c *gin.Context) {
 	if front {
 		for _, key := range homeCategories {
 			if list, _, err := h.articleUC.List(1, 14, key, "published"); err == nil {
-				cats[key] = list
+				cats[key] = h.withPhotos(list, 0)
 			}
 		}
 		// সংস্কৃতি and বিশ্লেষণ are thin in the outlets' feeds; like The Daily
@@ -103,11 +132,11 @@ func (h *PublicHandler) Home(c *gin.Context) {
 
 // headerNews are the three newest stories shown in every page's masthead.
 func (h *PublicHandler) headerNews() []domain.Article {
-	list, _, err := h.articleUC.List(1, 3, "", "published")
+	list, _, err := h.articleUC.List(1, 8, "", "published")
 	if err != nil {
 		return nil
 	}
-	return list
+	return h.withPhotos(list, 3)
 }
 
 // ArticleDetail renders a single article by ID.
@@ -155,7 +184,7 @@ func (h *PublicHandler) ArticleDetail(c *gin.Context) {
 	}
 
 	var latest []domain.Article
-	if list, _, err := h.articleUC.List(1, 6, "", "published"); err == nil {
+	if list, _, err := h.articleUC.List(1, 10, "", "published"); err == nil {
 		for _, a := range list {
 			if a.ID != article.ID && len(latest) < 5 {
 				latest = append(latest, a)

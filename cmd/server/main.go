@@ -71,6 +71,7 @@ func main() {
 
 	// ---- HTTP handlers & router ----
 	publicH := handler.NewPublicHandler(articleUC, cfg.PublicBaseURL)
+	publicH.SetPhotoCheck(cfg.ImageStorageDir, imageBackup)
 	publicH.SetPopular(repository.NewPopularRepository(db))
 	adminH := handler.NewAdminHandler(authUC, articleUC, feedUC, settingsUC, usageUC, worker, cfg.JWTExpiry)
 	// ---- Agentic news desk (see internal/agentic) ----

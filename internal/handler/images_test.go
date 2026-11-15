@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bangla-news-aggregator/internal/domain"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -51,5 +52,32 @@ func TestImageFileLostOnRestartComesBackFromTheBackup(t *testing.T) {
 	}
 	if w := get("/img/.hidden"); w.Code != 404 {
 		t.Fatalf("dotfile: %d", w.Code)
+	}
+}
+
+func TestStoriesWithALostPhotoAreLeftOutOfTheListings(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "ok.jpg"), []byte("x"), 0o644)
+	backup := memBackup{"saved.jpg": []byte("y")}
+	h := &PublicHandler{}
+	h.SetPhotoCheck(dir, backup)
+
+	mk := func(img string) domain.Article { return domain.Article{Title: img, ImageURL: img} }
+	in := []domain.Article{mk("/img/ok.jpg"), mk("/img/lost.jpg"), mk("/img/saved.jpg"), mk("https://cdn.example/a.jpg"), mk("")}
+	out := h.withPhotos(in, 0)
+	if len(out) != 4 {
+		t.Fatalf("kept %d stories, want 4 (only the lost photo is dropped): %+v", len(out), out)
+	}
+	for _, a := range out {
+		if a.ImageURL == "/img/lost.jpg" {
+			t.Fatal("the story with a lost photo was kept")
+		}
+	}
+	if len(h.withPhotos(in, 2)) != 2 {
+		t.Fatal("the cap was ignored")
+	}
+	// Without a check (tests, hosts without caching) nothing is dropped.
+	if len((&PublicHandler{}).withPhotos(in, 0)) != 5 {
+		t.Fatal("stories were dropped without a photo check")
 	}
 }
