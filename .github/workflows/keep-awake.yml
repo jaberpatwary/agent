@@ -1,0 +1,19 @@
+name: keep-awake
+
+# Render's free web services sleep after 15 minutes without a visit, and a
+# sleeping n8n never fires its 15-minute schedule. This pings the hosted n8n
+# every 10 minutes so the news desk keeps running. It needs no secrets.
+# The portal is not pinged: n8n calls it on every run, which wakes it.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping n8n
+        run: curl -fsS --retry 3 --retry-delay 20 --max-time 90 https://bangla-news-n8n.onrender.com/healthz
