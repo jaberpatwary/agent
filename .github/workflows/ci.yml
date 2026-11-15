@@ -1,0 +1,34 @@
+name: ci
+
+# Builds, vets and tests every push and pull request. Render deploys main on
+# its own (autoDeploy); a red run here is the signal not to ship that commit.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # cmd/tools holds one-off scripts that each declare main, so they are
+      # not built as a set. The server and everything under internal/ are.
+      - name: Build
+        run: go build ./cmd/server ./internal/...
+      - name: Vet
+        run: go vet ./cmd/server ./internal/...
+      - name: Test
+        run: go test ./internal/... -count=1
+      - name: Docker images build
+        run: |
+          docker build -t portal-ci .
+          docker build -t n8n-ci n8n
