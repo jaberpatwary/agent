@@ -1,20 +1,20 @@
-// Jenkins pipeline for the same checks as .github/workflows/ci.yml, for a
-// Jenkins server with Docker. It tests inside a Go container, builds both
-// images, and on main can trigger the Render deploy.
+// CI/CD pipeline, run by the Jenkins container in docker/jenkins (docker
+// compose --profile ci up -d jenkins). It polls the repository every two
+// minutes, tests main, builds both images, and then asks Render to deploy.
 //
-// To let main deploy: add a "Secret text" credential with id
-// render-deploy-hook holding the service's Deploy Hook URL (Render dashboard
-// -> service -> Settings). Without it the Deploy stage is skipped.
+// Render also deploys main by itself when it sees a push. The Deploy Hook
+// stage matters when that automatic deploy is switched off, so a commit ships
+// only after the tests above it pass: put the service's Deploy Hook URL in
+// RENDER_DEPLOY_HOOK in .env. Without it the stage is skipped.
 pipeline {
   agent any
-  options { timeout(time: 20, unit: 'MINUTES'); disableConcurrentBuilds() }
+  options { timeout(time: 25, unit: 'MINUTES'); disableConcurrentBuilds(); timestamps() }
 
   stages {
     stage('Test') {
-      agent { docker { image 'golang:1.25-alpine'; reuseNode true; args '-e GOCACHE=/tmp/gocache -e GOPATH=/tmp/gopath' } }
       steps {
-        sh 'apk add --no-cache git >/dev/null'
-        // cmd/tools holds one-off scripts that each declare main.
+        // cmd/tools holds one-off scripts that each declare main, so only the
+        // server and internal/ are built as a set.
         sh 'go build ./cmd/server ./internal/...'
         sh 'go vet ./cmd/server ./internal/...'
         sh 'go test ./internal/... -count=1'
@@ -29,16 +29,16 @@ pipeline {
     }
 
     stage('Deploy') {
-      when { branch 'main' }
+      when { expression { (env.GIT_BRANCH ?: '').endsWith('main') } }
       steps {
-        script {
-          try {
-            withCredentials([string(credentialsId: 'render-deploy-hook', variable: 'HOOK')]) {
-              sh 'curl -fsS -X POST "$HOOK"'
-            }
-          } catch (e) {
-            echo 'No render-deploy-hook credential: Render deploys main by itself, skipping.'
-          }
+        withCredentials([string(credentialsId: 'render-deploy-hook', variable: 'HOOK')]) {
+          sh '''
+            if [ "$HOOK" = "none" ]; then
+              echo "No Render deploy hook set: Render deploys main by itself."
+            else
+              curl -fsS -X POST "$HOOK" >/dev/null && echo "Render deploy triggered"
+            fi
+          '''
         }
       }
     }

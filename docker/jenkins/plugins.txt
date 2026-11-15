@@ -1,0 +1,7 @@
+workflow-aggregator
+git
+configuration-as-code
+job-dsl
+credentials-binding
+plain-credentials
+timestamper

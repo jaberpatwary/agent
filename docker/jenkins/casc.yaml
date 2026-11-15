@@ -1,0 +1,45 @@
+jenkins:
+  systemMessage: "CI/CD for the Bangla news portal. Pipeline: Jenkinsfile in the repository."
+  numExecutors: 2
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: admin
+          password: "${JENKINS_ADMIN_PASSWORD}"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+unclassified:
+  location:
+    url: "http://localhost:8090/"
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          # Deploy Hook URL of the Render service; "none" skips the deploy stage.
+          - string:
+              scope: GLOBAL
+              id: render-deploy-hook
+              description: Render deploy hook
+              secret: "${RENDER_DEPLOY_HOOK:-none}"
+
+jobs:
+  - script: >
+      pipelineJob('bangla-news-portal') {
+        description('Build, vet, test, build both images, then deploy main')
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote { url('https://github.com/jaberpatwary/agent.git') }
+                branch('*/main')
+              }
+            }
+            scriptPath('Jenkinsfile')
+          }
+        }
+        triggers { scm('H/2 * * * *') }
+      }

@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help start stop status logs host-start host-stop
+.PHONY: help start stop status logs host-start host-stop jenkins
 
 PS := powershell.exe -NoProfile -ExecutionPolicy Bypass
 
@@ -10,6 +10,7 @@ help:
 	@echo make logs       - follow the app log - press Ctrl+C to quit
 	@echo make host-start - resume the hosted Render service
 	@echo make host-stop  - suspend the hosted Render service
+	@echo make jenkins    - start Jenkins CI/CD on http://localhost:8090
 
 start:
 	$(PS) -File scripts/start.ps1
@@ -22,6 +23,9 @@ status:
 
 logs:
 	docker compose logs -f app
+
+jenkins:
+	docker compose --profile ci up -d --build jenkins
 
 host-start:
 	$(PS) -File scripts/render-control.ps1 -Action resume
