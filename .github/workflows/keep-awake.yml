@@ -1,9 +1,14 @@
 name: keep-awake
 
-# Render's free web services sleep after 15 minutes without a visit, and a
-# sleeping n8n never fires its 15-minute schedule. This pings the hosted n8n
-# every 10 minutes so the news desk keeps running. It needs no secrets.
-# The portal is not pinged: n8n calls it on every run, which wakes it.
+# Render's free web services sleep after 15 minutes without a visit. A
+# sleeping n8n never fires its 15-minute schedule, and a sleeping portal
+# takes up to a minute to answer the first visitor. This pings both every
+# 10 minutes. It needs no secrets.
+#
+# Note: Render's free plan has 750 instance-hours a month for the whole
+# workspace. Two services kept awake all day use ~1,440 hours a month, so
+# they would be suspended partway through the month. Remove the portal ping
+# if only n8n has to stay awake.
 
 on:
   schedule:
@@ -13,7 +18,9 @@ on:
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 4
     steps:
       - name: Ping n8n
         run: curl -fsS --retry 3 --retry-delay 20 --max-time 90 https://bangla-news-n8n.onrender.com/healthz
+      - name: Ping portal
+        run: curl -fsS --retry 3 --retry-delay 20 --max-time 90 https://bangla-news-portal.onrender.com/health
