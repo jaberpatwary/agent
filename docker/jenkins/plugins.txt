@@ -6,3 +6,4 @@ credentials-binding
 plain-credentials
 timestamper
 pipeline-graph-view
+pipeline-stage-view

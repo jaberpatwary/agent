@@ -11,24 +11,32 @@ pipeline {
   options { timeout(time: 25, unit: 'MINUTES'); disableConcurrentBuilds(); timestamps() }
 
   stages {
-    stage('Test') {
-      steps {
-        // cmd/tools holds one-off scripts that each declare main, so only the
-        // server and internal/ are built as a set.
-        sh 'go build ./cmd/server ./internal/...'
-        sh 'go vet ./cmd/server ./internal/...'
-        sh 'go test ./internal/... -count=1'
+    // cmd/tools holds one-off scripts that each declare main, so only the
+    // server and internal/ are built as a set.
+    stage('🔨 Build') {
+      steps { sh 'go build ./cmd/server ./internal/...' }
+    }
+
+    stage('🔍 Vet') {
+      steps { sh 'go vet ./cmd/server ./internal/...' }
+    }
+
+    stage('🧪 Unit Tests') {
+      steps { sh 'go test ./internal/... -count=1' }
+    }
+
+    stage('🐳 Docker Images') {
+      parallel {
+        stage('Portal Image') {
+          steps { sh 'docker build -t portal-ci:${BUILD_NUMBER} .' }
+        }
+        stage('n8n Image') {
+          steps { sh 'docker build -t n8n-ci:${BUILD_NUMBER} n8n' }
+        }
       }
     }
 
-    stage('Docker images') {
-      steps {
-        sh 'docker build -t portal-ci:${BUILD_NUMBER} .'
-        sh 'docker build -t n8n-ci:${BUILD_NUMBER} n8n'
-      }
-    }
-
-    stage('Deploy') {
+    stage('🚀 Deploy') {
       when { expression { (env.GIT_BRANCH ?: '').endsWith('main') } }
       steps {
         withCredentials([string(credentialsId: 'render-deploy-hook', variable: 'HOOK')]) {
