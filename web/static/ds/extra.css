@@ -99,3 +99,7 @@ a.gs-title b, .gs-snippet b { font-weight: 700; }
   .block-author-info-block .ds-source { flex: 1 1 100%; }
   .block-author-info-block > div { flex-wrap: wrap; }
 }
+
+/* The সর্বশেষ | সর্বাধিক পঠিত box under a category page's opening block, for
+   layouts too wide to share a row with it. */
+.ds-tab-below { max-width: 420px; margin: 8px 0 40px; }

@@ -346,7 +346,7 @@
         </div>
         {{ else }}
         {{ template "cat_block" $first }}
-        <div class="max-w-[420px] mb-10">
+        <div class="ds-tab-below">
           {{ template "tab_box" (dict "Id" "section" "Latest" .TabLatest "Most" .MostRead) }}
         </div>
         {{ end }}
