@@ -43,3 +43,19 @@ jobs:
         }
         triggers { scm('H/2 * * * *') }
       }
+  - script: >
+      pipelineJob('keep-awake') {
+        description('Pings the hosted portal and n8n every 5 minutes so Render never puts them to sleep')
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote { url('https://github.com/jaberpatwary/agent.git') }
+                branch('*/main')
+              }
+            }
+            scriptPath('Jenkinsfile.keepawake')
+          }
+        }
+        triggers { cron('H/5 * * * *') }
+      }

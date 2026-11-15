@@ -1,0 +1,15 @@
+// Pings the hosted portal and n8n every 5 minutes (job "keep-awake" in
+// docker/jenkins/casc.yaml). Render's free plan puts a service to sleep after
+// 15 minutes without a visit, and a sleeping n8n never starts its schedule.
+pipeline {
+  agent any
+  options { timeout(time: 4, unit: 'MINUTES') }
+  stages {
+    stage('Ping') {
+      steps {
+        sh 'curl -fsS --retry 2 --max-time 90 https://bangla-news-n8n.onrender.com/healthz'
+        sh 'curl -fsS --retry 2 --max-time 90 https://bangla-news-portal.onrender.com/health'
+      }
+    }
+  }
+}
