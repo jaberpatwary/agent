@@ -158,7 +158,7 @@ func (w *worker) build(ctx context.Context, it rss.Item, source string) (Article
 	if image == "" {
 		image = it.ImageURL
 	}
-	if image == "" {
+	if image == "" || placeholderImage(image) {
 		return Article{}, false // The Daily Star shows every story with a photo
 	}
 	if w.images != nil {
@@ -295,4 +295,11 @@ func (w *worker) loop(ctx context.Context) {
 		case <-tick.C:
 		}
 	}
+}
+
+// placeholderImage reports an outlet's stand-in picture (its logo, shown
+// when a story has no photo of its own).
+func placeholderImage(u string) bool {
+	l := strings.ToLower(u)
+	return strings.Contains(l, "logo") || strings.Contains(l, "default-image") || strings.Contains(l, "placeholder")
 }

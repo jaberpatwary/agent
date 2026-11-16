@@ -164,3 +164,14 @@ func TestEPaperDraws(t *testing.T) {
 	}
 	draw(t, "en_epaper.html", map[string]any{"NoEdition": true, "View": 1, "Page": 1})
 }
+
+func TestOutletLogosAreNotPhotos(t *testing.T) {
+	for _, u := range []string{"https://images.thedailystar.net/sites/default/files/uploads/2023/06/18/ds-logo-share.jpeg", "https://x.com/default-image.png"} {
+		if !placeholderImage(u) {
+			t.Errorf("%s taken for a photo", u)
+		}
+	}
+	if placeholderImage("https://www.thedailystar.net/sites/default/files/styles/big_201/public/images/2026/11/16/rally.jpg") {
+		t.Error("a real photo was taken for a logo")
+	}
+}

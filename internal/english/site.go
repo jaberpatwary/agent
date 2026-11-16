@@ -96,13 +96,13 @@ func (s *site) notFound(c *gin.Context) {
 
 func (s *site) latest(n int) []Article {
 	var out []Article
-	s.db.Order("published_at desc").Limit(n).Find(&out)
+	s.listed().Order("published_at desc").Limit(n).Find(&out)
 	return out
 }
 
 func (s *site) stories(section, sub string, limit int) []Article {
 	var out []Article
-	q := s.db.Order("published_at desc").Limit(limit)
+	q := s.listed().Order("published_at desc").Limit(limit)
 	switch {
 	case section == "youth":
 		// The outlets have no youth desk: campus and education news stands in.
@@ -180,8 +180,8 @@ func (s *site) todays(c *gin.Context) {
 	}
 	var list []Article
 	var total int64
-	s.db.Model(&Article{}).Count(&total)
-	s.db.Order("published_at desc").Offset((page - 1) * 20).Limit(20).Find(&list)
+	s.listed().Model(&Article{}).Count(&total)
+	s.listed().Order("published_at desc").Offset((page - 1) * 20).Limit(20).Find(&list)
 	s.render(c, http.StatusOK, "en_todays.html", map[string]any{
 		"List": list, "Page": page, "HasMore": int64(page*20) < total, "Canonical": "/en/todays-news",
 	})
@@ -198,7 +198,7 @@ func (s *site) search(c *gin.Context) {
 	var total int64
 	if q != "" {
 		like := "%" + strings.ToLower(q) + "%"
-		where := s.db.Model(&Article{}).Where("LOWER(title) LIKE ? OR LOWER(summary) LIKE ?", like, like)
+		where := s.listed().Model(&Article{}).Where("LOWER(title) LIKE ? OR LOWER(summary) LIKE ?", like, like)
 		where.Count(&total)
 		where.Order("published_at desc").Offset((page - 1) * 10).Limit(10).Find(&list)
 	}
@@ -224,8 +224,8 @@ func (s *site) article(c *gin.Context) {
 		return
 	}
 	var related, picks []Article
-	s.db.Where("section = ? AND sub = ? AND id <> ?", a.Section, a.Sub, a.ID).Order("published_at desc").Limit(5).Find(&related)
-	s.db.Where("id <> ?", a.ID).Order("published_at desc").Limit(5).Find(&picks)
+	s.listed().Where("section = ? AND sub = ? AND id <> ?", a.Section, a.Sub, a.ID).Order("published_at desc").Limit(5).Find(&related)
+	s.listed().Where("id <> ?", a.ID).Order("published_at desc").Limit(5).Find(&picks)
 	s.render(c, http.StatusOK, "en_article.html", map[string]any{
 		"A": a, "Related": related, "Picks": picks, "Canonical": "/en/article/" + a.ID.String(),
 	})
@@ -301,4 +301,10 @@ func (s *site) epaper(c *gin.Context) {
 	s.render(c, http.StatusOK, "en_epaper.html", map[string]any{
 		"Date": ed.Date, "Day": day, "Pages": drawn, "Page": pg, "View": view, "Dates": dates,
 	})
+}
+
+// listed is the stories the lists show: not those stored with an outlet's
+// logo for a photo before such stories were left out.
+func (s *site) listed() *gorm.DB {
+	return s.db.Where("image_url NOT ILIKE ?", "%logo%")
 }
