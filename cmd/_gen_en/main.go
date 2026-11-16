@@ -85,7 +85,16 @@ func clean(s *goquery.Selection) {
 	})
 	s.Find("[data-drupal-link-system-path]").RemoveAttr("data-drupal-link-system-path")
 	s.Find("[hreflang]").RemoveAttr("hreflang")
-	s.Find("a[href]").Each(func(_ int, a *goquery.Selection) { a.SetAttr("href", mapHref(attr(a, "href"))) })
+	s.Find("a[href]").Each(func(_ int, a *goquery.Selection) {
+		href := mapHref(attr(a, "href"))
+		a.SetAttr("href", href)
+		// The portal's own pages (বাংলা, E-paper, Today's News) open in the
+		// same tab: a new window would be taken over by the installed app.
+		if strings.HasPrefix(href, "/") {
+			a.RemoveAttr("target")
+			a.RemoveAttr("rel")
+		}
+	})
 	s.Find("form[action]").Each(func(_ int, f *goquery.Selection) { f.SetAttr("action", mapHref(attr(f, "action"))) })
 	s.Find("img[src*='logo']").SetAttr("src", "/en/static/logo.svg")
 }
