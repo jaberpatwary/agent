@@ -86,7 +86,9 @@ var blockSubs = map[string]string{
 	"cricket":        "cricket", "football": "football", "tennis": "tennis", "other sports": "more-sports",
 	"fashion & beauty": "fashion-beauty", "travel": "travelogue", "food & recipes": "food-recipes",
 	"health & fitness": "health-fitness",
-	"entertainment":    "entertainment", "books & literature": "books-literature", "heritage": "heritage",
+	"in focus":         "focus", "big picture": "big-picture", "wisdom": "wisdom", "unheard voices": "unheard-voices",
+	"geopolitical insights": "geopolitical-insights",
+	"entertainment":         "entertainment", "books & literature": "books-literature", "heritage": "heritage",
 	"tv & film": "tv-film", "music": "music", "theatre & arts": "theatre-arts",
 }
 
@@ -99,6 +101,18 @@ type pathRule struct {
 // pathRules read a story's place from its address at the source; the first
 // match wins, so the specific ones come first.
 var pathRules = []pathRule{
+	{"/slow-reads/geopolitical", "slow-reads", "geopolitical-insights"},
+	{"/slow-reads/big-picture", "slow-reads", "big-picture"},
+	{"/slow-reads/unheard", "slow-reads", "unheard-voices"},
+	{"/slow-reads/wisdom", "slow-reads", "wisdom"},
+	{"/slow-reads", "slow-reads", "focus"},
+	{"/youth/academics", "youth", "academics"},
+	{"/youth/career", "youth", "career-skills"},
+	{"/youth/campus", "youth", "campus-life"},
+	{"/youth/off-campus", "youth", "off-campus"},
+	{"/youth/pop", "youth", "pop-culture"},
+	{"/youth", "youth", "campus-life"},
+	{"/tech-startup", "news", "technology"},
 	{"/editorial", "opinion", "editorial"},
 	{"/interview", "opinion", "interviews"},
 	{"/tribute", "opinion", "tribute"},

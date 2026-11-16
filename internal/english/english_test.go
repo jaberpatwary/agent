@@ -107,7 +107,7 @@ func TestEveryPageDraws(t *testing.T) {
 		blocks := fillSection(specs, all, sec.Label, "/en/"+sec.Key, sec, key == "sub")
 		out := draw(t, "en_section.html", map[string]any{"Title": sec.Label, "Href": "/en/" + sec.Key, "Blocks": blocks, "List": all[:5], "Page": 1, "HasMore": true})
 		for _, sp := range specs {
-			if !strings.Contains(out, fmt.Sprintf("news-section-layout-%d", sp.Layout)) {
+			if !strings.Contains(out, fmt.Sprintf("-layout-%d", sp.Layout)) {
 				t.Errorf("%s page lacks layout %d", key, sp.Layout)
 			}
 		}

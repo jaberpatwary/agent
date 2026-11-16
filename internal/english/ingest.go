@@ -29,17 +29,34 @@ type Source struct{ Name, Feed string }
 var sources = []Source{
 	{"The Daily Star", "https://www.thedailystar.net/frontpage/rss.xml"},
 	{"The Daily Star", "https://www.thedailystar.net/rss.xml"},
-	{"The Business Standard", "https://www.tbsnews.net/top-news/rss.xml"},
+	{"The Daily Star", "https://www.thedailystar.net/news/bangladesh/rss.xml"},
+	{"The Daily Star", "https://www.thedailystar.net/news/politics/rss.xml"},
+	{"The Daily Star", "https://www.thedailystar.net/news/crime-justice/rss.xml"},
+	{"The Daily Star", "https://www.thedailystar.net/news/accidents-and-fires/rss.xml"},
+	{"The Daily Star", "https://www.thedailystar.net/news/world/rss.xml"},
+	{"The Daily Star", "https://www.thedailystar.net/business/rss.xml"},
+	{"The Daily Star", "https://www.thedailystar.net/sports/rss.xml"},
+	{"The Daily Star", "https://www.thedailystar.net/opinion/rss.xml"},
+	{"The Daily Star", "https://www.thedailystar.net/opinion/editorial/rss.xml"},
+	{"The Daily Star", "https://www.thedailystar.net/life-living/rss.xml"},
+	{"The Daily Star", "https://www.thedailystar.net/entertainment/rss.xml"},
+	{"The Daily Star", "https://www.thedailystar.net/culture/rss.xml"},
+	{"The Daily Star", "https://www.thedailystar.net/tech-startup/rss.xml"},
+	{"The Daily Star", "https://www.thedailystar.net/environment/rss.xml"},
+	{"The Daily Star", "https://www.thedailystar.net/health/rss.xml"},
+	{"The Daily Star", "https://www.thedailystar.net/youth/rss.xml"},
 	{"Dhaka Tribune", "https://www.dhakatribune.com/feed/"},
 	{"Prothom Alo English", "https://en.prothomalo.com/feed/"},
+	{"Prothom Alo English", "https://en.prothomalo.com/stories.rss"},
+	{"The Business Standard", "https://www.tbsnews.net/top-news/rss.xml"},
 	{"Daily Observer", "https://www.observerbd.com/rss.php"},
 	{"New Age", "https://www.newagebd.net/news-sitemap/1.xml"},
 }
 
 const (
-	perRunNew       = 14 // new stories looked at per run
-	perSourcePerRun = 4  // so one busy outlet cannot fill the page
-	maxAge          = 36 * time.Hour
+	perRunNew       = 40 // new stories looked at per run
+	perSourcePerRun = 5  // per feed, so one busy feed cannot fill the page
+	maxAge          = 96 * time.Hour
 )
 
 type worker struct {
@@ -54,6 +71,7 @@ type worker struct {
 func (w *worker) run(ctx context.Context) {
 	var found []rss.Item
 	names := map[string]string{}
+	feeds := map[string]string{}
 	for _, src := range sources {
 		items, err := w.rss.Fetch(ctx, src.Feed)
 		if err != nil {
@@ -69,6 +87,7 @@ func (w *worker) run(ctx context.Context) {
 				continue
 			}
 			names[it.Link] = src.Name
+			feeds[it.Link] = src.Feed
 			found = append(found, it)
 			n++
 		}
@@ -85,15 +104,15 @@ func (w *worker) run(ctx context.Context) {
 		if added >= perRunNew || ctx.Err() != nil {
 			break
 		}
-		name := names[it.Link]
-		if seen[it.Link] || perSource[name] >= perSourcePerRun {
+		name, feed := names[it.Link], feeds[it.Link]
+		if seen[it.Link] || perSource[feed] >= perSourcePerRun {
 			continue
 		}
 		seen[it.Link] = true
 		w.db.Create(&Seen{URL: it.Link})
 		if a, ok := w.build(ctx, it, name); ok {
 			if err := w.db.Create(&a).Error; err == nil {
-				perSource[name]++
+				perSource[feed]++
 				added++
 			}
 		}

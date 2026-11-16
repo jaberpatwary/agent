@@ -59,6 +59,16 @@ var pageBlocks = map[string][]BlockSpec{
 		{Key: "en_culture_5", Title: "Music", Layout: 30, Cards: 7},
 		{Key: "en_culture_6", Title: "Theatre & Arts", Layout: 30, Cards: 7},
 	},
+	"slow-reads": {
+		{Key: "en_slow-reads_0", Title: "Slow Reads", Layout: 1, Cards: 5},
+		{Key: "en_slow-reads_1", Title: "Slow Reads Special", Layout: 2, Cards: 4},
+		{Key: "en_slow-reads_2", Title: "", Layout: 3, Cards: 3},
+		{Key: "en_slow-reads_3", Title: "Big Picture", Layout: 2, Cards: 4},
+		{Key: "en_slow-reads_4", Title: "Wisdom", Layout: 2, Cards: 4},
+		{Key: "en_slow-reads_5", Title: "Unheard Voices", Layout: 4, Cards: 6},
+		{Key: "en_slow-reads_6", Title: "Geopolitical Insights", Layout: 2, Cards: 4},
+		{Key: "en_slow-reads_7", Title: "", Layout: 3, Cards: 3},
+	},
 	"sub": {
 		{Key: "en_sub_0", Title: "Politics", Layout: 31, Cards: 10},
 	},

@@ -28,11 +28,12 @@ var pages = []page{
 	{"d_sports.html", "sports"},
 	{"d_life.html", "lifestyle"},
 	{"d_culture.html", "culture"},
+	{"d_slow.html", "slow-reads"},
 	{"d_politics.html", "sub"}, // a sub-section page: one block, then the list
 }
 
 var (
-	layoutRe = regexp.MustCompile(`\bnews-section-layout-(\d+)\b`)
+	layoutRe = regexp.MustCompile(`\b(?:news-section|slow-read-section)-layout-(\d+)\b`)
 	dateRe   = regexp.MustCompile(`^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), [A-Z][a-z]+ \d{1,2}, \d{4}$`)
 )
 
@@ -56,7 +57,7 @@ func mapHref(h string) string {
 		return "/epaper"
 	case h == "/":
 		return "/en/"
-	case h == "/todays-news":
+	case h == "/todays-news" || h == "/top-news":
 		return "/en/todays-news"
 	case h == "/search":
 		return "/en/search"
@@ -231,12 +232,12 @@ func main() {
 		doc := load(dir, p.file)
 		fmt.Fprintf(&specs, "\t%q: {\n", p.key)
 		i := 0
-		doc.Find("div[class*='news-section-layout-']").Each(func(_ int, blk *goquery.Selection) {
+		doc.Find("div[class*='news-section-layout-'], div[class*='slow-read-section-layout-']").Each(func(_ int, blk *goquery.Selection) {
 			m := layoutRe.FindStringSubmatch(attr(blk, "class"))
-			if m == nil || blk.Closest("div[class*='news-section-layout-']").Get(0) != blk.Get(0) {
+			if m == nil || blk.Closest("div[class*='news-section-layout-'], div[class*='slow-read-section-layout-']").Get(0) != blk.Get(0) {
 				return
 			}
-			if blk.Parent().Closest("div[class*='news-section-layout-']").Length() > 0 {
+			if blk.Parent().Closest("div[class*='news-section-layout-'], div[class*='slow-read-section-layout-']").Length() > 0 {
 				return // nested
 			}
 			title := strings.Join(strings.Fields(blk.Find(".section-title").First().Text()), " ")

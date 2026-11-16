@@ -47,7 +47,9 @@ func Mount(r *gin.Engine, db *gorm.DB, cfg *config.Config, backup imagestore.Bac
 
 	if strings.EqualFold(os.Getenv("EN_WORKER"), "true") || (cfg.AppEnv == "production" && !strings.EqualFold(os.Getenv("EN_WORKER"), "false")) {
 		var images *imagestore.Store
-		if cfg.ImageStorageDir != "" {
+		// English photos are shown from their outlets by default: keeping a copy
+		// of each (and its database backup) would fill a free database fast.
+		if cfg.ImageStorageDir != "" && strings.EqualFold(os.Getenv("EN_CACHE_IMAGES"), "true") {
 			images = imagestore.New(cfg.ImageStorageDir, "/img")
 			images.Backup = backup
 		}

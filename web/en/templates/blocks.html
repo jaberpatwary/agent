@@ -1226,6 +1226,146 @@
 </div>
 {{ end }}
 
+{{ define "en_slow-reads_0" }}
+<div class="slow-read-block slow-read-section-layout-1 news-section section-spacer mt-5">
+<div class="row">
+<div class="column small-12">
+{{ if .Title }}<div class="section-title-wrapper"><h2 class="section-title"><a href="{{ .Href }}"> {{ .Title }} </a></h2></div>{{ end }}
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 border-b border-gray_2 pt-5 pb-5">
+<div class="col-span-12 lg:col-span-9">
+{{ with at .S 0 }}{{ template "en_card" (dict "A" . "Card" `card relative card-image-aside flex-col! lg:flex-row!` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content gap-[20px] !order-2 !justify-center !w-auto lg:!w-[46%]` "Tag" `h2` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro` "Order" `title info intro`) }}{{ end }}
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mt-6">
+{{ with at .S 1 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h5` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 2 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h5` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 3 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h5` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 4 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h5` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+</div>
+</div>
+</div>
+</div>
+{{ end }}
+
+{{ define "en_slow-reads_1" }}
+<div class="slow-read-block slow-read-section-layout-2 bg-black news-section mb-5">
+<div class="row">
+<div class="column small-12">
+{{ if .Title }}<div class="section-title-wrapper"><h2 class="section-title"><a href="{{ .Href }}"> {{ .Title }} </a></h2></div>{{ end }}
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+{{ with at .S 0 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 1 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 2 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 3 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+</div>
+</div>
+</div>
+</div>
+{{ end }}
+
+{{ define "en_slow-reads_2" }}
+<div class="slow-read-block slow-read-section-layout-3 news-section mb-5">
+<div class="row">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-5 p-5">
+<div class="col-span-1 col-start-0 lg:col-span-9 lg:col-start-2 mb-5">
+{{ with at .S 0 }}{{ template "en_card" (dict "A" . "Card" `card relative card-image-aside flex-col! lg:flex-row!` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content !gap-[20px] !order-2 !justify-center !w-auto lg:!w-[46%]` "Tag" `h2` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-4` "Order" `title info intro`) }}{{ end }}
+</div>
+<div class="col-span-1 col-start-0 lg:col-span-9 lg:col-start-2 mb-5">
+{{ with at .S 1 }}{{ template "en_card" (dict "A" . "Card" `card relative card-image-aside card-aside-feature !mb-0` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content !gap-[20px] !justify-center` "Tag" `h2` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-4` "Order" `title info intro`) }}{{ end }}
+</div>
+<div class="col-span-1 col-start-0 lg:col-span-9 lg:col-start-2 mb-5">
+{{ with at .S 2 }}{{ template "en_card" (dict "A" . "Card" `card relative card-image-aside flex-col! lg:flex-row!` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content !gap-[20px] !order-2 !justify-center !w-auto lg:!w-[46%]` "Tag" `h2` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-4` "Order" `title info intro`) }}{{ end }}
+</div>
+</div>
+</div>
+</div>
+{{ end }}
+
+{{ define "en_slow-reads_3" }}
+<div class="slow-read-block slow-read-section-layout-2 bg-black news-section mb-5">
+<div class="row">
+<div class="column small-12">
+{{ if .Title }}<div class="section-title-wrapper"><h2 class="section-title"><a href="{{ .Href }}"> {{ .Title }} </a></h2></div>{{ end }}
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+{{ with at .S 0 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 1 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 2 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 3 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+</div>
+</div>
+</div>
+</div>
+{{ end }}
+
+{{ define "en_slow-reads_4" }}
+<div class="slow-read-block slow-read-section-layout-2 bg-black news-section mt-5">
+<div class="row">
+<div class="column small-12">
+{{ if .Title }}<div class="section-title-wrapper"><h2 class="section-title"><a href="{{ .Href }}"> {{ .Title }} </a></h2></div>{{ end }}
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+{{ with at .S 0 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 1 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 2 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 3 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+</div>
+</div>
+</div>
+</div>
+{{ end }}
+
+{{ define "en_slow-reads_5" }}
+<div class="slow-read-block slow-read-section-layout-4 news-section section-spacer">
+<div class="row">
+<div class="column small-12">
+<div class="grid grid-cols-12 gap-6 mt-6">
+<div class="col-span-12 lg:col-span-10 gap-6 mt-6 grid grid-cols-1 lg:grid-cols-3">
+{{ with at .S 0 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-4` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 1 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-4` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 2 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-4` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 3 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-4` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 4 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-4` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 5 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-4` "Order" `title info intro`) }}{{ end }}
+</div>
+</div>
+</div>
+</div>
+</div>
+{{ end }}
+
+{{ define "en_slow-reads_6" }}
+<div class="slow-read-block slow-read-section-layout-2 bg-black news-section mb-5">
+<div class="row">
+<div class="column small-12">
+{{ if .Title }}<div class="section-title-wrapper"><h2 class="section-title"><a href="{{ .Href }}"> {{ .Title }} </a></h2></div>{{ end }}
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+{{ with at .S 0 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 1 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 2 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+{{ with at .S 3 }}{{ template "en_card" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h4` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-3` "Order" `title info intro`) }}{{ end }}
+</div>
+</div>
+</div>
+</div>
+{{ end }}
+
+{{ define "en_slow-reads_7" }}
+<div class="slow-read-block slow-read-section-layout-3 news-section mb-5">
+<div class="row">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-5 p-5">
+<div class="col-span-1 col-start-0 lg:col-span-9 lg:col-start-2 mb-5">
+{{ with at .S 0 }}{{ template "en_card" (dict "A" . "Card" `card relative card-image-aside flex-col! lg:flex-row!` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content !gap-[20px] !order-2 !justify-center !w-auto lg:!w-[46%]` "Tag" `h2` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-4` "Order" `title info intro`) }}{{ end }}
+</div>
+<div class="col-span-1 col-start-0 lg:col-span-9 lg:col-start-2 mb-5">
+{{ with at .S 1 }}{{ template "en_card" (dict "A" . "Card" `card relative card-image-aside card-aside-feature !mb-0` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content !gap-[20px] !justify-center` "Tag" `h2` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-4` "Order" `title info intro`) }}{{ end }}
+</div>
+<div class="col-span-1 col-start-0 lg:col-span-9 lg:col-start-2 mb-5">
+{{ with at .S 2 }}{{ template "en_card" (dict "A" . "Card" `card relative card-image-aside flex-col! lg:flex-row!` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content !gap-[20px] !order-2 !justify-center !w-auto lg:!w-[46%]` "Tag" `h2` "TitleCls" `card-title ` "IntroCls" `lp-0 card-intro line-clamp-4` "Order" `title info intro`) }}{{ end }}
+</div>
+</div>
+</div>
+</div>
+{{ end }}
+
 {{ define "en_sub_0" }}
 <div class="news-section-layout-31 news-section section-spacer mt-5">
 <div class="row">
@@ -1288,5 +1428,13 @@
 {{ else if eq .Key "en_culture_4" }}{{ template "en_culture_4" . }}
 {{ else if eq .Key "en_culture_5" }}{{ template "en_culture_5" . }}
 {{ else if eq .Key "en_culture_6" }}{{ template "en_culture_6" . }}
+{{ else if eq .Key "en_slow-reads_0" }}{{ template "en_slow-reads_0" . }}
+{{ else if eq .Key "en_slow-reads_1" }}{{ template "en_slow-reads_1" . }}
+{{ else if eq .Key "en_slow-reads_2" }}{{ template "en_slow-reads_2" . }}
+{{ else if eq .Key "en_slow-reads_3" }}{{ template "en_slow-reads_3" . }}
+{{ else if eq .Key "en_slow-reads_4" }}{{ template "en_slow-reads_4" . }}
+{{ else if eq .Key "en_slow-reads_5" }}{{ template "en_slow-reads_5" . }}
+{{ else if eq .Key "en_slow-reads_6" }}{{ template "en_slow-reads_6" . }}
+{{ else if eq .Key "en_slow-reads_7" }}{{ template "en_slow-reads_7" . }}
 {{ else if eq .Key "en_sub_0" }}{{ template "en_sub_0" . }}
 {{ end }}{{ end }}
