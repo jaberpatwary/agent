@@ -296,10 +296,12 @@ func (s *site) epaper(c *gin.Context) {
 		drawn = append(drawn, d)
 	}
 	var dates []string
-	s.db.Model(&Edition{}).Order("date desc").Limit(30).Pluck("date", &dates)
+	s.db.Model(&Edition{}).Order("date desc").Limit(366).Pluck("date", &dates)
 	day, _ := time.ParseInLocation("2006-01-02", ed.Date, dhaka)
 	s.render(c, http.StatusOK, "en_epaper.html", map[string]any{
 		"Date": ed.Date, "Day": day, "Pages": drawn, "Page": pg, "View": view, "Dates": dates,
+		"PrevDate": neighbour(dates, ed.Date, 1), "NextDate": neighbour(dates, ed.Date, -1),
+		"MinDate": last(dates), "MaxDate": first(dates), "AID": c.Query("aid"),
 	})
 }
 
@@ -307,4 +309,32 @@ func (s *site) epaper(c *gin.Context) {
 // logo for a photo before such stories were left out.
 func (s *site) listed() *gorm.DB {
 	return s.db.Where("image_url NOT ILIKE ? AND title NOT ILIKE ? AND title NOT ILIKE ?", "%logo%", "promotional content%", "sponsored%")
+}
+
+// neighbour returns the edition date step places from date in dates (newest
+// first): 1 is the day before, -1 the day after; "" when there is none.
+func neighbour(dates []string, date string, step int) string {
+	for i, d := range dates {
+		if d == date {
+			if j := i + step; j >= 0 && j < len(dates) {
+				return dates[j]
+			}
+			return ""
+		}
+	}
+	return ""
+}
+
+func first(s []string) string {
+	if len(s) == 0 {
+		return ""
+	}
+	return s[0]
+}
+
+func last(s []string) string {
+	if len(s) == 0 {
+		return ""
+	}
+	return s[len(s)-1]
 }

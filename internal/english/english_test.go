@@ -154,7 +154,7 @@ func TestEPaperDraws(t *testing.T) {
 	_ = raw
 	out := draw(t, "en_epaper.html", map[string]any{"Date": "2026-11-17", "Day": time.Date(2026, 11, 17, 0, 0, 0, 0, dhaka),
 		"Pages": drawn, "Page": 1, "View": 2, "Dates": []string{"2026-11-17", "2026-11-16"}})
-	for _, want := range []string{"np-front", "Journalism without fear or favour", "DHAKA TUESDAY, NOVEMBER 17, 2026", "data-story=", `<template id="st-`, "Dhaka Edition", "17/11/2026"} {
+	for _, want := range []string{"np-front", "Journalism without fear or favour", "DHAKA TUESDAY, NOVEMBER 17, 2026", "data-story=", `<template id="st-`, "Dhaka Edition", `value="2026-11-17"`, "INSIDE", "IN BRIEF", "Text view", "data-goto", "Fit width", "Photo: Collected"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("e-paper lacks %q", want)
 		}
@@ -182,5 +182,26 @@ func TestPaidContentIsNotNews(t *testing.T) {
 	}
 	if advertorial("Cement exports rise 12%") {
 		t.Error("a news headline taken for an advert")
+	}
+}
+
+func TestThinPagesAreLeftOut(t *testing.T) {
+	var all []Article
+	for i := 0; i < 12; i++ {
+		all = append(all, story("news", "politics", i, true))
+	}
+	all = append(all, story("sports", "cricket", 20, true), story("sports", "football", 21, true))
+	pages := layoutEdition(all)
+	for _, p := range pages {
+		if p.Name == "Sports" {
+			t.Fatalf("a Sports page with %d stories was laid out", len(p.Stories))
+		}
+	}
+	total := 0
+	for _, p := range pages {
+		total += len(p.Stories)
+	}
+	if total != len(all) {
+		t.Fatalf("%d of %d stories placed: the thin page's stories must go to a later page", total, len(all))
 	}
 }

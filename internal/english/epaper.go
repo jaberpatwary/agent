@@ -39,18 +39,21 @@ func anyStory(Article) bool     { return true }
 // editionPlan is the order of the printed pages. Front Page takes the day's
 // leading stories first; every other page takes what is left that fits it.
 var editionPlan = []pagePlan{
-	{"Front Page", 7, notOpinion},
-	{"City", 5, func(a Article) bool {
+	{"Front Page", 9, notOpinion},
+	{"City", 9, func(a Article) bool {
 		return in(a, "news", "crime-justice", "accidents-and-fires", "healthcare", "environment")
 	}},
-	{"Nation", 5, func(a Article) bool { return in(a, "news", "politics", "governance", "education", "technology") }},
-	{"Business", 6, func(a Article) bool { return in(a, "business") }},
-	{"World", 6, func(a Article) bool { return in(a, "news", "world") }},
-	{"Sports", 6, func(a Article) bool { return in(a, "sports") }},
-	{"Editorial", 4, func(a Article) bool { return in(a, "opinion", "editorial", "views") }},
-	{"Op-Ed", 4, func(a Article) bool { return in(a, "opinion") || in(a, "slow-reads") }},
-	{"Arts & Entertainment", 5, func(a Article) bool { return in(a, "culture") || in(a, "lifestyle") }},
-	{"Back Page", 6, anyStory},
+	{"Nation", 9, func(a Article) bool {
+		return in(a, "news", "politics", "governance", "education", "technology") || in(a, "youth")
+	}},
+	{"Business", 9, func(a Article) bool { return in(a, "business") }},
+	{"World", 9, func(a Article) bool { return in(a, "news", "world") }},
+	{"Sports", 9, func(a Article) bool { return in(a, "sports") }},
+	{"Editorial", 6, func(a Article) bool { return in(a, "opinion", "editorial", "views") }},
+	{"Op-Ed", 6, func(a Article) bool { return in(a, "opinion") || in(a, "slow-reads") }},
+	{"Arts & Entertainment", 8, func(a Article) bool { return in(a, "culture") }},
+	{"Life & Living", 8, func(a Article) bool { return in(a, "lifestyle") }},
+	{"Back Page", 9, anyStory},
 }
 
 // leadScore orders the front page: rewritten national news first.
@@ -90,7 +93,9 @@ func layoutEdition(stories []Article) []EditionPage {
 		if len(cands) > plan.max {
 			cands = cands[:plan.max]
 		}
-		if len(cands) == 0 {
+		// A page with only a story or two would print mostly blank: its stories
+		// wait for a later page (Back Page takes any) instead.
+		if len(cands) == 0 || (i > 0 && i < len(editionPlan)-1 && len(cands) < minPageStories) {
 			continue
 		}
 		p := EditionPage{Name: plan.name}
@@ -106,6 +111,9 @@ func layoutEdition(stories []Article) []EditionPage {
 	return pages
 }
 
+// minPageStories: the fewest stories an inner page is printed with.
+const minPageStories = 4
+
 // minEditionStories: below this the night's run waits for more news.
 const minEditionStories = 8
 
@@ -119,9 +127,14 @@ const firstEditionStories = 20
 func ensureEdition(db *gorm.DB, now time.Time) error {
 	date := now.Format("2006-01-02")
 	var n int64
-	db.Model(&Edition{}).Where("date = ?", date).Count(&n)
-	if n > 0 {
-		return nil
+	var existing Edition
+	if db.Where("date = ?", date).First(&existing).Error == nil {
+		// An edition stands once made, except a thin first one a new portal
+		// laid out before it had a day's news: that one is made again.
+		if storiesIn(existing) >= fullEditionStories {
+			return nil
+		}
+		n = 1
 	}
 	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, dhaka)
 	var stories []Article
@@ -142,7 +155,30 @@ func ensureEdition(db *gorm.DB, now time.Time) error {
 	if err != nil {
 		return err
 	}
+	if n > 0 {
+		if len(stories) <= storiesIn(existing) {
+			return nil
+		}
+		return db.Model(&Edition{}).Where("date = ?", date).Update("pages", string(raw)).Error
+	}
 	return db.Create(&Edition{Date: date, Pages: string(raw)}).Error
+}
+
+// fullEditionStories: an edition with fewer stories than this was laid out
+// from a new portal's first news and is made again as more arrives.
+const fullEditionStories = 40
+
+// storiesIn counts the stories of an edition.
+func storiesIn(ed Edition) int {
+	var pages []EditionPage
+	if json.Unmarshal([]byte(ed.Pages), &pages) != nil {
+		return 0
+	}
+	n := 0
+	for _, p := range pages {
+		n += len(p.Stories)
+	}
+	return n
 }
 
 // editionFor returns the edition of a day, or the latest one when that day
