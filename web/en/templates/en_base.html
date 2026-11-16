@@ -1,0 +1,122 @@
+{{/* Shared pieces of the English portal, in The Daily Star English site's markup. */}}
+
+{{ define "en_head" }}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="/en/static/favicon.ico">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/en/static/swallow.css?v=1">
+  <link rel="stylesheet" href="/en/static/en.css?v=1">
+  {{ with .Canonical }}<link rel="canonical" href="{{ . }}">{{ end }}
+{{ end }}
+
+{{/* The masthead, menu bar and mega menu (generated chrome.html). */}}
+{{ define "en_top" }}
+  {{ template "en_header" . }}
+  {{ template "en_navbar" . }}
+  {{ template "en_megamenu" . }}
+{{ end }}
+
+{{ define "en_header_news" }}
+{{ range .HeaderNews }}
+<div class="header-news-card"><div class="views-field views-field-field-featured-media relative"><div class="field-content">
+<a href="/en/article/{{ .ID }}"><img loading="lazy" src="{{ .ImageURL }}" width="80" height="80" alt="" class="image-style-small-80x80"></a>
+</div></div><div class="views-field views-field-title"><h5 class="field-content card-title"><a href="/en/article/{{ .ID }}">{{ .Title }}</a></h5></div></div>
+{{ end }}
+{{ end }}
+
+{{ define "en_pic" }}<picture><img loading="lazy" decoding="async" src="{{ .ImageURL }}" alt="{{ .Title }}" onerror="dsImgFail(this)"></picture>{{ end }}
+
+{{ define "en_info" }}
+<div class="card-info ">
+  <span class=""><time class="rsi-ago" datetime="{{ iso .PublishedAt }}">{{ enAgo .PublishedAt }}</time></span>
+  <span class="flex items-center gap-[4px]"><span class="flex-none">•</span> {{ subLabel .Section .Sub }} </span>
+</div>
+{{ end }}
+
+{{/* One card of a generated block. A = the story; the rest is the markup The Daily Star gives that card. */}}
+{{ define "en_card" }}
+<div class="{{ .Card }}">
+  {{ if .HasImg }}<div class="{{ .Col }}"><div class="{{ .Img }}"><a href="/en/article/{{ .A.ID }}" aria-label="{{ .A.Title }}">{{ template "en_pic" .A }}</a></div></div>{{ end }}
+  <div class="{{ .Content }}">
+    {{ range fields .Order }}
+      {{ if eq . "title" }}
+        {{ if eq $.Tag "h1" }}<h1 class="{{ $.TitleCls }}"><a href="/en/article/{{ $.A.ID }}">{{ $.A.Title }}</a></h1>
+        {{ else if eq $.Tag "h2" }}<h2 class="{{ $.TitleCls }}"><a href="/en/article/{{ $.A.ID }}">{{ $.A.Title }}</a></h2>
+        {{ else if eq $.Tag "h3" }}<h3 class="{{ $.TitleCls }}"><a href="/en/article/{{ $.A.ID }}">{{ $.A.Title }}</a></h3>
+        {{ else if eq $.Tag "h4" }}<h4 class="{{ $.TitleCls }}"><a href="/en/article/{{ $.A.ID }}">{{ $.A.Title }}</a></h4>
+        {{ else if eq $.Tag "h6" }}<h6 class="{{ $.TitleCls }}"><a href="/en/article/{{ $.A.ID }}">{{ $.A.Title }}</a></h6>
+        {{ else }}<h5 class="{{ $.TitleCls }}"><a href="/en/article/{{ $.A.ID }}">{{ $.A.Title }}</a></h5>{{ end }}
+      {{ else if eq . "intro" }}<div class="{{ $.IntroCls }} en-clamp-3">{{ $.A.Summary }}</div>
+      {{ else if eq . "info" }}{{ template "en_info" $.A }}{{ end }}
+    {{ end }}
+  </div>
+</div>
+{{ end }}
+
+{{/* A row of The Daily Star's section lists: time, headline and intro, photo. */}}
+{{ define "en_list_item" }}
+<div class="row my-[32px] relative">
+  <div class="columns small-12">
+    <div class="flex flex-col md:flex-row gap-[20px] md:gap-[32px] pb-[32px] border-b-[1px] border-gray_1">
+      <div class="order-1 md:order-2 flex-none w-full md:w-[33%]">
+        <div class="card-image relative overflow-hidden"><a href="/en/article/{{ .ID }}" aria-label="{{ .Title }}">{{ template "en_pic" . }}</a></div>
+      </div>
+      <div class="order-2 md:order-1 flex-1 flex flex-col md:flex-row gap-[20px] md:gap-[56px]">
+        <div class="order-1 md:order-2 flex-1 flex flex-col gap-[20px]">
+          <h3 class="card-title"><a href="/en/article/{{ .ID }}">{{ .Title }}</a></h3>
+          <div class="card-intro en-clamp-2">{{ .Summary }}</div>
+        </div>
+        <div class="order-2 md:order-1 flex-none w-[200px]">
+          <div class="card-info"><span class=""><time class="rsi-ago" datetime="{{ iso .PublishedAt }}">{{ enAgo .PublishedAt }}</time></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{{ end }}
+
+{{/* The list under a section with "Load more". Takes L (stories), Next (next page address, or ""). */}}
+{{ define "en_show_more" }}
+{{ if .L }}
+<div class="block block-rsi-blocks block-category-show-more">
+  <div class="row">
+    <div class="column small-12">
+      <div class="flex flex-col md:flex-row gap-[77px]">
+        <div class="node-content flex-1">
+          <div class="view-content" data-listing>
+            {{ range .L }}<div data-item>{{ template "en_list_item" . }}</div>{{ end }}
+          </div>
+          <nav role="navigation" aria-label="More news" data-pager>
+            <ul class="js-pager__items pager__items pager-show-more">
+              {{ with .Next }}<li class="pager__item"><a href="{{ . }}" title="Load more items" data-next>Load More</a></li>{{ end }}
+            </ul>
+          </nav>
+        </div>
+        <div class="sidebar flex-none w-full md:w-[300px] my-[32px]"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{{ end }}
+{{ end }}
+
+{{ define "en_scripts" }}
+<script src="/en/static/en.js?v=1"></script>
+{{ end }}
+
+{{/* The row of sub-sections under the menu on a section page. Takes the Section. */}}
+{{ define "en_subnav" }}
+{{ if .Subs }}
+<div class="block block-rsi-blocks block-breadcrumb-block">
+  <nav class="w-full border-black_01 bg-white" aria-label="Section navigation">
+    <div class="mx-auto border-b border-gray_1 w-full overflow-x-auto row py-5">
+      <ol class="flex gap-[24px] mb-0!">
+        {{ range .Subs }}<li class="relative flex flex-none items-center"><span class="absolute bg-black_01" aria-hidden="true"></span> <a href="/en/{{ $.Key }}/{{ .Key }}" class="font-inter text-[12px] font-semibold leading-none text-gray_6 transition-colors hover:text-black_01 uppercase">{{ .Label }}</a></li>
+        {{ end }}
+      </ol>
+    </div>
+  </nav>
+</div>
+{{ end }}
+{{ end }}

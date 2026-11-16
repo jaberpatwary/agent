@@ -1,0 +1,27 @@
+{{ define "en_section.html" }}<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  {{ template "en_head" . }}
+  <title>{{ .Title }} | The Daily Star</title>
+</head>
+<body class="path-taxonomy">
+<div class="page-wrapper dialog-off-canvas-main-canvas">
+  {{ template "en_top" . }}
+  <main role="main" class="main" id="main-content">
+    {{ with .Section }}{{ template "en_subnav" . }}{{ end }}
+    {{ if .Empty }}
+    <div class="news-section section-spacer mt-5"><div class="row"><div class="column small-12">
+      <div class="section-title-wrapper"><h2 class="section-title">{{ .Title }}</h2></div>
+      <p class="ds-empty">No stories in this section yet. <a href="/en/">Back to the front page</a></p>
+    </div></div></div>
+    {{ else }}
+    {{ range .Blocks }}{{ template "en_block" . }}{{ end }}
+    {{ template "en_show_more" (dict "L" .List "Next" (or (and .HasMore (printf "%s?page=%d" .Href (add .Page 1))) "")) }}
+    {{ end }}
+  </main>
+  {{ template "en_footer" . }}
+</div>
+{{ template "en_scripts" . }}
+</body>
+</html>
+{{ end }}

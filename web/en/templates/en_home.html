@@ -1,0 +1,19 @@
+{{ define "en_home.html" }}<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  {{ template "en_head" . }}
+  <title>The Daily Star - Bangladesh's National and International Breaking News</title>
+  <meta name="description" content="Latest news from Bangladesh and around the world: politics, business, sports, culture and more.">
+</head>
+<body class="path-frontpage page-node-type-page">
+<div class="page-wrapper dialog-off-canvas-main-canvas">
+  {{ template "en_top" . }}
+  <main role="main" class="main" id="main-content">
+    {{ range .Blocks }}{{ template "en_block" . }}{{ end }}
+  </main>
+  {{ template "en_footer" . }}
+</div>
+{{ template "en_scripts" . }}
+</body>
+</html>
+{{ end }}

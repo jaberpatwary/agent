@@ -17,6 +17,7 @@ import (
 	"bangla-news-aggregator/internal/agentic"
 	"bangla-news-aggregator/internal/config"
 	"bangla-news-aggregator/internal/cron"
+	"bangla-news-aggregator/internal/english"
 	"bangla-news-aggregator/internal/handler"
 	"bangla-news-aggregator/internal/repository"
 	"bangla-news-aggregator/internal/rss"
@@ -94,6 +95,11 @@ func main() {
 		log.Println("[main] n8n API enabled at /api/n8n and /api/agent")
 	}
 	router := handler.NewRouter(authUC, publicH, adminH, n8nH, cfg.ImageStorageDir, imageBackup)
+	// The English portal (/en) and its e-paper (/epaper): separate tables,
+	// templates and routes; the Bangla portal above is unchanged.
+	if err := english.Mount(router, db, cfg, imageBackup); err != nil {
+		log.Printf("english portal not started: %v", err)
+	}
 	if controlToken := os.Getenv("AUTONEWS_CONTROL_TOKEN"); controlToken != "" {
 		router.POST("/_control/shutdown", func(c *gin.Context) {
 			host, _, err := net.SplitHostPort(c.Request.RemoteAddr)

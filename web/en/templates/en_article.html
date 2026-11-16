@@ -1,0 +1,157 @@
+{{ define "en_article.html" }}<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  {{ template "en_head" . }}
+  {{ with .A }}
+  <title>{{ .Title }} | The Daily Star</title>
+  <meta name="description" content="{{ .Summary }}">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="The Daily Star">
+  <meta property="og:title" content="{{ .Title }}">
+  <meta property="og:description" content="{{ .Summary }}">
+  <meta property="og:image" content="{{ .ImageURL }}">
+  <meta property="article:published_time" content="{{ iso .PublishedAt }}">
+  <meta name="twitter:card" content="summary_large_image">
+  {{ end }}
+</head>
+<body class="path-node page-node-type-news">
+<div class="page-wrapper dialog-off-canvas-main-canvas">
+  {{ template "en_top" . }}
+
+  <main role="main" class="main" id="main-content">
+    <article class="node">
+      <div class="row">
+        <div class="column">
+          <div class="layout layout--threecol-section layout--threecol-section--25-50-25 flex max-lg:flex-wrap max-sm:flex-col gap-[32px] desktop_ex_lg:gap-[77px] py-[42px]">
+
+            <div class="sidebar flex-none w-[300px] max-sm:w-full max-lg:order-2">
+              {{ with .Picks }}
+              <div class="block block-rsi-popular block-most-viewed">
+                <div class="most view section-spacer">
+                  <div class="column small-12 flex flex-col gap-[30px]">
+                    <h2 class="h4 double-line-title"> Editor's Pick </h2>
+                    {{ range . }}
+                    <div class="card relative border-b border-gray_1 last:!border-b-0">
+                      <div class="card-content">
+                        <h5 class="card-title !font-normal"><a href="/en/article/{{ .ID }}">{{ .Title }}</a></h5>
+                        <div class="card-info "><span class=""><time datetime="{{ iso .PublishedAt }}">{{ enDate .PublishedAt }}</time></span><span class="flex items-center gap-[4px]"><span class="flex-none">•</span> {{ subLabel .Section .Sub }} </span></div>
+                      </div>
+                    </div>
+                    {{ end }}
+                  </div>
+                </div>
+              </div>
+              {{ end }}
+            </div>
+
+            <div class="node-content flex-1 max-lg:w-full max-lg:flex-none max-lg:order-1">
+              {{ with .A }}
+              <div class="block block-layout-builder block-field-blocknodenewstitle">
+                <h1 class="mb-[20px]">{{ .Title }}</h1>
+              </div>
+              {{ if .Rewritten }}
+              <div class="block block-layout-builder block-field-blocknodenewsfield-sub-headline">
+                <h2 class="sub-headline">{{ .Summary }}</h2>
+              </div>
+              {{ end }}
+              <div class="block block-rsi-blocks block-article-meta-block">
+                <div class="mb-[14px] flex items-start gap-[16px]">
+                  <div class="flex-1 text-[10px] leading-[1.2] font-medium uppercase font-inter text-gray_7 flex items-center gap-[4px] flex-wrap py-[6px]">
+                    <div class="flex items-center">Published : <time datetime="{{ iso .PublishedAt }}">{{ enDate .PublishedAt }}</time></div>
+                    <span class="flex-none">•</span>
+                    <div class="flex items-center">Updated : {{ enDateTime .CreatedAt }}</div>
+                    <span class="flex-none">•</span>
+                    <div class="flex items-center flex-wrap gap-[4px]"><a href="/en/{{ .Section }}/{{ .Sub }}">{{ upper (subLabel .Section .Sub) }}</a></div>
+                  </div>
+                  <div class="flex-none flex">{{ template "en_share" . }}</div>
+                </div>
+              </div>
+              <div class="block block-rsi-blocks block-author-info-block">
+                <div class="mb-[20px] py-[12px] border-y-[1px] border-gray_1 flex items-center flex-wrap gap-[10px]">
+                  <div class="flex-1 flex flex-col gap-[8px]">
+                    <div class="text-[16px] leading-none tracking-[0.01em] font-light font-secondary text-black_01"><span class="font-medium">Online Desk</span></div>
+                  </div>
+                  <div class="flex-none text-[16px] leading-none tracking-[0.01em] font-light font-secondary text-black_01 en-source">Source: <a href="{{ .SourceURL }}" target="_blank" rel="noopener nofollow">{{ .SourceName }}</a></div>
+                </div>
+              </div>
+              {{ if .ImageURL }}
+              <div class="block block-rsi-blocks block-news-featured-image">
+                <div class="news-master-block">
+                  <div class="featured-image pmb relative">
+                    <div class="news-featured-image-gallery relative">
+                      <span class="lg-gallery" data-src="{{ .ImageURL }}" data-ds-gallery>
+                        <span class="open-popup"><i class="expand"></i></span>
+                        <picture><img src="{{ .ImageURL }}" alt="{{ .Title }}" decoding="async" onerror="dsImgFail(this)"></picture>
+                      </span>
+                    </div>
+                    <div class="image-caption">Photo: Collected</div>
+                  </div>
+                </div>
+              </div>
+              {{ end }}
+              <div class="block block-layout-builder block-field-blocknodenewsbody">
+                <div class="clearfix text-formatted">
+                  {{ if .Brief }}
+                  <p>{{ .Summary }}</p>
+                  <a class="en-readmore" href="{{ .SourceURL }}" target="_blank" rel="noopener nofollow">Read the full story at {{ .SourceName }} →</a>
+                  {{ else }}
+                  {{ safeHTML .Content }}
+                  {{ end }}
+                </div>
+              </div>
+              <div class="block block-rsi-blocks block-article-meta-block-footer">
+                <div class="mb-[14px] flex items-start gap-[16px] py-[12px] border-t-[1px] border-gray_1">
+                  <div class="flex-1">
+                    <div class="flex flex-wrap items-center gap-[12px]">
+                      <a class="cta-small" href="/en/{{ .Section }}"> {{ upper (sectionLabel .Section) }} </a>
+                      <a class="cta-small" href="/en/{{ .Section }}/{{ .Sub }}"> {{ upper (subLabel .Section .Sub) }} </a>
+                    </div>
+                  </div>
+                  <div class="flex-none flex">{{ template "en_share" . }}</div>
+                </div>
+              </div>
+              {{ end }}
+            </div>
+
+            <div class="sidebar flex-none w-[300px] max-sm:w-full max-lg:order-3">
+              {{ with .Related }}
+              <div class="columns flex flex-col gap-[30px]">
+                <h2 class="h4 double-line-title">Related News </h2>
+                {{ range . }}
+                <div class="card relative border-b last:!border-none">
+                  <div class="card-content !gap-[20px]">
+                    <h5 class="card-title "><a href="/en/article/{{ .ID }}">{{ .Title }}</a></h5>
+                    {{ template "en_info" . }}
+                  </div>
+                </div>
+                {{ end }}
+              </div>
+              {{ end }}
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </article>
+  </main>
+
+  {{ template "en_footer" . }}
+</div>
+{{ template "en_scripts" . }}
+</body>
+</html>
+{{ end }}
+
+{{ define "en_share" }}
+<div class="relative share-dropdown">
+  <button type="button" class="share-btn flex items-center gap-[6px] font-inter text-[10px] font-medium uppercase text-gray_7">SHARE
+    <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11A2.99 2.99 0 1 0 15 5c0 .24.04.47.09.7L8.04 9.81a3 3 0 1 0 0 4.38l7.12 4.16c-.05.21-.08.43-.08.65A2.92 2.92 0 1 0 18 16.08z"/></svg>
+  </button>
+  <div class="share-menu absolute border-[1px] border-gray_1 top-full right-0 bg-white hidden z-10 p-3 flex flex-col gap-2 font-inter text-[12px] min-w-[140px]">
+    <a data-share-to="facebook" href="#" target="_blank" rel="noopener">Facebook</a>
+    <a data-share-to="x" href="#" target="_blank" rel="noopener">X</a>
+    <a data-share-to="linkedin" href="#" target="_blank" rel="noopener">LinkedIn</a>
+    <a data-copy-link href="#">Copy link</a>
+  </div>
+</div>
+{{ end }}

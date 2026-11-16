@@ -1,0 +1,118 @@
+{{ define "en_epaper.html" }}<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="/en/static/favicon.ico">
+  <title>{{ if .NoEdition }}E-Paper{{ else }}Dhaka Edition, {{ .Day.Format "2 January 2006" }}{{ end }} | The Daily Star E-Paper</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/en/static/epaper.css?v=1">
+</head>
+<body class="ep{{ if eq .View 2 }} ep-double{{ end }}">
+  <header class="ep-bar">
+    <a class="ep-brand" href="/en/" title="The Daily Star"><img src="/en/static/logo.svg" alt="The Daily Star"><span>E-Paper</span></a>
+    {{ if not .NoEdition }}
+    <form class="ep-controls" action="/epaper/DhakaEdition" method="get">
+      <input type="hidden" name="eid" value="1">
+      <input type="hidden" name="pgid" value="1">
+      <input type="hidden" name="view" value="{{ .View }}">
+      <label class="ep-field"><span>Edition</span><select disabled><option>Dhaka Edition</option></select></label>
+      <label class="ep-field"><span>Date</span>
+        <select name="edate" onchange="this.form.submit()">
+          {{ range .Dates }}<option value="{{ dayParam . }}"{{ if eq . $.Date }} selected{{ end }}>{{ dayLabel . }}</option>{{ end }}
+        </select>
+      </label>
+      <label class="ep-field"><span>Page</span>
+        <select data-page-select>
+          {{ range .Pages }}<option value="{{ .No }}"{{ if eq .No $.Page }} selected{{ end }}>{{ .No }} · {{ .Name }}</option>{{ end }}
+        </select>
+      </label>
+      <div class="ep-nav">
+        <button type="button" data-prev title="Previous page" aria-label="Previous page">‹</button>
+        <span data-page-label></span>
+        <button type="button" data-next title="Next page" aria-label="Next page">›</button>
+      </div>
+      <div class="ep-views" role="group" aria-label="View">
+        <button type="button" data-view="1" class="{{ if eq .View 1 }}on{{ end }}" title="Single page">▯</button>
+        <button type="button" data-view="2" class="{{ if eq .View 2 }}on{{ end }}" title="Double page">▯▯</button>
+      </div>
+      <button type="button" class="ep-pdf" data-print title="Download the edition as PDF">PDF</button>
+    </form>
+    {{ end }}
+    <a class="ep-site" href="/en/">thedailystar.net</a>
+  </header>
+
+  {{ if .NoEdition }}
+  <main class="ep-empty">
+    <img src="/en/static/logo.svg" alt="The Daily Star">
+    <p>The first edition is being prepared. It is published every night after 12:00 am, from the day's news.</p>
+    <a href="/en/">Read today's news</a>
+  </main>
+  {{ else }}
+  <div class="ep-body">
+    <aside class="ep-thumbs" data-thumbs aria-label="Pages"></aside>
+    <main class="ep-stage" data-stage>
+      {{ range .Pages }}{{ template "ep_page" (dict "P" . "Day" $.Day) }}{{ end }}
+    </main>
+  </div>
+
+  {{/* The full stories, for the pop-up a click on a story opens. */}}
+  {{ range .Pages }}{{ range .Stories }}
+  <template id="st-{{ .ID }}">
+    <p class="ep-pop-kicker">{{ upper (subLabel .Section .Sub) }}</p>
+    <h2>{{ .Title }}</h2>
+    {{ if .ImageURL }}<img src="{{ .ImageURL }}" alt="">{{ end }}
+    {{ if .Brief }}<p>{{ .Summary }}</p>{{ else }}{{ if .Summary }}<p class="ep-pop-intro">{{ .Summary }}</p>{{ end }}{{ safeHTML .Content }}{{ end }}
+    <p class="ep-pop-source">Source: <a href="{{ .SourceURL }}" target="_blank" rel="noopener nofollow">{{ .SourceName }}</a> · <a href="/en/article/{{ .ID }}">Read on the website</a></p>
+  </template>
+  {{ end }}{{ end }}
+  <div class="ep-pop" data-pop hidden>
+    <div class="ep-pop-box" role="dialog" aria-modal="true">
+      <button type="button" class="ep-pop-close" data-pop-close aria-label="Close">×</button>
+      <div class="ep-pop-body" data-pop-body></div>
+    </div>
+  </div>
+  <script>window.EP = { page: {{ .Page }}, view: {{ .View }}, pages: {{ len .Pages }} };</script>
+  <script src="/en/static/epaper.js?v=1"></script>
+  {{ end }}
+</body>
+</html>
+{{ end }}
+
+{{/* One printed page. P = the page (No, Name, Stories), Day = the edition's date. */}}
+{{ define "ep_page" }}
+{{ $p := .P }}
+<section class="np-page{{ if eq $p.No 1 }} np-front{{ end }}" data-page="{{ $p.No }}" data-name="{{ $p.Name }}">
+  <div class="np-inner">
+    {{ if eq $p.No 1 }}
+    <div class="np-mast">
+      <img src="/en/static/logo.svg" alt="The Daily Star">
+      <p class="np-motto">Journalism without fear or favour</p>
+    </div>
+    <div class="np-dateline">
+      <span>DHAKA {{ printDate .Day }}</span>
+      <span>Dhaka Edition</span>
+      <span>thedailystar.net</span>
+    </div>
+    {{ else }}
+    <div class="np-head">
+      <span class="np-head-brand"><img src="/en/static/logo.svg" alt="The Daily Star"></span>
+      <span class="np-head-name">{{ upper $p.Name }}</span>
+      <span class="np-head-date">DHAKA {{ printDate .Day }}</span>
+    </div>
+    {{ end }}
+    <div class="np-grid">
+      {{ range $i, $a := $p.Stories }}
+      <article class="np-story np-s{{ add $i 1 }}" data-story="{{ $a.ID }}" tabindex="0">
+        {{ if lt $i 2 }}{{ if $a.ImageURL }}<figure class="np-fig"><img src="{{ $a.ImageURL }}" alt="" loading="lazy" onerror="this.parentNode.remove()"></figure>{{ end }}{{ end }}
+        <h3>{{ $a.Title }}</h3>
+        {{ if $a.Rewritten }}{{ if $a.Summary }}<p class="np-intro">{{ $a.Summary }}</p>{{ end }}{{ end }}
+        <div class="np-text">{{ if $a.Brief }}<p>{{ $a.Summary }}</p>{{ else }}{{ safeHTML $a.Content }}{{ end }}</div>
+        <p class="np-src">Source: {{ $a.SourceName }}</p>
+      </article>
+      {{ end }}
+    </div>
+    <div class="np-foot"><span>The Daily Star</span><span>{{ $p.Name }}</span><span>Page {{ $p.No }}</span></div>
+  </div>
+</section>
+{{ end }}

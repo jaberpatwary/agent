@@ -1,0 +1,20 @@
+{{ define "en_error.html" }}<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  {{ template "en_head" . }}
+  <title>404 | The Daily Star</title>
+  <meta name="robots" content="noindex">
+</head>
+<body class="path-not-found">
+<div class="page-wrapper">
+  <main role="main" class="main" id="main-content" style="min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+    <div class="error-404-page text-center">
+      <img class="site-logo" src="/en/static/logo.svg" alt="The Daily Star">
+      <h1> We're sorry, <br>the page you requested could not be found.</h1>
+      <a href="/en/" class="">Back to Homepage</a>
+    </div>
+  </main>
+</div>
+</body>
+</html>
+{{ end }}

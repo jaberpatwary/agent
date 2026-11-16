@@ -1,0 +1,132 @@
+/* Additions to The Daily Star theme for what this portal has and the theme
+   leaves to Drupal modules: tabs, justified body text, search suggestions,
+   "new story" notice, bookmarks. Colours are the theme's own variables. */
+
+.tabs-panel { display: none; }
+.tabs-panel.is-active { display: block; }
+.tabs.counter-tabs .tabs-title { position: relative; z-index: 1; }
+
+.card-image, .featured-image picture { background-color: var(--color-gray_1); }
+.card-image.no-img { min-height: 100px; }
+.featured-image img { display: block; width: 100%; height: auto; }
+
+.text-formatted p { text-align: justify; }
+.block-field-blocknodenewsbody :is(h2, h3, h4) {
+  font-family: var(--font-secondary);
+  font-weight: var(--font-weight-bold);
+  font-size: 22px;
+  line-height: 1.4;
+  margin: 1.4em 0 .6em;
+}
+.block-field-blocknodenewsbody img { max-width: 100%; height: auto; }
+
+/* Touch screens have no hover: open the share menu on tap too. */
+.share-dropdown:focus-within .share-menu { z-index: 2; display: block; }
+.share-menu { display: none; }
+
+.ds-empty { font-size: 18px; color: var(--color-gray_6); margin: 0 0 40px; }
+.ds-empty a { color: var(--color-red); text-decoration: underline; }
+.ds-saved-tools { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; font-family: var(--font-inter); font-size: 14px; color: var(--color-gray_6); }
+.ds-unsave { margin-left: auto; color: var(--color-red); font-size: 10px; text-transform: uppercase; }
+
+.ds-toast {
+  display: none; position: fixed; left: 50%; transform: translateX(-50%); z-index: 41;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  background: var(--color-black_01); color: var(--color-white); padding: 10px 16px; border-radius: 4px; font-size: 14px;
+}
+.ds-toast.show { display: block; }
+
+/* The Daily Star crops its photos on the server (580×435, 16:9 …), so its
+   theme has no aspect-ratio for .aspect-video. These are the proportions its
+   pages show, measured section by section. */
+.card-image.aspect-video { aspect-ratio: 16 / 9; }
+.news-section-layout-35 .card-image.aspect-video,
+.news-section-layout-9 .lg\:col-span-7 .card-image.aspect-video,
+.news-section-layout-8 .card-aside-feature .card-image.aspect-video { aspect-ratio: 4 / 3; }
+.card-image > a { display: block; height: 100%; }
+.card-image picture { display: block; width: 100%; height: 100%; }
+/* Its tall photos are all the same width there; ours differ, so share the row. */
+.news-section-layout-3 .card-overlay { flex: 1 1 0; min-width: 0; }
+
+/* Drupal core hides these; its stylesheet is not part of the theme. */
+.visually-hidden { position: absolute !important; overflow: hidden; clip: rect(1px, 1px, 1px, 1px); width: 1px; height: 1px; word-wrap: normal; }
+.visually-hidden.focusable:active, .visually-hidden.focusable:focus { position: static !important; overflow: visible; clip: auto; width: auto; height: auto; }
+
+/* On phones the site's search box opens over the ad above the masthead;
+   with no ad here it opens just below the masthead instead. */
+@media not all and (min-width: 1025px) {
+  .site-header .search-form { top: 100%; bottom: auto; }
+  .search-open .site-header .headar-icon.search-icon { position: static; }
+}
+
+/* The "Show more" list uses 373×210 photos. */
+.block-category-show-more .card-image { aspect-ratio: 373 / 210; }
+
+/* Search page: The Daily Star's search is Google's search box; this is its look. */
+.gsc-control-cse { max-width: 660px; padding: 26px 0 40px; font-family: arial, sans-serif; }
+.gsc-search-box { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 14px; margin: 10px 0 18px; border: 1px solid #dfe1e5; background: #fff; }
+.gsc-search-box svg { flex: none; width: 16px; height: 16px; color: #5f6368; }
+.gsc-search-box input { flex: 1; min-width: 0; height: 100%; margin: 0; padding: 0; border: 0 !important; outline: 0; box-shadow: none; background: transparent; font-size: 16px; color: #202124; }
+.gsc-clear { color: #5f6368; font-size: 22px; line-height: 1; text-decoration: none; }
+.gsc-above-wrapper { display: flex; justify-content: space-between; gap: 12px; margin: 0 0 12px; font-family: arial, sans-serif; font-size: 13px; color: #70757a; }
+.gsc-result { padding: 12px 0; }
+a.gs-title { font-size: 20px; line-height: 1.3; color: #1a0dab; text-decoration: none; }
+a.gs-title:hover { text-decoration: underline; }
+a.gs-title b, .gs-snippet b { font-weight: 700; }
+.gs-visibleUrl { margin: 3px 0 4px; font-family: arial, sans-serif; font-size: 12px; color: #202124; }
+.gs-visibleUrl span + span { color: #4d5156; }
+.gsc-table-result { display: flex; gap: 16px; align-items: flex-start; }
+.gs-snippet { flex: 1; min-width: 0; font-size: 14px; line-height: 1.55; color: #4d5156; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.gs-image { display: block; width: 104px; height: 104px; object-fit: cover; }
+.gsc-cursor { display: flex; justify-content: center; gap: 10px; margin: 28px 0 0; font-family: arial, sans-serif; font-size: 14px; }
+.gsc-cursor a { color: #1a0dab; text-decoration: none; }
+.gsc-cursor .gsc-cursor-current-page { color: #202124; font-weight: 700; }
+.gs-no-results-result { padding: 12px 0; font-size: 14px; color: #4d5156; }
+
+/* The not-found page, as on bangla.thedailystar.net. */
+.error-404-page { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.error-404-page .site-logo { width: 920px; max-width: 86vw; height: auto; }
+.error-404-page h1 { font-size: 44px; line-height: 1.1; font-weight: 400; color: var(--color-secondary); }
+.error-404-page a { font-size: 16px; color: var(--color-secondary); }
+
+/* The featured photo opens full size, as The Daily Star's gallery does. */
+.lg-gallery { display: block; }
+.ds-lightbox { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0, 0, 0, .9); cursor: zoom-out; }
+.ds-lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+/* The outlet and its read count sit where The Daily Star names the reporter. */
+@media not all and (min-width: 640px) {
+  .block-author-info-block .ds-source { flex: 1 1 100%; }
+  .block-author-info-block > div { flex-wrap: wrap; }
+}
+
+/* The সর্বশেষ | সর্বাধিক পঠিত box under a category page's opening block, for
+   layouts too wide to share a row with it. */
+.ds-tab-below { max-width: 420px; margin: 8px 0 40px; }
+
+/* The Daily Star's section lists show a two-line intro under each headline;
+   the outlets' summaries run longer, so they are cut to the same height. */
+.block-category-show-more .card-intro,
+.ds-clamp-2 {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+
+/* The Daily Star sets each story's first paragraph in bold (its editors wrap
+   it in <strong>); the rewritten stories get the same. */
+.block-field-blocknodenewsbody .text-formatted > p:first-of-type { font-weight: 700; }
+
+/* Block cards whose layout gives no line limit: the outlets' summaries are
+   longer than The Daily Star's intros, so they stop at three lines. */
+.ds-clamp-3:not([class*="line-clamp"]) {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+}
+
+/* ---- English portal ---- */
+.en-clamp-2, .en-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+.en-clamp-2 { -webkit-line-clamp: 2; }
+.en-clamp-3:not([class*="line-clamp"]) { -webkit-line-clamp: 3; }
+.news-slider-slide + .news-slider-slide { display: none; }
+@media (min-width: 768px) { .news-slider-slide:nth-child(2) { display: block; } }
+.en-source { font-weight: 500; }
+.en-source a { text-decoration: underline; }
+.en-readmore { display: inline-block; margin: 8px 0 24px; padding: 10px 18px; border: 1px solid currentColor; font-family: Inter, sans-serif; font-size: 14px; text-transform: uppercase; }

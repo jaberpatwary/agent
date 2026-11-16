@@ -1,0 +1,21 @@
+{{ define "en_todays.html" }}<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  {{ template "en_head" . }}
+  <title>Today's News | The Daily Star</title>
+</head>
+<body class="path-todays-news">
+<div class="page-wrapper dialog-off-canvas-main-canvas">
+  {{ template "en_top" . }}
+  <main role="main" class="main" id="main-content">
+    <div class="news-section section-spacer mt-5"><div class="row"><div class="column small-12">
+      <div class="section-title-wrapper"><h2 class="section-title">Today's News</h2></div>
+    </div></div></div>
+    {{ template "en_show_more" (dict "L" .List "Next" (or (and .HasMore (printf "/en/todays-news?page=%d" (add .Page 1))) "")) }}
+  </main>
+  {{ template "en_footer" . }}
+</div>
+{{ template "en_scripts" . }}
+</body>
+</html>
+{{ end }}
