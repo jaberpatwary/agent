@@ -306,5 +306,5 @@ func (s *site) epaper(c *gin.Context) {
 // listed is the stories the lists show: not those stored with an outlet's
 // logo for a photo before such stories were left out.
 func (s *site) listed() *gorm.DB {
-	return s.db.Where("image_url NOT ILIKE ?", "%logo%")
+	return s.db.Where("image_url NOT ILIKE ? AND title NOT ILIKE ? AND title NOT ILIKE ?", "%logo%", "promotional content%", "sponsored%")
 }

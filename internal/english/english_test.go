@@ -175,3 +175,12 @@ func TestOutletLogosAreNotPhotos(t *testing.T) {
 		t.Error("a real photo was taken for a logo")
 	}
 }
+
+func TestPaidContentIsNotNews(t *testing.T) {
+	if !advertorial("Promotional Content: Shah Cement launches Water Shield") {
+		t.Error("promotional content taken for news")
+	}
+	if advertorial("Cement exports rise 12%") {
+		t.Error("a news headline taken for an advert")
+	}
+}

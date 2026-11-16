@@ -169,7 +169,7 @@ func (w *worker) build(ctx context.Context, it rss.Item, source string) (Article
 		}
 	}
 	title := strings.TrimSpace(plain(it.Title))
-	if title == "" {
+	if title == "" || advertorial(title) {
 		return Article{}, false
 	}
 	text := plain(body)
@@ -302,4 +302,16 @@ func (w *worker) loop(ctx context.Context) {
 func placeholderImage(u string) bool {
 	l := strings.ToLower(u)
 	return strings.Contains(l, "logo") || strings.Contains(l, "default-image") || strings.Contains(l, "placeholder")
+}
+
+// advertorial reports paid content an outlet's feed carries among its news
+// ("Promotional Content: …"); the portal shows no advertising.
+func advertorial(title string) bool {
+	l := strings.ToLower(title)
+	for _, p := range []string{"promotional content", "sponsored", "advertorial", "press release"} {
+		if strings.HasPrefix(l, p) {
+			return true
+		}
+	}
+	return false
 }
