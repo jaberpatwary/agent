@@ -61,4 +61,7 @@ var categoryBlocks = map[string][]BlockSpec{
 		{Key: "blk_technology_2", Title: "স্টার্টআপ", Layout: 31, Cards: 10},
 		{Key: "blk_technology_3", Title: "অটো মোবাইল", Layout: 31, Cards: 5},
 	},
+	"literature": {
+		{Key: "blk_literature_0", Title: "সাহিত্য", Layout: 16, Cards: 7},
+	},
 }

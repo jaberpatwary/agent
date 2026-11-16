@@ -1,7 +1,10 @@
 package handler
 
 import (
+	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"bangla-news-aggregator/internal/domain"
 )
@@ -90,13 +93,34 @@ func score(a domain.Article, words []string) int {
 	n := 0
 	for _, w := range words {
 		w = fold(w)
-		if strings.Contains(title, w) {
+		if startsWord(title, w) {
 			n += 2
-		} else if strings.Contains(body, w) {
+		} else if startsWord(body, w) {
 			n++
 		}
 	}
 	return n
+}
+
+// startsWord reports whether w occurs in s at the start of a word, so "কবি"
+// finds "কবির" but not "মাদকবিরোধী". Endings after it are allowed, since
+// Bangla adds them to the word itself (কবির, কবিকে).
+func startsWord(s, w string) bool {
+	for from := 0; ; {
+		i := strings.Index(s[from:], w)
+		if i < 0 {
+			return false
+		}
+		i += from
+		if i == 0 {
+			return true
+		}
+		prev, _ := utf8.DecodeLastRuneInString(s[:i])
+		if !unicode.IsLetter(prev) && !unicode.IsMark(prev) && !unicode.IsDigit(prev) {
+			return true
+		}
+		from = i + len(w)
+	}
 }
 
 // buildBlocks fills a category's blocks from its stories (newest first).
@@ -171,4 +195,92 @@ func wantedLater(a domain.Article, later []BlockSpec) bool {
 		}
 	}
 	return false
+}
+
+// categoryPoolSize is how many of a section's newest stories its page draws
+// from: the blocks first, then the list under them.
+const categoryPoolSize = 300
+
+// borrowed: the sections the outlets hardly feed (সাহিত্য, বিশ্লেষণ,
+// এক্সপ্লেইনার) take stories from other sections whose headline fits, as
+// The Daily Star's own sections do. Each keeps its own section's label.
+var borrowed = map[string][]string{
+	"literature": {"সাহিত্য", "নতুন বই", "কবি", "কবিতা", "লেখক", "উপন্যাস", "ছোটগল্প", "গল্পকার", "প্রকাশনা", "সংস্কৃতি", "চিত্রকলা", "চিত্রশিল্পী", "নাট্য", "বইমেলা", "বাংলা একাডেমি", "শিল্পকলা", "জাদুঘর", "ঐতিহ্য"},
+	"analysis":   {"বিশ্লেষণ", "প্রভাব", "ভবিষ্যৎ", "সংকট", "চ্যালেঞ্জ", "কৌশল", "সম্ভাবনা", "ঝুঁকি", "অর্থনীতি"},
+	"explainer":  {"কেন ", "কেন?", "কীভাবে", "যেভাবে", "কী?", "কারা ", "কারা?", "কোথায়", "কী হবে", "কী বলছে", "যা জানা", "জেনে নিন"},
+}
+
+// listStories returns up to max of a section's newest published stories
+// ("" means every section), a hundred at a time.
+func (h *PublicHandler) listStories(category string, max int) []domain.Article {
+	var out []domain.Article
+	for page := 1; len(out) < max; page++ {
+		list, total, err := h.articleUC.List(page, 100, category, "published")
+		if err != nil || len(list) == 0 {
+			break
+		}
+		out = append(out, list...)
+		if int64(page*100) >= total {
+			break
+		}
+	}
+	if len(out) > max {
+		out = out[:max]
+	}
+	return out
+}
+
+// categoryPool is the stories a section page shows, newest first.
+func (h *PublicHandler) categoryPool(category string) []domain.Article {
+	pool := h.withPhotos(h.listStories(category, categoryPoolSize), 0)
+	words, ok := borrowed[category]
+	if !ok || len(pool) >= 40 {
+		return pool
+	}
+	for _, a := range h.withPhotos(h.listStories("", categoryPoolSize), 0) {
+		if a.Category != category && score(domain.Article{Title: a.Title}, words) > 0 {
+			pool = append(pool, a)
+		}
+	}
+	sort.SliceStable(pool, func(i, j int) bool { return pool[i].PublishedAt.After(pool[j].PublishedAt) })
+	// Still too few for its opening block: lean on the nearest section, as
+	// the front page's সংস্কৃতি and বিশ্লেষণ do.
+	if near, ok := nearestSection[category]; ok && len(pool) < minSectionStories {
+		seen := map[string]bool{}
+		for _, a := range pool {
+			seen[a.ID.String()] = true
+		}
+		for _, a := range h.withPhotos(h.listStories(near, minSectionStories*2), 0) {
+			if len(pool) >= minSectionStories*2 {
+				break
+			}
+			if !seen[a.ID.String()] {
+				pool = append(pool, a)
+			}
+		}
+	}
+	return pool
+}
+
+// nearestSection lends its stories to a section that has almost none.
+var nearestSection = map[string]string{"literature": "entertainment", "analysis": "opinion"}
+
+// minSectionStories is the fewest stories a section page is shown with.
+const minSectionStories = 7
+
+// unused returns the stories of pool that no block shows, in order.
+func unused(pool []domain.Article, blocks []Block) []domain.Article {
+	shown := map[string]bool{}
+	for _, b := range blocks {
+		for _, a := range b.S {
+			shown[a.ID.String()] = true
+		}
+	}
+	var out []domain.Article
+	for _, a := range pool {
+		if !shown[a.ID.String()] {
+			out = append(out, a)
+		}
+	}
+	return out
 }

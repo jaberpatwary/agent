@@ -20,7 +20,7 @@
 
   <main role="main" class="main" id="main-content">
   {{ $l := .Articles }}
-  {{ if not $l }}
+  {{ if and (not $l) (not .Blocks) }}
     <div class="news-section section-spacer mt-5">
       <div class="row"><div class="column small-12">
         <div class="section-title-wrapper"><h2 class="section-title">{{ if .Query }}“{{ .Query }}”{{ else if .Category }}{{ categoryLabel .Category }}{{ else }}সর্বশেষ{{ end }}</h2></div>
@@ -353,105 +353,11 @@
       </div>
     </div>
     {{ range slice .Blocks 1 }}{{ template "cat_block" . }}{{ end }}
+    {{ template "show_more" (dict "R" . "Tab" false) }}
 
   {{ else }}
-    {{/* ======== SECTION ======== */}}
-    <div class="news-section-layout-8 news-section section-spacer mt-5">
-      <div class="row">
-        <div class="column small-12">
-          <div class="section-title-wrapper">
-            <h1 class="section-title">
-              {{ if .Query }}“{{ .Query }}” — {{ banglaDigits (printf "%d" .Total) }}টি খবর{{ else if .Category }}<a href="/?category={{ .Category }}">{{ categoryLabel .Category }}</a>{{ else }}<a href="/latest">সর্বশেষ</a>{{ end }}
-            </h1>
-          </div>
-
-          {{ $top := and (eq .Page 1) (not .Query) }}
-          {{ if $top }}
-          <div class="grid grid-cols-1 md:grid-cols-12 gap-[32px]">
-            <div class="col-span-1 md:col-span-8 gap-[32px]">
-              {{ with index $l 0 }}
-              <div class="card relative card-image-aside card-aside-feature card-title-grow !mb-0">
-                <div class="card-image-col">
-                  <div class="card-image relative overflow-hidden aspect-video">
-                    <a href="/article/{{ .ID }}" aria-label="{{ .Title }}">{{ template "ds_pic" . }}</a>
-                  </div>
-                </div>
-                <div class="card-content">
-                  <h3 class="card-title "><a href="/article/{{ .ID }}">{{ .Title }}</a></h3>
-                  <div class="lp-0 card-intro ">{{ template "ds_intro" . }}</div>
-                  {{ template "ds_info" . }}
-                </div>
-              </div>
-              {{ end }}
-            </div>
-            <div class="col-span-1 md:col-span-4 lg:col-span-4 gap-[32px]">
-              {{ range part $l 1 2 }}
-              <div class="card relative !mb-0">
-                <div class="card-image-col">
-                  <div class="card-image relative overflow-hidden aspect-video">
-                    <a href="/article/{{ .ID }}" aria-label="{{ .Title }}">{{ template "ds_pic" . }}</a>
-                  </div>
-                </div>
-                <div class="card-content">
-                  <h5 class="card-title "><a href="/article/{{ .ID }}">{{ .Title }}</a></h5>
-                  <div class="lp-0 card-intro ">{{ template "ds_intro" . }}</div>
-                  {{ template "ds_info" . }}
-                </div>
-              </div>
-              {{ end }}
-            </div>
-          </div>
-          {{ with part $l 2 7 }}
-          <div class="grid grid-cols-1 md:grid-cols-5 lg:grid-cols-5 gap-[32px] my-10">
-            {{ range . }}{{ template "card_grid" . }}{{ end }}
-          </div>
-          {{ end }}
-          {{ with part $l 7 11 }}
-          <div class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 gap-[32px] border-y border-gray_1 pt-5">
-            {{ range . }}
-            <div class="card relative card-image-aside border-r-[1px] last:border-r-0 pr-4 border-gray_1">
-              <div class="card-image-col">
-                <div class="card-image relative overflow-hidden aspect-video">
-                  <a href="/article/{{ .ID }}" aria-label="{{ .Title }}">{{ template "ds_pic" . }}</a>
-                </div>
-              </div>
-              <div class="card-content !gap-[20px] !order-2">
-                <h5 class="card-title "><a href="/article/{{ .ID }}">{{ .Title }}</a></h5>
-                {{ template "ds_info" . }}
-              </div>
-            </div>
-            {{ end }}
-          </div>
-          {{ end }}
-          {{ end }}
-
-        </div>
-      </div>
-    </div>
-
-    {{/* The rest as a list (time, headline and intro, photo), with "Show more". */}}
-    {{ $rest := $l }}{{ if $top }}{{ $rest = part $l 11 20 }}{{ end }}
-    <div class="block block-rsi-blocks block-category-show-more">
-      <div class="row">
-        <div class="column small-12">
-          <div class="flex flex-col md:flex-row gap-[77px]">
-            <div class="node-content flex-1">
-              <div class="view-content" data-listing>
-                {{ range $rest }}<div data-item>{{ template "list_item" . }}</div>{{ end }}
-              </div>
-              <nav role="navigation" aria-label="আরও খবর" data-pager>
-                <ul class="js-pager__items pager__items pager-show-more">
-                  {{ if .HasMore }}<li class="pager__item"><a href="{{ if .Latest }}/latest{{ else }}/{{ end }}?page={{ add .Page 1 }}{{ if .Category }}&amp;category={{ .Category }}{{ end }}{{ if .Query }}&amp;q={{ .Query | urlquery }}{{ end }}" title="পরের পাতা" data-next>Show more</a></li>{{ end }}
-                </ul>
-              </nav>
-            </div>
-            <div class="sidebar flex-none w-full md:w-[300px] my-[32px]">
-              {{ template "tab_box" (dict "Id" "section" "Latest" (part $l 0 5) "Most" .MostRead) }}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    {{/* ======== SECTION LIST: শিক্ষা, পরিবেশ, এক্সপ্লেইনার, বিশ্লেষণ, and every section's later pages ======== */}}
+    {{ template "show_more" (dict "R" . "Tab" true) }}
   {{ end }}
   </main>
 
@@ -536,7 +442,7 @@
         {{ else if eq $.Tag "h3" }}<h3 class="{{ $.TitleCls }}"><a href="/article/{{ $.A.ID }}">{{ $.A.Title }}</a></h3>
         {{ else if eq $.Tag "h4" }}<h4 class="{{ $.TitleCls }}"><a href="/article/{{ $.A.ID }}">{{ $.A.Title }}</a></h4>
         {{ else }}<h5 class="{{ $.TitleCls }}"><a href="/article/{{ $.A.ID }}">{{ $.A.Title }}</a></h5>{{ end }}
-      {{ else if eq . "intro" }}<div class="{{ $.IntroCls }}">{{ template "ds_intro" $.A }}</div>
+      {{ else if eq . "intro" }}<div class="{{ $.IntroCls }} ds-clamp-3">{{ template "ds_intro" $.A }}</div>
       {{ else if eq . "info" }}{{ template "ds_info" $.A }}{{ end }}
     {{ end }}
   </div>
@@ -586,7 +492,7 @@
       <div class="order-2 md:order-1 flex-1 flex flex-col md:flex-row gap-[20px] md:gap-[56px]">
         <div class="order-1 md:order-2 flex-1 flex flex-col gap-[20px]">
           <h3 class="card-title"><a href="/article/{{ .ID }}">{{ .Title }}</a></h3>
-          <div class="card-intro">{{ template "ds_intro" . }}</div>
+          <div class="card-intro ds-clamp-2">{{ template "ds_intro" . }}</div>
         </div>
         <div class="order-2 md:order-1 flex-none w-[200px]">
           <div class="card-info"><span class=""><time class="rsi-ago rsi-ago--bn" datetime="{{ iso .PublishedAt }}">{{ dsAgo .PublishedAt }}</time></span></div>
@@ -595,4 +501,31 @@
     </div>
   </div>
 </div>
+{{ end }}
+
+{{/* The list under a section page (time, headline and intro, photo) with "Show more", as The Daily Star's block-category-show-more. Takes R (the page) and Tab (draw the সর্বশেষ | সর্বাধিক পঠিত box in the side column). */}}
+{{ define "show_more" }}{{ $r := .R }}
+{{ if $r.Articles }}
+<div class="block block-rsi-blocks block-category-show-more">
+  <div class="row">
+    <div class="column small-12">
+      <div class="flex flex-col md:flex-row gap-[77px]">
+        <div class="node-content flex-1">
+          <div class="view-content" data-listing>
+            {{ range $r.Articles }}<div data-item>{{ template "list_item" . }}</div>{{ end }}
+          </div>
+          <nav role="navigation" aria-label="আরও খবর" data-pager>
+            <ul class="js-pager__items pager__items pager-show-more">
+              {{ if $r.HasMore }}<li class="pager__item"><a href="/?page={{ add $r.Page 1 }}{{ with $r.Category }}&amp;category={{ . }}{{ end }}" title="পরের পাতা" data-next>Show more</a></li>{{ end }}
+            </ul>
+          </nav>
+        </div>
+        <div class="sidebar flex-none w-full md:w-[300px] my-[32px]">
+          {{ if .Tab }}{{ template "tab_box" (dict "Id" "section" "Latest" $r.TabLatest "Most" $r.MostRead) }}{{ end }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{{ end }}
 {{ end }}

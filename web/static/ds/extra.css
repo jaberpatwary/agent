@@ -103,3 +103,20 @@ a.gs-title b, .gs-snippet b { font-weight: 700; }
 /* The সর্বশেষ | সর্বাধিক পঠিত box under a category page's opening block, for
    layouts too wide to share a row with it. */
 .ds-tab-below { max-width: 420px; margin: 8px 0 40px; }
+
+/* The Daily Star's section lists show a two-line intro under each headline;
+   the outlets' summaries run longer, so they are cut to the same height. */
+.block-category-show-more .card-intro,
+.ds-clamp-2 {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+
+/* The Daily Star sets each story's first paragraph in bold (its editors wrap
+   it in <strong>); the rewritten stories get the same. */
+.block-field-blocknodenewsbody .text-formatted > p:first-of-type { font-weight: 700; }
+
+/* Block cards whose layout gives no line limit: the outlets' summaries are
+   longer than The Daily Star's intros, so they stop at three lines. */
+.ds-clamp-3:not([class*="line-clamp"]) {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+}

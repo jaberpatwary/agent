@@ -101,3 +101,18 @@ func TestCategoryPageDrawsItsBlocksAndTheTabBox(t *testing.T) {
 		}
 	}
 }
+
+func TestKeywordsMatchOnlyAtTheStartOfAWord(t *testing.T) {
+	poet := story("কবির শেষ বই প্রকাশিত", 0)
+	drugs := story("রূপগঞ্জে মাদকবিরোধী অবস্থানের জেরে হামলা", 0)
+	words := []string{"কবি"}
+	if score(poet, words) == 0 {
+		t.Fatal("কবির did not match কবি")
+	}
+	if score(drugs, words) != 0 {
+		t.Fatal("মাদকবিরোধী matched কবি")
+	}
+	if score(story("“কবি” সম্মাননা", 0), words) == 0 {
+		t.Fatal("a word after a quote mark did not match")
+	}
+}

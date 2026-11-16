@@ -29,6 +29,7 @@ var pages = []page{
 	{"entertainment.html", "entertainment"},
 	{"life-living.html", "lifestyle"},
 	{"tech-startup.html", "technology"},
+	{"literature.html", "literature"},
 }
 
 var layoutRe = regexp.MustCompile(`\bnews-section-layout-(\d+)\b`)

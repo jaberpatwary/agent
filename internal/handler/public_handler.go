@@ -106,13 +106,19 @@ func (h *PublicHandler) Home(c *gin.Context) {
 		cats["literature"] = topUp(cats["literature"], part(cats["entertainment"], 5, 14), 12)
 		cats["analysis"] = topUp(cats["analysis"], part(cats["opinion"], 2, 14), 5)
 	}
-	// A category page is a run of The Daily Star's sub-section blocks.
+	// A section page, as on The Daily Star: its sub-section blocks on the
+	// first page, then the stories they did not show as a list, 20 a page.
 	var blocks []Block
-	if category != "" && page == 1 && !latest {
-		if specs := categoryBlocks[category]; len(specs) > 0 {
-			if pool, _, err := h.articleUC.List(1, 80, category, "published"); err == nil {
-				blocks = buildBlocks(category, specs, h.withPhotos(pool, 0))
-			}
+	tabLatest := part(articles, 0, 5)
+	if category != "" && !latest {
+		pool := h.categoryPool(category)
+		blocks = buildBlocks(category, categoryBlocks[category], pool)
+		rest := unused(pool, blocks)
+		articles = part(rest, (page-1)*20, page*20)
+		total = int64(len(rest))
+		tabLatest = part(pool, 0, 5)
+		if page > 1 {
+			blocks = nil
 		}
 	}
 	mostRead := h.mostRead(category, 5)
@@ -126,7 +132,8 @@ func (h *PublicHandler) Home(c *gin.Context) {
 		"Multimedia":   videos,
 		"Blocks":       blocks,
 		"TabBeside":    len(blocks) > 0 && (blocks[0].Layout == 8 || blocks[0].Layout == 9),
-		"TabLatest":    part(articles, 0, 5),
+		"TabLatest":    tabLatest,
+		"ListOnly":     category != "" && len(categoryBlocks[category]) == 0,
 		"Latest":       latest,
 		"Cat":          cats,
 		"MostRead":     mostRead,

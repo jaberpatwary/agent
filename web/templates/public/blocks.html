@@ -969,6 +969,27 @@
 </div>
 {{ end }}
 
+{{ define "blk_literature_0" }}
+<div class="news-section-layout-16 news-section section-spacer mt-5">
+<div class="row">
+<div class="column small-12">
+{{ if .Title }}<div class="section-title-wrapper"><h2 class="section-title"><a href="{{ .Href }}"> {{ .Title }} </a></h2></div>{{ end }}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+{{ with at .S 0 }}{{ template "dscard" (dict "A" . "Card" `card relative card-overlay` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h3` "TitleCls" `card-title ` "IntroCls" `` "Order" `title info`) }}{{ end }}
+{{ with at .S 1 }}{{ template "dscard" (dict "A" . "Card" `card relative card-overlay` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h3` "TitleCls" `card-title ` "IntroCls" `` "Order" `title info`) }}{{ end }}
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+{{ with at .S 2 }}{{ template "dscard" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h5` "TitleCls" `card-title ` "IntroCls" `` "Order" `title info`) }}{{ end }}
+{{ with at .S 3 }}{{ template "dscard" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h5` "TitleCls" `card-title ` "IntroCls" `` "Order" `title info`) }}{{ end }}
+{{ with at .S 4 }}{{ template "dscard" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h5` "TitleCls" `card-title ` "IntroCls" `` "Order" `title info`) }}{{ end }}
+{{ with at .S 5 }}{{ template "dscard" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h5` "TitleCls" `card-title ` "IntroCls" `` "Order" `title info`) }}{{ end }}
+{{ with at .S 6 }}{{ template "dscard" (dict "A" . "Card" `card relative` "HasImg" true "Col" `card-image-col` "Img" `card-image relative overflow-hidden aspect-video` "Content" `card-content` "Tag" `h5` "TitleCls" `card-title ` "IntroCls" `` "Order" `title info`) }}{{ end }}
+</div>
+</div>
+</div>
+</div>
+{{ end }}
+
 {{ define "cat_block" }}{{ if eq .Key "blk_bangladesh_0" }}{{ template "blk_bangladesh_0" . }}
 {{ else if eq .Key "blk_bangladesh_1" }}{{ template "blk_bangladesh_1" . }}
 {{ else if eq .Key "blk_bangladesh_2" }}{{ template "blk_bangladesh_2" . }}
@@ -1009,4 +1030,5 @@
 {{ else if eq .Key "blk_technology_1" }}{{ template "blk_technology_1" . }}
 {{ else if eq .Key "blk_technology_2" }}{{ template "blk_technology_2" . }}
 {{ else if eq .Key "blk_technology_3" }}{{ template "blk_technology_3" . }}
+{{ else if eq .Key "blk_literature_0" }}{{ template "blk_literature_0" . }}
 {{ end }}{{ end }}
