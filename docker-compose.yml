@@ -34,6 +34,11 @@ services:
       FEED_WORKER_COUNT: "5"
       # n8n does the AI rewrite now, so the built-in Go worker is off by default.
       DISABLE_BACKGROUND_WORKER: "${DISABLE_BACKGROUND_WORKER:-true}"
+      # English portal: read the English feeds here too, but as briefs only
+      # (-1 = no AI rewrites), so the local copy never spends the AI quota
+      # the hosted site uses.
+      EN_WORKER: "${EN_WORKER:-true}"
+      EN_DAILY_REWRITES: "${EN_DAILY_REWRITES:--1}"
       # Shared secret for /api/n8n/* (set in .env). Empty disables that API.
       N8N_API_KEY: "${N8N_API_KEY:-}"
       APP_ENV: "development"
