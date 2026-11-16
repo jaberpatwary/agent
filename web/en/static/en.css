@@ -125,8 +125,10 @@ a.gs-title b, .gs-snippet b { font-weight: 700; }
 .en-clamp-2, .en-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
 .en-clamp-2 { -webkit-line-clamp: 2; }
 .en-clamp-3:not([class*="line-clamp"]) { -webkit-line-clamp: 3; }
-.news-slider-slide + .news-slider-slide { display: none; }
-@media (min-width: 768px) { .news-slider-slide:nth-child(2) { display: block; } }
+/* The opening block's slider: two stories side by side on wide screens, a
+   row to swipe through on phones (the site moves it with arrows). */
+@media (min-width: 768px) { .news-slider-slide:nth-child(n+3) { display: none; } }
+@media (max-width: 767px) { .news-section-layout-40 .overflow-hidden { overflow-x: auto; scroll-snap-type: x mandatory; } .news-slider-slide { scroll-snap-align: start; } }
 .en-source { font-weight: 500; }
 .en-source a { text-decoration: underline; }
 .en-readmore { display: inline-block; margin: 8px 0 24px; padding: 10px 18px; border: 1px solid currentColor; font-family: Inter, sans-serif; font-size: 14px; text-transform: uppercase; }
