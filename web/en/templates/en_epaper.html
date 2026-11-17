@@ -7,7 +7,7 @@
   <title>Daily Star ePaper, English News Paper, Today Newspaper, Online News Epaper</title>
   <meta name="description" content="Daily Star ePaper: English Newspaper provide all latest news from Bangladesh. Current headlines, breaking news on business, sports, world and entertainment with exclusive Opinions and Editorials.">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;0,700;1,400&display=swap">
-  <link rel="stylesheet" href="/en/static/epaper.css?v=7">
+  <link rel="stylesheet" href="/en/static/epaper.css?v=8">
 </head>
 <body class="ep{{ if eq .View 2 }} ep-clipview{{ end }}">
 
@@ -155,7 +155,7 @@
   </div>
   <div class="ep-toast" data-toast></div>
   <script>window.EP = { page: {{ .Page }}, view: {{ .View }}, pages: {{ len .Pages }}, aid: {{ .AID }}, date: {{ .Date }} };</script>
-  <script src="/en/static/epaper.js?v=7"></script>
+  <script src="/en/static/epaper.js?v=8"></script>
   {{ end }}
   {{ template "ep_cookies" }}
 </body>

@@ -8,6 +8,7 @@
 package english
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,6 +39,13 @@ func (a *Article) BeforeCreate(*gorm.DB) error {
 	if a.ID == uuid.Nil {
 		a.ID = uuid.New()
 	}
+	return nil
+}
+
+// AfterFind drops the "Details" link text Dhaka Tribune's feed ends its
+// summaries with, from stories stored before the reader dropped it.
+func (a *Article) AfterFind(*gorm.DB) error {
+	a.Summary = strings.TrimSuffix(a.Summary, " Details")
 	return nil
 }
 
