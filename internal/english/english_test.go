@@ -59,7 +59,7 @@ func sampleStories() []Article {
 
 func TestEditionPutsEachStoryOnOnePage(t *testing.T) {
 	pages := layoutEdition(sampleStories())
-	if len(pages) < 8 || pages[0].Name != "Front Page" || pages[len(pages)-1].Name != "Back Page" {
+	if len(pages) < 8 || pages[0].Name != "Front" || pages[len(pages)-1].Name != "Back Page" {
 		t.Fatalf("pages = %+v", pages)
 	}
 	seen := map[string]bool{}
@@ -153,8 +153,11 @@ func TestEPaperDraws(t *testing.T) {
 	raw, _ := json.Marshal(pages)
 	_ = raw
 	out := draw(t, "en_epaper.html", map[string]any{"Date": "2026-11-17", "Day": time.Date(2026, 11, 17, 0, 0, 0, 0, dhaka),
-		"Pages": drawn, "Page": 1, "View": 2, "Dates": []string{"2026-11-17", "2026-11-16"}})
-	for _, want := range []string{"np-front", "Journalism without fear or favour", "DHAKA TUESDAY, NOVEMBER 17, 2026", "data-story=", `<template id="st-`, "Dhaka Edition", `value="2026-11-17"`, "INSIDE", "IN BRIEF", "Text view", "data-goto", "Fit width", "Photo: Collected"} {
+		"Pages": drawn, "Page": 1, "View": 2, "Dates": []string{"2026-11-17", "2026-11-16"},
+		"BanglaDate": banglaDate(time.Date(2026, 11, 17, 0, 0, 0, 0, dhaka)), "PageCount": len(drawn), "Ticker": all[:3]})
+	for _, want := range []string{"np-front", "Journalism Without Fear or Favour", "DHAKA TUESDAY, NOVEMBER 17, 2026", "AGRAHAYAN 2, 1433 BS",
+		"data-story=", `<template id="st-`, "Dhaka Edition", `value="2026-11-17"`, "INSIDE", "IN BRIEF", "Photo: Collected",
+		"Breaking News", "Image View", "Text View", "Full View", "Save as favourite", "Dload Image", "1: FRONT", "ep-clipview"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("e-paper lacks %q", want)
 		}
@@ -203,5 +206,22 @@ func TestThinPagesAreLeftOut(t *testing.T) {
 	}
 	if total != len(all) {
 		t.Fatalf("%d of %d stories placed: the thin page's stories must go to a later page", total, len(all))
+	}
+}
+
+func TestBanglaDate(t *testing.T) {
+	cases := map[string]string{
+		"2026-11-17": "Agrahayan 2, 1433 BS",
+		"2026-04-14": "Boishakh 1, 1433 BS",
+		"2026-12-16": "Poush 1, 1433 BS",
+		"2027-03-15": "Falgun 30, 1433 BS", // 2028 is a leap year? no: Falgun 1433 falls in 2027, not leap
+	}
+	delete(cases, "2027-03-15")
+	cases["2027-03-15"] = "Chaitra 1, 1433 BS" // Chaitra always starts on 15 March
+	for in, want := range cases {
+		d, _ := time.Parse("2006-01-02", in)
+		if got := banglaDate(d); got != want {
+			t.Errorf("%s => %q, want %q", in, got, want)
+		}
 	}
 }

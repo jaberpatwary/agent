@@ -39,12 +39,12 @@ func anyStory(Article) bool     { return true }
 // editionPlan is the order of the printed pages. Front Page takes the day's
 // leading stories first; every other page takes what is left that fits it.
 var editionPlan = []pagePlan{
-	{"Front Page", 9, notOpinion},
+	{"Front", 9, notOpinion},
+	{"News", 9, func(a Article) bool {
+		return in(a, "news", "politics", "governance", "education", "technology") || in(a, "youth")
+	}},
 	{"City", 9, func(a Article) bool {
 		return in(a, "news", "crime-justice", "accidents-and-fires", "healthcare", "environment")
-	}},
-	{"Nation", 9, func(a Article) bool {
-		return in(a, "news", "politics", "governance", "education", "technology") || in(a, "youth")
 	}},
 	{"Business", 9, func(a Article) bool { return in(a, "business") }},
 	{"World", 9, func(a Article) bool { return in(a, "news", "world") }},
@@ -54,6 +54,18 @@ var editionPlan = []pagePlan{
 	{"Arts & Entertainment", 8, func(a Article) bool { return in(a, "culture") }},
 	{"Life & Living", 8, func(a Article) bool { return in(a, "lifestyle") }},
 	{"Back Page", 9, anyStory},
+}
+
+// pageName gives editions laid out before the pages were renamed the
+// paper's names: "Front Page" is "Front", "Nation" is "News".
+func pageName(name string) string {
+	switch name {
+	case "Front Page":
+		return "Front"
+	case "Nation":
+		return "News"
+	}
+	return name
 }
 
 // leadScore orders the front page: rewritten national news first.
@@ -197,4 +209,32 @@ func editionFor(db *gorm.DB, date string) (Edition, []EditionPage, error) {
 		return ed, nil, fmt.Errorf("edition %s: %w", ed.Date, err)
 	}
 	return ed, pages, nil
+}
+
+// banglaDate is the Bangla calendar date printed on the paper's dateline
+// ("Agrahayan 2, 1433 BS"), by Bangladesh's revised calendar: the year starts
+// on 14 April; the first six months have 31 days, Falgun 29 (30 in a leap
+// year) and the rest 30.
+func banglaDate(t time.Time) string {
+	months := []string{"Boishakh", "Joishtho", "Asharh", "Srabon", "Bhadro", "Ashwin", "Kartik", "Agrahayan", "Poush", "Magh", "Falgun", "Chaitra"}
+	d := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+	start := time.Date(t.Year(), 4, 14, 0, 0, 0, 0, time.UTC)
+	if d.Before(start) {
+		start = time.Date(t.Year()-1, 4, 14, 0, 0, 0, 0, time.UTC)
+	}
+	year := start.Year() - 593
+	leap := func(y int) bool { return y%4 == 0 && (y%100 != 0 || y%400 == 0) }
+	falgun := 29
+	if leap(start.Year() + 1) {
+		falgun = 30
+	}
+	lengths := []int{31, 31, 31, 31, 31, 31, 30, 30, 30, 30, falgun, 30}
+	day := int(d.Sub(start).Hours() / 24)
+	for i, n := range lengths {
+		if day < n {
+			return fmt.Sprintf("%s %d, %d BS", months[i], day+1, year)
+		}
+		day -= n
+	}
+	return ""
 }

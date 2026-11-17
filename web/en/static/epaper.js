@@ -1,16 +1,20 @@
-/* The Daily Star E-Paper viewer: pages fitted or zoomed, one or two at a
-   time, thumbnails and page numbers, text view, full screen, print/PDF,
-   sharing, keyboard and swipe, and story pop-ups. */
+/* The Daily Star E-Paper viewer (Dhaka Edition): the page fitted to the
+   screen, the page list, the story beside the page (image or text view),
+   full view, favourites, photo download, search, date and page choice, all
+   pages, PDF, text of the page, sharing, full screen, keyboard and swipe. */
 (function () {
   var stage = document.querySelector('[data-stage]');
   if (!stage) return;
   var EP = window.EP || {};
+  var body = document.body;
   var pages = Array.prototype.slice.call(stage.querySelectorAll('.np-page'));
   var W = 1000, H = 1414;
-  var state = { page: EP.page || 1, view: EP.view || 1, zoom: 0, fit: 'page', text: false };
-  // zoom 0 means "fit"; otherwise a scale factor.
+  var state = { page: Math.max(1, Math.min(pages.length, EP.page || 1)), view: EP.view === 1 ? 1 : 2, story: null, mode: 'image', fs: 17, all: false };
 
   function $(s) { return document.querySelector(s); }
+  function $$(s, root) { return Array.prototype.slice.call((root || document).querySelectorAll(s)); }
+  function on(el, ev, fn) { if (el) el.addEventListener(ev, fn); }
+  function wide() { return window.innerWidth > 860; }
   function toast(msg) {
     var t = $('[data-toast]');
     t.textContent = msg;
@@ -18,8 +22,14 @@
     clearTimeout(toast.t);
     toast.t = setTimeout(function () { t.classList.remove('show'); }, 2200);
   }
+  function store(key, val) {
+    try {
+      if (val === undefined) return JSON.parse(localStorage.getItem(key) || 'null');
+      localStorage.setItem(key, JSON.stringify(val));
+    } catch (e) { return null; }
+  }
 
-  // Each page sits in a box of its scaled size, so the stage lays them out.
+  // Each page sits in a box of its scaled size, so the stage lays it out.
   pages.forEach(function (p) {
     var box = document.createElement('div');
     box.className = 'ep-scale';
@@ -27,294 +37,377 @@
     box.appendChild(p);
   });
 
-  // Thumbnails: a small copy of every page.
+  // The page list: a small copy of every page, "1 FRONT", "2 NEWS" …
   var thumbs = $('[data-thumbs]');
   pages.forEach(function (p) {
     var b = document.createElement('button');
     b.type = 'button';
     b.className = 'ep-thumb';
     b.dataset.page = p.dataset.page;
+    b.setAttribute('aria-label', 'Page ' + p.dataset.page + ': ' + p.dataset.name);
     var box = document.createElement('div');
     box.className = 'ep-thumb-box';
     var copy = p.cloneNode(true);
     copy.removeAttribute('data-page');
     copy.style.transform = '';
-    copy.querySelectorAll('[data-story]').forEach(function (s) { s.removeAttribute('data-story'); s.removeAttribute('tabindex'); });
+    $$('[data-story]', copy).forEach(function (s) { s.removeAttribute('data-story'); s.removeAttribute('tabindex'); });
+    $$('img', copy).forEach(function (i) { i.loading = 'lazy'; });
     box.appendChild(copy);
     var label = document.createElement('span');
-    label.textContent = p.dataset.page + ' · ' + p.dataset.name;
+    label.textContent = p.dataset.page + ' ' + p.dataset.name;
     b.appendChild(box);
     b.appendChild(label);
     b.addEventListener('click', function () { go(+b.dataset.page); });
     thumbs.appendChild(b);
   });
 
-  function visible() {
-    var n = state.page;
-    if (state.view === 2 && window.innerWidth > 760) {
-      // Spreads as in print: the front page alone, then 2-3, 4-5 …
-      if (n === 1) return [1];
-      var left = n % 2 === 0 ? n : n - 1;
-      return [left, left + 1].filter(function (x) { return x <= pages.length; });
-    }
-    return [n];
+  function storiesOn(n) {
+    return $$('[data-story]', pages[n - 1]).map(function (s) { return s.dataset.story; });
   }
+  function tpl(id) { return document.getElementById('st-' + id); }
 
-  function fitScale(shown) {
-    var availW = stage.clientWidth - 36 - (shown.length - 1) * 18;
-    var availH = stage.clientHeight - 36;
-    if (window.innerWidth <= 760) return (stage.clientWidth - 20) / W;
-    if (state.fit === 'width') return availW / shown.length / W;
-    return Math.min(availW / shown.length / W, availH / H);
-  }
-
+  // Fit the page to the screen: the whole page in view, the story beside it.
   function draw() {
-    var shown = visible();
-    var scale = state.zoom || fitScale(shown);
+    var shown = state.all ? pages.map(function (p) { return +p.dataset.page; }) : [state.page];
+    var availH = stage.clientHeight - 28;
+    var scale;
+    stage.style.width = '';
+    if (state.all) {
+      scale = 0.24;
+    } else if (!wide()) {
+      scale = (stage.clientWidth - 64) / W;
+    } else if (state.view === 2) {
+      var room = body.clientWidth - (side.classList.contains('closed') ? 0 : side.offsetWidth) - 420 - 80;
+      scale = Math.max(0.2, Math.min(availH / H, room / W));
+      stage.style.width = Math.ceil(W * scale + 80) + 'px';
+    } else {
+      scale = Math.max(0.2, Math.min(availH / H, (stage.clientWidth - 80) / W));
+    }
     pages.forEach(function (p) {
-      var on = shown.indexOf(+p.dataset.page) >= 0;
-      p.parentNode.style.display = on ? 'block' : 'none';
+      var show = shown.indexOf(+p.dataset.page) >= 0;
+      p.parentNode.style.display = show ? 'block' : 'none';
       p.style.transform = 'scale(' + scale + ')';
       p.parentNode.style.width = (W * scale) + 'px';
       p.parentNode.style.height = (H * scale) + 'px';
     });
-    stage.style.justifyContent = (W * scale * shown.length > stage.clientWidth) ? 'flex-start' : 'center';
-    thumbs.querySelectorAll('.ep-thumb').forEach(function (t) { t.classList.toggle('on', shown.indexOf(+t.dataset.page) >= 0); });
-    document.querySelectorAll('[data-goto]').forEach(function (b) { b.classList.toggle('on', shown.indexOf(+b.dataset.goto) >= 0); });
-    $('[data-page-label]').textContent = 'Page ' + shown.join('–') + ' of ' + pages.length;
-    $('[data-zoom-label]').textContent = state.zoom ? Math.round(state.zoom * 100) + '%' : (state.fit === 'width' ? 'Fit width' : 'Fit page');
+    $$('.ep-thumb', thumbs).forEach(function (t) { t.classList.toggle('on', +t.dataset.page === state.page); });
     var sel = $('[data-page-select]');
     if (sel) sel.value = String(state.page);
-    if (state.text) drawText();
+    $('[data-prev]').hidden = state.all || state.page <= 1;
+    $('[data-next]').hidden = state.all || state.page >= pages.length;
+    // The arrows sit a little above the middle of the screen, as on the paper's site.
+    var mid = Math.round(Math.min(stage.clientHeight, H * scale + 28) * 0.36);
+    $('[data-prev]').style.top = mid + 'px';
+    $('[data-next]').style.top = mid + 'px';
+    $('[data-clip-next]').style.top = mid + 'px';
   }
 
   function remember() {
     var u = new URL(window.location.href);
     u.searchParams.set('pgid', state.page);
     u.searchParams.set('view', state.view);
-    u.searchParams.delete('aid');
+    if (state.story && state.view === 2) u.searchParams.set('aid', state.story);
+    else u.searchParams.delete('aid');
     history.replaceState(null, '', u);
   }
 
-  function go(n) {
+  function go(n, story) {
     state.page = Math.max(1, Math.min(pages.length, n));
-    remember();
+    if (state.all) setAll(false);
     draw();
     stage.scrollTop = 0;
     stage.scrollLeft = 0;
-    var on = thumbs.querySelector('.ep-thumb.on');
-    if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    var t = thumbs.querySelector('.ep-thumb.on');
+    if (t) t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    select(story || storiesOn(state.page)[0]);
+    remember();
   }
 
-  function step(d) {
-    var shown = visible();
-    if (d > 0) go(shown[shown.length - 1] + 1);
-    else go(state.view === 2 && shown[0] > 2 ? shown[0] - 2 : shown[0] - 1);
+  // The story beside the page.
+  var clipBody = $('[data-clip-body]');
+  function select(id) {
+    state.story = id || null;
+    $$('.np-story.sel').forEach(function (s) { s.classList.remove('sel'); });
+    if (!id) { clipBody.innerHTML = ''; return; }
+    var s = stage.querySelector('[data-story="' + id + '"]');
+    if (s) s.classList.add('sel');
+    drawClip();
   }
-
-  function zoomBy(d) {
-    var cur = state.zoom || fitScale(visible());
-    var steps = [0.25, 0.35, 0.45, 0.55, 0.7, 0.85, 1, 1.25, 1.5, 2];
-    var next = cur;
-    if (d > 0) { next = steps.find(function (s) { return s > cur + 0.001; }) || 2; }
-    else { next = steps.slice().reverse().find(function (s) { return s < cur - 0.001; }) || 0.25; }
-    state.zoom = next;
-    draw();
+  function drawClip() {
+    var t = state.story && tpl(state.story);
+    clipBody.innerHTML = '';
+    if (!t) return;
+    var box = document.createElement('div');
+    box.className = state.mode === 'text' ? 'ep-read' : 'ep-cut';
+    box.style.setProperty('--fs', state.fs + 'px');
+    box.appendChild(t.content.cloneNode(true));
+    clipBody.appendChild(box);
+    clipBody.scrollTop = 0;
+    $$('[data-mode]').forEach(function (b) { b.classList.toggle('on', b.dataset.mode === state.mode); });
+    $('[data-fontinc]').disabled = state.mode !== 'text';
   }
+  $$('[data-mode]').forEach(function (b) {
+    b.addEventListener('click', function () { state.mode = b.dataset.mode; drawClip(); });
+  });
+  on($('[data-fontinc]'), 'click', function () {
+    state.fs = state.fs >= 23 ? 17 : state.fs + 2;
+    drawClip();
+  });
+  on($('[data-fullview]'), 'click', function () { if (state.story) open(state.story); });
+  on($('[data-favourite]'), 'click', function () {
+    var t = state.story && tpl(state.story);
+    if (!t) return;
+    var favs = store('ep-favourites') || [];
+    if (favs.some(function (f) { return f.id === state.story; })) { toast('Already in your favourites'); return; }
+    favs.unshift({ id: state.story, title: t.dataset.title, date: EP.date, page: +t.dataset.page });
+    store('ep-favourites', favs.slice(0, 100));
+    toast(store('ep-favourites') ? 'Saved as favourite' : 'Favourites cannot be saved in this browser');
+  });
+  on($('[data-download]'), 'click', function () {
+    var t = state.story && tpl(state.story);
+    var src = t && t.dataset.img;
+    if (!src) { toast('This story has no photo'); return; }
+    var a = document.createElement('a');
+    a.href = src;
+    a.download = '';
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  });
+  function nextStory() {
+    var list = storiesOn(state.page), i = list.indexOf(state.story);
+    if (i >= 0 && i < list.length - 1) { select(list[i + 1]); remember(); }
+    else if (state.page < pages.length) go(state.page + 1);
+  }
+  on($('[data-clip-next]'), 'click', nextStory);
 
-  // Text view: the current page's stories as cards.
-  var textView = $('[data-textview]');
-  function drawText() {
-    textView.innerHTML = '';
-    visible().forEach(function (n) {
-      pages[n - 1].querySelectorAll('[data-story]').forEach(function (s) {
-        var t = document.getElementById('st-' + s.dataset.story);
-        if (!t) return;
-        var c = t.content;
-        var card = document.createElement('article');
-        card.dataset.story = s.dataset.story;
-        var k = document.createElement('div'); k.className = 'k'; k.textContent = c.querySelector('.ep-pop-kicker').textContent;
-        var h = document.createElement('h3'); h.textContent = c.querySelector('h2').textContent;
-        card.appendChild(k);
-        var img = c.querySelector('img');
-        if (img) { var i = document.createElement('img'); i.src = img.getAttribute('src'); i.alt = ''; i.loading = 'lazy'; card.appendChild(i); }
-        card.appendChild(h);
-        var p = document.createElement('p');
-        var first = c.querySelector('.ep-pop-intro, .ep-pop-text p');
-        p.textContent = first ? first.textContent : '';
-        card.appendChild(p);
-        textView.appendChild(card);
-      });
+  // Full view: the story (or the whole page's text) in a box over the page.
+  var pop = $('[data-pop]'), popBody = $('[data-pop-body]');
+  function showPop(nodes) {
+    popBody.innerHTML = '';
+    var box = document.createElement('div');
+    box.className = 'ep-read';
+    box.style.setProperty('--fs', state.fs + 'px');
+    nodes.forEach(function (n) { box.appendChild(n); });
+    popBody.appendChild(box);
+    pop.hidden = false;
+    pop.querySelector('.ep-pop-box').scrollTop = 0;
+  }
+  function open(id) {
+    var t = tpl(id);
+    if (t) showPop([t.content.cloneNode(true)]);
+  }
+  function close() { pop.hidden = true; }
+  on(pop, 'click', function (e) { if (e.target === pop || e.target.closest('[data-pop-close]')) close(); });
+  on($('[data-textpage]'), 'click', function () {
+    var nodes = [];
+    var h = document.createElement('p');
+    h.className = 'ep-kicker';
+    h.textContent = 'PAGE ' + state.page + ': ' + pages[state.page - 1].dataset.name;
+    nodes.push(h);
+    storiesOn(state.page).forEach(function (id, i) {
+      var t = tpl(id);
+      if (!t) return;
+      if (i > 0) nodes.push(document.createElement('hr'));
+      var c = t.content.cloneNode(true);
+      var k = c.querySelector('.ep-kicker');
+      if (k) k.remove();
+      nodes.push(c);
     });
-  }
-  textView.addEventListener('click', function (e) {
-    var a = e.target.closest('[data-story]');
-    if (a) open(a.dataset.story);
+    showPop(nodes);
   });
 
-  // Controls
-  $('[data-first]').addEventListener('click', function () { go(1); });
-  $('[data-last]').addEventListener('click', function () { go(pages.length); });
-  $('[data-prev]').addEventListener('click', function () { step(-1); });
-  $('[data-next]').addEventListener('click', function () { step(1); });
-  $('[data-page-select]').addEventListener('change', function (e) { go(+e.target.value); });
-  document.querySelectorAll('[data-goto]').forEach(function (b) { b.addEventListener('click', function () { go(+b.dataset.goto); }); });
-  document.querySelectorAll('[data-zoom]').forEach(function (b) { b.addEventListener('click', function () { zoomBy(+b.dataset.zoom); }); });
-  document.querySelectorAll('[data-fit]').forEach(function (b) {
-    b.addEventListener('click', function () { state.zoom = 0; state.fit = b.dataset.fit; draw(); });
+  // Clicking a story: beside the page in the two-part view, else full view.
+  stage.addEventListener('click', function (e) {
+    if (state.all) {
+      var p = e.target.closest('.np-page');
+      if (p) go(+p.dataset.page);
+      return;
+    }
+    var s = e.target.closest('[data-story]');
+    if (!s) return;
+    if (state.view === 2 && wide()) { select(s.dataset.story); remember(); }
+    else open(s.dataset.story);
   });
-  document.querySelectorAll('[data-view]').forEach(function (b) {
+  stage.addEventListener('keydown', function (e) {
+    var s = e.target.closest('[data-story]');
+    if (s && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); s.click(); }
+  });
+
+  // Tool bar
+  on($('[data-prev]'), 'click', function () { go(state.page - 1); });
+  on($('[data-next]'), 'click', function () { go(state.page + 1); });
+  on($('[data-page-select]'), 'change', function (e) { go(+e.target.value); });
+  var side = $('[data-side]');
+  $$('[data-toggle-pages]').forEach(function (b) {
+    b.addEventListener('click', function () { side.classList.toggle('closed'); draw(); });
+  });
+  if (!wide()) side.classList.remove('closed');
+  $$('[data-view]').forEach(function (b) {
     b.addEventListener('click', function () {
       state.view = +b.dataset.view;
-      document.body.classList.toggle('ep-double', state.view === 2);
-      document.querySelectorAll('[data-view]').forEach(function (x) { x.classList.toggle('on', x === b); });
-      go(state.page);
+      if (state.all) setAll(false);
+      body.classList.toggle('ep-clipview', state.view === 2);
+      $$('[data-view]').forEach(function (x) { x.classList.toggle('on', x === b); });
+      draw();
+      remember();
     });
   });
-  var textBtn = $('[data-text]');
-  textBtn.addEventListener('click', function () {
-    state.text = !state.text;
-    textBtn.classList.toggle('on', state.text);
-    textView.hidden = !state.text;
-    stage.hidden = state.text;
-    draw();
-  });
-  $('[data-full]').addEventListener('click', function () {
+  function setAll(v) {
+    state.all = v;
+    body.classList.toggle('ep-allpages', v);
+    body.classList.toggle('ep-clipview', !v && state.view === 2);
+    $('[data-allpages]').classList.toggle('on', v);
+  }
+  on($('[data-allpages]'), 'click', function () { setAll(!state.all); draw(); stage.scrollTop = 0; });
+  on($('[data-full]'), 'click', function () {
     if (document.fullscreenElement) document.exitFullscreen();
-    else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function () {});
+    else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function () { toast('Full screen is not available here'); });
   });
   document.addEventListener('fullscreenchange', function () { setTimeout(draw, 100); });
 
-  // Date: the calendar opens the chosen day's edition.
+  // Date: the calendar opens that day's edition.
   var dateInput = $('[data-date]');
-  if (dateInput) dateInput.addEventListener('change', function () {
+  on(dateInput, 'click', function () { try { dateInput.showPicker(); } catch (e) {} });
+  on(dateInput, 'change', function () {
     var d = dateInput.value.split('-');
     if (d.length !== 3) return;
     window.location = '/epaper/DhakaEdition?eid=1&edate=' + encodeURIComponent(d[2] + '/' + d[1] + '/' + d[0]) + '&pgid=1&view=' + state.view;
   });
 
-  // Print and PDF: the browser's print dialog ("Save as PDF").
-  function printWith(cls, prep) {
-    document.body.classList.add(cls);
-    pages.forEach(function (p) { p.parentNode.style.display = 'block'; });
-    if (prep) prep();
-    window.print();
-    document.body.classList.remove(cls);
-    document.querySelectorAll('.print-me').forEach(function (x) { x.classList.remove('print-me'); });
-    draw();
-  }
-  $('[data-print]').addEventListener('click', function () { printWith('print-all'); });
-  $('[data-print-page]').addEventListener('click', function () {
-    printWith('print-one', function () { visible().forEach(function (n) { pages[n - 1].parentNode.classList.add('print-me'); }); });
+  // Edition: Dhaka is the only one.
+  var edMenu = $('[data-edition-menu]');
+  on($('[data-edition-btn]'), 'click', function (e) { e.stopPropagation(); edMenu.hidden = !edMenu.hidden; });
+
+  // PDF: every page through the browser's print dialog ("Save as PDF").
+  on($('[data-print]'), 'click', function () {
+    var imgs = $$('.ep-pages img');
+    imgs.forEach(function (i) { i.loading = 'eager'; });
+    var wait = imgs.filter(function (i) { return !i.complete; }).map(function (i) {
+      return new Promise(function (r) { i.addEventListener('load', r); i.addEventListener('error', r); });
+    });
+    toast('Preparing the edition …');
+    Promise.race([Promise.all(wait), new Promise(function (r) { setTimeout(r, 4000); })]).then(function () { window.print(); });
   });
 
-  // Share the page.
-  var shareMenu = $('[data-share-menu]');
-  function pageLink() { return window.location.href.split('#')[0]; }
-  $('[data-share-btn]').addEventListener('click', function () {
-    var u = encodeURIComponent(pageLink()), t = encodeURIComponent(document.title);
-    var to = {
-      facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + u,
-      x: 'https://x.com/intent/tweet?text=' + t + '&url=' + u,
-      whatsapp: 'https://wa.me/?text=' + t + '%20' + u,
-      email: 'mailto:?subject=' + t + '&body=' + u
+  // Search the edition's stories.
+  var index = $$('template[id^="st-"]').map(function (t) {
+    var text = t.content.querySelector('.ep-text');
+    return {
+      id: t.id.slice(3), page: +t.dataset.page, title: t.dataset.title,
+      hay: (t.dataset.title + ' ' + (text ? text.textContent : '')).toLowerCase()
     };
-    shareMenu.querySelectorAll('[data-share-to]').forEach(function (a) { a.href = to[a.dataset.shareTo]; });
-    shareMenu.hidden = !shareMenu.hidden;
   });
-  function copy(text) {
-    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
-      .then(function () { toast('Link copied'); })
-      .catch(function () { window.prompt('Copy this link', text); });
+  var search = $('[data-search]'), results = $('[data-results]');
+  function runSearch() {
+    var q = search.value.trim().toLowerCase();
+    results.innerHTML = '';
+    if (q.length < 2) { results.hidden = true; return; }
+    var hits = index.filter(function (s) { return s.hay.indexOf(q) >= 0; }).slice(0, 20);
+    if (!hits.length) {
+      var p = document.createElement('p');
+      p.textContent = 'Nothing found in this edition';
+      results.appendChild(p);
+    }
+    hits.forEach(function (s) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = s.title;
+      var small = document.createElement('small');
+      small.textContent = 'Page ' + s.page + ': ' + pages[s.page - 1].dataset.name;
+      b.appendChild(small);
+      b.addEventListener('click', function () {
+        results.hidden = true;
+        go(s.page, s.id);
+        if (!(state.view === 2 && wide())) open(s.id);
+      });
+      results.appendChild(b);
+    });
+    results.hidden = false;
   }
-  shareMenu.querySelector('[data-copy]').addEventListener('click', function () { copy(pageLink()); shareMenu.hidden = true; });
-  document.addEventListener('click', function (e) { if (!e.target.closest('.ep-share')) shareMenu.hidden = true; });
+  on(search, 'input', runSearch);
+  on(search, 'keydown', function (e) {
+    if (e.key === 'Enter') { var b = results.querySelector('button'); if (b) b.click(); }
+    if (e.key === 'Escape') { results.hidden = true; search.blur(); }
+  });
 
-  // Story pop-up, with the page's other stories one click away.
-  var pop = $('[data-pop]'), popBody = $('[data-pop-body]');
-  var current = null, fontSize = 17;
-  function storiesOnPage(id) {
-    var t = document.getElementById('st-' + id);
-    var n = t ? +t.dataset.page : state.page;
-    return Array.prototype.map.call(pages[n - 1].querySelectorAll('[data-story]'), function (s) { return s.dataset.story; });
-  }
-  function open(id) {
-    var t = document.getElementById('st-' + id);
-    if (!t) return;
-    current = id;
-    popBody.innerHTML = '';
-    popBody.appendChild(t.content.cloneNode(true));
-    popBody.style.setProperty('--fs', fontSize + 'px');
-    pop.hidden = false;
-    popBody.scrollTop = 0;
-    var list = storiesOnPage(id), i = list.indexOf(id);
-    $('[data-pop-prev]').disabled = i <= 0;
-    $('[data-pop-next]').disabled = i < 0 || i >= list.length - 1;
-    document.querySelectorAll('.np-story.hl').forEach(function (s) { s.classList.remove('hl'); });
-  }
-  function close() { pop.hidden = true; current = null; }
-  function storyLink(id) {
+  // Share the page or the story.
+  var sharebox = $('[data-sharebox]'), shareLink = '';
+  function link(withStory) {
     var u = new URL(window.location.href);
-    u.searchParams.set('aid', id);
+    u.hash = '';
+    if (withStory && state.story) u.searchParams.set('aid', state.story);
+    else u.searchParams.delete('aid');
     return u.toString();
   }
-  $('[data-pop-prev]').addEventListener('click', function () { var l = storiesOnPage(current), i = l.indexOf(current); if (i > 0) open(l[i - 1]); });
-  $('[data-pop-next]').addEventListener('click', function () { var l = storiesOnPage(current), i = l.indexOf(current); if (i >= 0 && i < l.length - 1) open(l[i + 1]); });
-  document.querySelectorAll('[data-font]').forEach(function (b) {
-    b.addEventListener('click', function () {
-      fontSize = Math.max(14, Math.min(24, fontSize + 2 * +b.dataset.font));
-      popBody.style.setProperty('--fs', fontSize + 'px');
+  $$('[data-share]').forEach(function (b) {
+    b.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var story = b.dataset.share === 'story';
+      shareLink = link(story);
+      var t = story && state.story && tpl(state.story);
+      var title = t ? t.dataset.title : document.title;
+      var u = encodeURIComponent(shareLink), tt = encodeURIComponent(title);
+      var to = {
+        facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + u,
+        x: 'https://x.com/intent/tweet?text=' + tt + '&url=' + u,
+        whatsapp: 'https://wa.me/?text=' + tt + '%20' + u,
+        email: 'mailto:?subject=' + tt + '&body=' + u
+      };
+      $$('[data-share-to]', sharebox).forEach(function (a) { a.href = to[a.dataset.shareTo]; });
+      var r = b.getBoundingClientRect();
+      sharebox.hidden = false;
+      sharebox.style.top = Math.min(window.innerHeight - sharebox.offsetHeight - 8, r.bottom + 6) + 'px';
+      sharebox.style.left = Math.max(8, r.right - sharebox.offsetWidth) + 'px';
     });
   });
-  $('[data-pop-share]').addEventListener('click', function () { if (current) copy(storyLink(current)); });
-  $('[data-pop-print]').addEventListener('click', function () {
-    document.body.classList.add('print-story');
-    window.print();
-    document.body.classList.remove('print-story');
+  on(sharebox.querySelector('[data-copy]'), 'click', function () {
+    sharebox.hidden = true;
+    (navigator.clipboard ? navigator.clipboard.writeText(shareLink) : Promise.reject())
+      .then(function () { toast('Link copied'); })
+      .catch(function () { window.prompt('Copy this link', shareLink); });
   });
-  stage.addEventListener('click', function (e) {
-    var s = e.target.closest('[data-story]');
-    if (s) open(s.dataset.story);
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('[data-sharebox]')) sharebox.hidden = true;
+    if (!e.target.closest('.ep-edition')) edMenu.hidden = true;
+    if (!e.target.closest('.ep-search')) results.hidden = true;
   });
-  stage.addEventListener('keydown', function (e) {
-    var s = e.target.closest('[data-story]');
-    if (s && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(s.dataset.story); }
-  });
-  pop.addEventListener('click', function (e) { if (e.target === pop || e.target.closest('[data-pop-close]')) close(); });
+
+  // Breaking news runs at a steady speed whatever its length.
+  var run = $('.ep-ticker-run');
+  if (run) run.style.animationDuration = Math.max(30, run.scrollWidth / 2 / 70) + 's';
 
   // Keyboard
   document.addEventListener('keydown', function (e) {
     if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
-    if (!pop.hidden) {
-      if (e.key === 'Escape') close();
-      if (e.key === 'ArrowRight') $('[data-pop-next]').click();
-      if (e.key === 'ArrowLeft') $('[data-pop-prev]').click();
-      return;
-    }
-    if (e.key === 'ArrowRight' || e.key === 'PageDown') step(1);
-    if (e.key === 'ArrowLeft' || e.key === 'PageUp') step(-1);
+    if (!pop.hidden) { if (e.key === 'Escape') close(); return; }
+    if (e.key === 'Escape') { sharebox.hidden = true; if (state.all) { setAll(false); draw(); } }
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') go(state.page + 1);
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(state.page - 1);
+    if (e.key === 'ArrowDown' && state.view === 2) { e.preventDefault(); nextStory(); }
     if (e.key === 'Home') go(1);
     if (e.key === 'End') go(pages.length);
-    if (e.key === '+' || e.key === '=') zoomBy(1);
-    if (e.key === '-') zoomBy(-1);
-    if (e.key === '0') { state.zoom = 0; draw(); }
   });
 
   // Swipe on phones.
   var x0 = null;
   stage.addEventListener('touchstart', function (e) { if (e.touches.length === 1) x0 = e.touches[0].clientX; }, { passive: true });
   stage.addEventListener('touchend', function (e) {
-    if (x0 === null || state.zoom) return;
+    if (x0 === null) return;
     var dx = e.changedTouches[0].clientX - x0;
-    if (Math.abs(dx) > 60) step(dx < 0 ? 1 : -1);
+    if (Math.abs(dx) > 60) go(state.page + (dx < 0 ? 1 : -1));
     x0 = null;
   });
 
   window.addEventListener('resize', draw);
-  draw();
-  // A shared story link opens on its page with the story.
-  if (EP.aid) {
-    var t = document.getElementById('st-' + EP.aid);
-    if (t) { go(+t.dataset.page); open(EP.aid); }
+  // A shared story link opens on its page with that story.
+  var start = EP.aid && tpl(EP.aid);
+  if (start) {
+    go(+start.dataset.page, EP.aid);
+    if (!(state.view === 2 && wide())) open(EP.aid);
+  } else {
+    go(state.page);
   }
 })();

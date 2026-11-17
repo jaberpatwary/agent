@@ -244,7 +244,7 @@ func (s *site) epaperHome(c *gin.Context) {
 		s.render(c, http.StatusOK, "en_epaper.html", map[string]any{"NoEdition": true, "View": 1, "Page": 1})
 		return
 	}
-	c.Redirect(http.StatusFound, epaperURL(ed.Date, 1, 1))
+	c.Redirect(http.StatusFound, epaperURL(ed.Date, 1, 2))
 }
 
 func (s *site) epaper(c *gin.Context) {
@@ -258,16 +258,16 @@ func (s *site) epaper(c *gin.Context) {
 		return
 	}
 	if date != "" && ed.Date != date {
-		c.Redirect(http.StatusFound, epaperURL(ed.Date, 1, 1))
+		c.Redirect(http.StatusFound, epaperURL(ed.Date, 1, 2))
 		return
 	}
 	pg, _ := strconv.Atoi(c.DefaultQuery("pgid", "1"))
 	if pg < 1 || pg > len(pages) {
 		pg = 1
 	}
-	view, _ := strconv.Atoi(c.DefaultQuery("view", "1"))
-	if view != 2 {
-		view = 1
+	view, _ := strconv.Atoi(c.DefaultQuery("view", "2"))
+	if view != 1 {
+		view = 2 // the page with the story clip beside it, as The Daily Star opens
 	}
 	// Every story on every page, for the page drawings and the pop-ups.
 	var ids []string
@@ -287,7 +287,7 @@ func (s *site) epaper(c *gin.Context) {
 	}
 	var drawn []drawnPage
 	for _, p := range pages {
-		d := drawnPage{No: p.No, Name: p.Name}
+		d := drawnPage{No: p.No, Name: pageName(p.Name)}
 		for _, id := range p.Stories {
 			if a, ok := byID[id]; ok {
 				d.Stories = append(d.Stories, a)
@@ -302,6 +302,7 @@ func (s *site) epaper(c *gin.Context) {
 		"Date": ed.Date, "Day": day, "Pages": drawn, "Page": pg, "View": view, "Dates": dates,
 		"PrevDate": neighbour(dates, ed.Date, 1), "NextDate": neighbour(dates, ed.Date, -1),
 		"MinDate": last(dates), "MaxDate": first(dates), "AID": c.Query("aid"),
+		"Ticker": s.latest(12), "BanglaDate": banglaDate(day), "PageCount": len(drawn),
 	})
 }
 
