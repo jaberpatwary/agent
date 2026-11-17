@@ -2,6 +2,7 @@ package english
 
 import (
 	"net/url"
+	"regexp"
 	"strings"
 )
 
@@ -181,24 +182,28 @@ var pathRules = []pathRule{
 }
 
 // subWords decide the sub-section from the headline when the address does not.
+// Each word is matched as a whole word (with its plural and -ed/-ing forms),
+// so "protest" is not a cricket "test"; a word ending in * is a stem
+// ("sentenc*" for sentenced, sentencing); one ending in a space takes no
+// ending at all ("us " is the country, not "used").
 var subWords = map[string][][2]string{
 	"news": {
 		{"world", "us |u.s.|trump|china|india|pakistan|gaza|israel|iran|russia|ukraine|myanmar|rohingya repatriation|un |united nations|nepal|sri lanka|europe|uk |britain|japan|saudi|malaysia"},
-		{"politics", "election|bnp|awami|jamaat|parliament|mp |party|rally|ncp|polls|vote|ballot|candidate|nomination"},
-		{"crime-justice", "murder|killed in|arrest|court|case|verdict|sentenc|police|rab |detained|bail|rape|robbery|extortion|smuggl|tribunal|jail|stabbed|hacked"},
-		{"accidents-and-fires", "fire|blaze|accident|crash|collision|drown|capsiz|electrocut|lightning|explosion|bulkhead|sinks"},
+		{"politics", "election|bnp|awami|jamaat|parliament|mp |party|parties|rally|ncp|polls|vote|ballot|candidate|nomination"},
+		{"crime-justice", "murder|killed in|arrest|court|case|verdict|sentenc*|police|rab |detain|bail|rape|robbery|extortion|smuggl*|tribunal|jail|stabbed|hacked"},
+		{"accidents-and-fires", "fire|blaze|accident|crash|collision|drown|capsiz*|electrocut*|lightning|explosion|bulkhead|sinks"},
 		{"education", "university|student|exam|ssc|hsc|school|college|teacher|admission|campus"},
 		{"healthcare", "hospital|dengue|health|patient|doctor|disease|vaccine|medical|chikungunya"},
 		{"environment", "climate|pollution|river|forest|cyclone|weather|rain|flood|wildlife|air quality|elephant|environment"},
-		{"technology", " ai |ai-|artificial intelligence|internet|mobile|app |cyber|digital|software|satellite|tech"},
+		{"technology", "ai |ai-|artificial intelligence|internet|mobile|app |apps |cyber|digital|software|satellite|tech*"},
 	},
 	"sports": {
 		{"cricket", "cricket|test|odi|t20|wicket|bcb|bpl|innings|bowler|batter|icc|tigers|tigresses|century|ton "},
-		{"football", "football|fifa|goal|league|bff|messi|ronaldo|uefa|saff|striker|world cup qualif"},
+		{"football", "football|fifa|goal|league|bff|messi|ronaldo|uefa|saff|striker|world cup qualif*"},
 		{"tennis", "tennis|grand slam|wimbledon|atp|wta"},
 	},
 	"business": {
-		{"agriculture", "rice|crop|farmer|harvest|fish|potato|agri|paddy|fertiliser|onion"},
+		{"agriculture", "rice|crop|farmer|harvest|fish|potato|agri*|paddy|fertiliser|onion"},
 		{"industries", "rmg|garment|factory|industry|power|gas|energy|steel|cement|export"},
 		{"startups", "startup|fintech|entrepreneur|venture"},
 		{"global-economy", "global|imf|world bank|oil price|fed |tariff|wall street|china's economy"},
@@ -214,9 +219,13 @@ var subWords = map[string][][2]string{
 		{"music", "song|music|concert|band|singer|album"},
 		{"books-literature", "book|novel|poet|poem|literature|author|writer"},
 		{"theatre-arts", "theatre|art |exhibition|painting|sculpture|dance"},
-		{"heritage", "heritage|history|archaeolog|ancient|mosque|temple"},
+		{"heritage", "heritage|history|archaeolog*|ancient|mosque|temple"},
 	},
 }
+
+// partyLeague matches the parties and their wings named "... League"; they
+// are politics, never football.
+var partyLeague = regexp.MustCompile(`\b(awami|chhatra|jubo|juba|swechchhasebak|krishak|sramik|mohila|muslim|tanti|matsyajibi|olama)\s+league\b`)
 
 // subDefault is where a story goes when nothing places it more exactly.
 var subDefault = map[string]string{
@@ -224,26 +233,35 @@ var subDefault = map[string]string{
 	"lifestyle": "relationships-family", "culture": "entertainment", "opinion": "views", "slow-reads": "focus",
 }
 
-// classify places a story by its address at the source, then its headline.
-func classify(link, title string) (section, sub string) {
+// placeByPath reads a story's place from its address alone ("" if it does
+// not tell).
+func placeByPath(link string) (section, sub string) {
 	path := strings.ToLower(link)
 	if u, err := url.Parse(link); err == nil {
 		path = strings.ToLower(u.Path)
 	}
 	for _, r := range pathRules {
 		if strings.Contains(path, r.part) {
-			section, sub = r.section, r.sub
-			break
+			return r.section, r.sub
 		}
 	}
-	head := " " + strings.ToLower(title) + " "
+	return "", ""
+}
+
+// classify places a story by its address at the source, then its headline.
+func classify(link, title string) (section, sub string) {
+	section, sub = placeByPath(link)
+	head := " " + partyLeague.ReplaceAllString(strings.ToLower(title), "$1 party") + " "
 	if section == "" {
 		section = "news"
-		// A sports or business headline from a general news address.
-		for _, s := range []string{"sports", "business"} {
-			if pickSub(s, head) != "" {
-				section = s
-				break
+		// A sports or business headline from a general news address; a party,
+		// police or court story stays news whatever else it mentions.
+		if s := pickSub("news", head); s != "politics" && s != "crime-justice" {
+			for _, s := range []string{"sports", "business"} {
+				if pickSub(s, head) != "" {
+					section = s
+					break
+				}
 			}
 		}
 	}
@@ -259,10 +277,49 @@ func classify(link, title string) (section, sub string) {
 func pickSub(section, head string) string {
 	for _, rule := range subWords[section] {
 		for _, w := range strings.Split(rule[1], "|") {
-			if w != "" && strings.Contains(head, w) {
+			if hasWord(head, w) {
 				return rule[0]
 			}
 		}
 	}
 	return ""
 }
+
+// hasWord finds the word w (as written in subWords) in the lower-case text s.
+func hasWord(s, w string) bool {
+	exact := strings.HasSuffix(w, " ")
+	stem := strings.HasSuffix(w, "*")
+	w = strings.TrimSpace(strings.TrimSuffix(w, "*"))
+	if w == "" {
+		return false
+	}
+	for from := 0; from < len(s); {
+		i := strings.Index(s[from:], w)
+		if i < 0 {
+			return false
+		}
+		at, end := from+i, from+i+len(w)
+		from = at + 1
+		if at > 0 && wordByte(s[at-1]) && wordByte(w[0]) {
+			continue // inside a word: "protest" is not "test"
+		}
+		if stem || !wordByte(w[len(w)-1]) {
+			return true
+		}
+		rest := end
+		for rest < len(s) && wordByte(s[rest]) {
+			rest++
+		}
+		switch s[end:rest] {
+		case "":
+			return true
+		case "s", "es", "d", "ed", "ing", "er", "ers":
+			if !exact {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func wordByte(b byte) bool { return b >= 'a' && b <= 'z' || b >= '0' && b <= '9' }

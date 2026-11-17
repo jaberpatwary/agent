@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -56,6 +57,18 @@ var editionPlan = []pagePlan{
 	{"Back Page", 9, anyStory},
 }
 
+// printWeight orders a page's stories for print: whole stories first, then
+// those with a summary, then a bare headline.
+func printWeight(a Article) int {
+	switch {
+	case !a.Brief():
+		return 2
+	case strings.TrimSpace(a.Summary) != "":
+		return 1
+	}
+	return 0
+}
+
 // pageName gives editions laid out before the pages were renamed the
 // paper's names: "Front Page" is "Front", "Nation" is "News".
 func pageName(name string) string {
@@ -83,8 +96,11 @@ func leadScore(a Article) int {
 	return s
 }
 
-// layoutEdition places stories (newest first) on the planned pages.
+// layoutEdition places stories (newest first) on the planned pages, each
+// piece of news once: when two outlets carry the same story, the fuller one
+// is printed.
 func layoutEdition(stories []Article) []EditionPage {
+	stories = dropRepeats(stories)
 	used := map[string]bool{}
 	var pages []EditionPage
 	for i, plan := range editionPlan {
@@ -94,12 +110,16 @@ func layoutEdition(stories []Article) []EditionPage {
 				cands = append(cands, a)
 			}
 		}
+		// The front page leads with the day's main national news; other pages
+		// take whole stories before bare headlines. Stable: equal scores keep
+		// newest first.
+		score := printWeight
 		if i == 0 {
-			// Stable: equal scores keep newest first.
-			for x := 1; x < len(cands); x++ {
-				for y := x; y > 0 && leadScore(cands[y]) > leadScore(cands[y-1]); y-- {
-					cands[y], cands[y-1] = cands[y-1], cands[y]
-				}
+			score = leadScore
+		}
+		for x := 1; x < len(cands); x++ {
+			for y := x; y > 0 && score(cands[y]) > score(cands[y-1]); y-- {
+				cands[y], cands[y-1] = cands[y-1], cands[y]
 			}
 		}
 		if len(cands) > plan.max {
@@ -123,6 +143,74 @@ func layoutEdition(stories []Article) []EditionPage {
 	return pages
 }
 
+// dropRepeats keeps one story of each piece of news (by its headline's
+// words), preferring one with its full text; the order is kept.
+func dropRepeats(stories []Article) []Article {
+	words := make([]map[string]bool, len(stories))
+	for i, a := range stories {
+		words[i] = headWords(a.Title)
+	}
+	drop := map[int]bool{}
+	for i := range stories {
+		for j := i + 1; j < len(stories); j++ {
+			if drop[i] || drop[j] || !sameNews(words[i], words[j]) {
+				continue
+			}
+			if stories[i].Brief() && !stories[j].Brief() {
+				drop[i] = true
+			} else {
+				drop[j] = true
+			}
+		}
+	}
+	out := make([]Article, 0, len(stories))
+	for i, a := range stories {
+		if !drop[i] {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+var notHeadWords = map[string]bool{"the": true, "and": true, "for": true, "with": true, "from": true, "over": true, "after": true, "into": true, "says": true, "said": true, "amid": true, "are": true, "was": true, "has": true, "have": true, "its": true, "his": true, "her": true, "their": true, "this": true, "that": true, "will": true, "not": true, "but": true}
+
+func headWords(title string) map[string]bool {
+	out := map[string]bool{}
+	for _, w := range strings.FieldsFunc(strings.ToLower(title), func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9')
+	}) {
+		if (len(w) >= 3 || w[0] >= '0' && w[0] <= '9') && !notHeadWords[w] {
+			out[w] = true
+		}
+	}
+	return out
+}
+
+// sameNews: two headlines share most of their words (at least four), or all.
+func sameNews(a, b map[string]bool) bool {
+	small, big := a, b
+	if len(b) < len(a) {
+		small, big = b, a
+	}
+	if len(small) == 0 {
+		return false
+	}
+	common := 0
+	for w := range small {
+		if big[w] {
+			common++
+		}
+	}
+	if common == len(a) && common == len(b) {
+		return true
+	}
+	return common >= 4 && (float64(common) >= 0.75*float64(len(small)) || float64(common) >= 0.6*float64(len(a)+len(b)-common))
+}
+
+// editionLayout is the version of the layout rules. An edition made with
+// older rules is laid out again from the same day's stories.
+const editionLayout = 3
+
 // minPageStories: the fewest stories an inner page is printed with.
 const minPageStories = 4
 
@@ -138,15 +226,14 @@ const firstEditionStories = 20
 // of news takes the latest ones instead.
 func ensureEdition(db *gorm.DB, now time.Time) error {
 	date := now.Format("2006-01-02")
-	var n int64
 	var existing Edition
-	if db.Where("date = ?", date).First(&existing).Error == nil {
-		// An edition stands once made, except a thin first one a new portal
-		// laid out before it had a day's news: that one is made again.
-		if storiesIn(existing) >= fullEditionStories {
-			return nil
-		}
-		n = 1
+	found := db.Where("date = ?", date).First(&existing).Error == nil
+	// An edition stands once made, except a thin first one a new portal laid
+	// out before it had a day's news, or one made with older layout rules:
+	// those are made again.
+	stale := found && existing.Layout < editionLayout
+	if found && !stale && storiesIn(existing) >= fullEditionStories {
+		return nil
 	}
 	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, dhaka)
 	var stories []Article
@@ -167,13 +254,14 @@ func ensureEdition(db *gorm.DB, now time.Time) error {
 	if err != nil {
 		return err
 	}
-	if n > 0 {
-		if len(stories) <= storiesIn(existing) {
+	if found {
+		if !stale && len(stories) <= storiesIn(existing) {
 			return nil
 		}
-		return db.Model(&Edition{}).Where("date = ?", date).Update("pages", string(raw)).Error
+		return db.Model(&Edition{}).Where("date = ?", date).
+			Updates(map[string]any{"pages": string(raw), "layout": editionLayout}).Error
 	}
-	return db.Create(&Edition{Date: date, Pages: string(raw)}).Error
+	return db.Create(&Edition{Date: date, Pages: string(raw), Layout: editionLayout}).Error
 }
 
 // fullEditionStories: an edition with fewer stories than this was laid out

@@ -26,7 +26,8 @@ type Article struct {
 	Section     string    `gorm:"size:40;index"`
 	Sub         string    `gorm:"size:60;index"`
 	Rewritten   bool
-	PublishedAt time.Time `gorm:"index"`
+	RewrittenAt *time.Time // when the AI wrote it, for the day's cap
+	PublishedAt time.Time  `gorm:"index"`
 	CreatedAt   time.Time
 }
 
@@ -57,6 +58,7 @@ func (Seen) TableName() string { return "en_seen" }
 type Edition struct {
 	Date      string `gorm:"primaryKey;size:10"` // 2006-01-02, Dhaka time
 	Pages     string `gorm:"type:text"`          // JSON []EditionPage
+	Layout    int    // the layout rules it was made with (editionLayout)
 	CreatedAt time.Time
 }
 

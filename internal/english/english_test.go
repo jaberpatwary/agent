@@ -24,12 +24,63 @@ func TestClassifyReadsTheAddressThenTheHeadline(t *testing.T) {
 		{"https://www.observerbd.com/news/550001", "Court sentences two to death for murder", "news", "crime-justice"},
 		{"https://www.observerbd.com/news/550002", "Litton's century keeps Tigers alive in ODI", "sports", "cricket"},
 		{"https://www.observerbd.com/news/550003", "Adviser opens new bridge", "news", "governance"},
+		// Party names are not football, and a protest is not a cricket Test.
+		{"https://www.dhakatribune.com/bangladesh/nation/424829/awami-league-back", "Awami League back on Gopalganj streets despite security clampdown", "news", "politics"},
+		{"https://www.thedailystar.net/bangladesh/local-news/4ryl7w040n", "Banned Awami League activists break into locked Tungipara office for meeting", "news", "politics"},
+		{"https://www.dhakatribune.com/bangladesh/government-affairs/424896/zahed", "Zahed: Govt monitoring public servants with Awami League links", "news", "politics"},
+		{"https://www.thedailystar.net/bangladesh/local-news/xu9rii0mod", "Workers halt operations at 2 Chittagong port terminals, stage protest", "news", "governance"},
+		{"https://www.observerbd.com/news/550004", "Premier League: Arsenal score late goals to go top", "sports", "football"},
+		{"https://www.observerbd.com/news/550005", "Bangladesh name squad for first Test against India", "sports", "cricket"},
 	}
 	for _, c := range cases {
 		sec, sub := classify(c.link, c.title)
 		if sec != c.section || sub != c.sub {
 			t.Errorf("%s %q => %s/%s, want %s/%s", c.link, c.title, sec, sub, c.section, c.sub)
 		}
+	}
+}
+
+func TestHeadlineWordsAreWholeWords(t *testing.T) {
+	for _, c := range []struct {
+		text, word string
+		want       bool
+	}{
+		{" mass protest in dhaka ", "test", false},
+		{" first test today ", "test", true},
+		{" two goals in ten minutes ", "goal", true},
+		{" used cars ", "us ", false},
+		{" us sanctions ", "us ", true},
+		{" two sentenced to death ", "sentenc*", true},
+		{" washington talks ", "ton ", false},
+		{" police arrested three ", "arrest", true},
+		{" a great threat ", "eat", false},
+	} {
+		if got := hasWord(c.text, c.word); got != c.want {
+			t.Errorf("hasWord(%q, %q) = %v", c.text, c.word, got)
+		}
+	}
+}
+
+func TestTheSameNewsIsPrintedOnce(t *testing.T) {
+	a := story("news", "politics", 1, false)
+	a.Title = "JCD and Chhatra Shakti activists assault five Jagannath University officials over alleged Awami League ties"
+	b := story("news", "politics", 2, true)
+	b.Title = "JCD, Chhatra Shakti activists assault five Jagannath University officials"
+	c := story("news", "crime-justice", 3, true)
+	c.Title = "Ziaul Ahsan, high-profile defendants produced at ICT in handcuffs and helmets"
+	d := story("news", "crime-justice", 4, false)
+	d.Title = "Ziaul Ahsan and high-profile suspects produced at ICT in handcuffs and helmets"
+	e := story("news", "politics", 5, false)
+	e.Title = "State Minister dismisses reports of Indian conditions for Hasina's return"
+	f := story("news", "politics", 6, false)
+	f.Title = "India yet to set formal conditions for Hasina's return, says Shama Obaed"
+	got := dropRepeats([]Article{a, b, c, d, e, f})
+	var titles []string
+	for _, s := range got {
+		titles = append(titles, s.Title)
+	}
+	if len(got) != 4 || got[0].ID != b.ID || got[1].ID != c.ID {
+		t.Fatalf("kept %q", titles)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -55,9 +56,11 @@ func Mount(r *gin.Engine, db *gorm.DB, cfg *config.Config, backup imagestore.Bac
 		}
 		rewrites, _ := strconv.Atoi(os.Getenv("EN_DAILY_REWRITES"))
 		if rewrites == 0 {
-			rewrites = 30
+			// About a day's English news plus the e-paper's stories; the AI
+			// desk's free quotas (Gemini, then Groq, Cohere, Cloudflare) take it.
+			rewrites = 150
 		}
-		w := &worker{db: db, rss: rss.NewClient(), images: images, ai: ai.NewGateway(cfg), rewrites: rewrites}
+		w := &worker{db: db, rss: rss.NewClient(), images: images, ai: ai.NewGateway(cfg), rewrites: rewrites, failed: map[string]bool{}}
 		go w.loop(context.Background())
 		log.Printf("[en] English feeds are read every 20 minutes (%d rewrites a day)", rewrites)
 	}
@@ -293,6 +296,9 @@ func (s *site) epaper(c *gin.Context) {
 				d.Stories = append(d.Stories, a)
 			}
 		}
+		// Whole stories take the big places on the page; a story still
+		// waiting for its full text goes among the briefs at the foot.
+		sort.SliceStable(d.Stories, func(i, j int) bool { return printWeight(d.Stories[i]) > printWeight(d.Stories[j]) })
 		drawn = append(drawn, d)
 	}
 	var dates []string

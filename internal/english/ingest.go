@@ -64,7 +64,8 @@ type worker struct {
 	rss      *rss.Client
 	images   *imagestore.Store
 	ai       *ai.Gateway
-	rewrites int // a day's cap on AI rewrites, shared with nothing else
+	rewrites int             // a day's cap on AI rewrites, shared with nothing else
+	failed   map[string]bool // e-paper stories whose full text could not be had
 }
 
 // run reads every feed once and stores the new stories.
@@ -110,6 +111,9 @@ func (w *worker) run(ctx context.Context) {
 		}
 		seen[it.Link] = true
 		w.db.Create(&Seen{URL: it.Link})
+		if w.repeated(plain(it.Title)) {
+			continue // the same story under another address
+		}
 		if a, ok := w.build(ctx, it, name); ok {
 			if err := w.db.Create(&a).Error; err == nil {
 				perSource[feed]++
@@ -120,6 +124,16 @@ func (w *worker) run(ctx context.Context) {
 	if added > 0 {
 		log.Printf("[en] added %d stories", added)
 	}
+}
+
+// repeated reports a headline already stored in the last three days.
+func (w *worker) repeated(title string) bool {
+	if title == "" {
+		return false
+	}
+	var n int64
+	w.db.Model(&Article{}).Where("title = ? AND created_at > ?", title, time.Now().Add(-72*time.Hour)).Count(&n)
+	return n > 0
 }
 
 func (w *worker) seen(links []string) map[string]bool {
@@ -188,7 +202,8 @@ func (w *worker) build(ctx context.Context, it rss.Item, source string) (Article
 	}
 	if len(text) > 400 && w.canRewrite() {
 		if head, intro, paras, err := w.rewrite(ctx, title, text); err == nil {
-			a.Title, a.Content, a.Rewritten = head, paras, true
+			now := time.Now()
+			a.Title, a.Content, a.Rewritten, a.RewrittenAt = head, paras, true, &now
 			if intro != "" {
 				a.Summary = intro
 			}
@@ -218,8 +233,88 @@ func (w *worker) canRewrite() bool {
 		return false
 	}
 	var n int64
-	w.db.Model(&Article{}).Where("rewritten AND created_at > ?", time.Now().Add(-24*time.Hour)).Count(&n)
+	day := time.Now().Add(-24 * time.Hour)
+	w.db.Model(&Article{}).Where("rewritten_at > ? OR (rewritten_at IS NULL AND rewritten AND created_at > ?)", day, day).Count(&n)
 	return n < int64(w.rewrites)
+}
+
+// fillEdition gives the stories of today's e-paper their full text. A story
+// that came in as a brief (the day's rewrites had run out) is read again at
+// its source and rewritten in our words, front page first, so the printed
+// pages carry whole stories, not a line or two.
+func (w *worker) fillEdition(ctx context.Context, now time.Time) {
+	date := now.Format("2006-01-02")
+	ed, pages, err := editionFor(w.db, date)
+	if err != nil || ed.Date != date {
+		return
+	}
+	var ids []string
+	for _, p := range pages {
+		ids = append(ids, p.Stories...)
+	}
+	var briefs []Article
+	w.db.Where("id IN ? AND (content = '' OR content IS NULL)", ids).Find(&briefs)
+	byID := map[string]Article{}
+	for _, a := range briefs {
+		byID[a.ID.String()] = a
+	}
+	done := 0
+	for _, id := range ids {
+		a, ok := byID[id]
+		if !ok || w.failed[id] {
+			continue
+		}
+		if ctx.Err() != nil || !w.canRewrite() {
+			break
+		}
+		_, _, body := w.rss.Enrich(ctx, a.SourceURL)
+		text := plain(body)
+		if len(text) < 400 {
+			w.failed[id] = true
+			continue
+		}
+		head, intro, paras, err := w.rewrite(ctx, a.Title, text)
+		if err != nil {
+			log.Printf("[en] e-paper rewrite %q: %v", a.Title, err)
+			w.failed[id] = true
+			continue
+		}
+		upd := map[string]any{"title": head, "content": paras, "rewritten": true, "rewritten_at": time.Now()}
+		if intro != "" {
+			upd["summary"] = intro
+		}
+		if w.db.Model(&Article{}).Where("id = ?", a.ID).Updates(upd).Error == nil {
+			done++
+		}
+	}
+	if done > 0 {
+		log.Printf("[en] e-paper %s: %d stories given their full text", date, done)
+	}
+}
+
+// reclassify moves stories an older rule put in the wrong section: headlines
+// taken for sports or business by a single word ("Awami League" for
+// football, "protest" for a cricket Test).
+func (w *worker) reclassify() {
+	var list []Article
+	w.db.Select("id", "title", "source_url", "section", "sub").
+		Where("section IN ?", []string{"sports", "business"}).Find(&list)
+	moved := 0
+	for _, a := range list {
+		if s, _ := placeByPath(a.SourceURL); s != "" {
+			continue // placed by its address, which no rule change touches
+		}
+		section, sub := classify(a.SourceURL, a.Title)
+		if section != a.Section {
+			if w.db.Model(&Article{}).Where("id = ?", a.ID).
+				Updates(map[string]any{"section": section, "sub": sub}).Error == nil {
+				moved++
+			}
+		}
+	}
+	if moved > 0 {
+		log.Printf("[en] %d stories moved to their right section", moved)
+	}
 }
 
 const rewriteSystem = `You are a sub-editor at an English-language daily in Dhaka. Rewrite the news story you are given for our readers, in your own words.
@@ -282,7 +377,17 @@ func (w *worker) loop(ctx context.Context) {
 		return
 	case <-time.After(45 * time.Second):
 	}
+	w.reclassify()
 	for {
+		// Today's e-paper first: made (or remade by newer rules) and its
+		// stories given their full text, before new stories take the day's
+		// rewrites.
+		if err := ensureEdition(w.db, time.Now().In(dhaka)); err != nil {
+			log.Printf("[en] e-paper: %v", err)
+		}
+		fillCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+		w.fillEdition(fillCtx, time.Now().In(dhaka))
+		cancel()
 		runCtx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 		w.run(runCtx)
 		cancel()
