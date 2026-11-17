@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -235,19 +236,9 @@ func ensureEdition(db *gorm.DB, now time.Time) error {
 	if found && !stale && storiesIn(existing) >= fullEditionStories {
 		return nil
 	}
-	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, dhaka)
-	var stories []Article
-	db.Where("published_at >= ? AND published_at < ?", midnight.Add(-24*time.Hour), midnight).
-		Order("published_at desc").Limit(200).Find(&stories)
-	if len(stories) < minEditionStories {
-		stories = nil
-		db.Where("published_at < ?", now).Order("published_at desc").Limit(80).Find(&stories)
-		if len(stories) < firstEditionStories {
-			return errors.New("not enough stories for a first edition yet")
-		}
-	}
-	if len(stories) < minEditionStories {
-		return errors.New("not enough stories for an edition yet")
+	stories, err := editionStories(db, now)
+	if err != nil {
+		return err
 	}
 	pages := layoutEdition(stories)
 	raw, err := json.Marshal(pages)
@@ -262,6 +253,113 @@ func ensureEdition(db *gorm.DB, now time.Time) error {
 			Updates(map[string]any{"pages": string(raw), "layout": editionLayout}).Error
 	}
 	return db.Create(&Edition{Date: date, Pages: string(raw), Layout: editionLayout}).Error
+}
+
+// editionStories are the stories a day's edition is made from: those
+// published the day before, or, for a new portal with less than a day of
+// news, the latest ones.
+func editionStories(db *gorm.DB, now time.Time) ([]Article, error) {
+	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, dhaka)
+	var stories []Article
+	db.Where("published_at >= ? AND published_at < ?", midnight.Add(-24*time.Hour), midnight).
+		Order("published_at desc").Limit(200).Find(&stories)
+	if len(stories) >= minEditionStories {
+		return stories, nil
+	}
+	stories = nil
+	db.Where("published_at < ?", now).Order("published_at desc").Limit(80).Find(&stories)
+	if len(stories) < firstEditionStories {
+		return nil, errors.New("not enough stories for a first edition yet")
+	}
+	return stories, nil
+}
+
+// replaceInEdition swaps the stories of today's edition whose full text
+// cannot be had (an outlet that does not let our server read its pages) for
+// others of the same page's kind from the same day, whole stories first,
+// never a second report of news already printed. It returns how many were
+// swapped.
+func replaceInEdition(db *gorm.DB, now time.Time, gone map[string]bool) (int, error) {
+	date := now.Format("2006-01-02")
+	var ed Edition
+	if err := db.Where("date = ?", date).First(&ed).Error; err != nil {
+		return 0, err
+	}
+	var pages []EditionPage
+	if err := json.Unmarshal([]byte(ed.Pages), &pages); err != nil {
+		return 0, err
+	}
+	stories, err := editionStories(db, now)
+	if err != nil {
+		return 0, err
+	}
+	var ids []string
+	in := map[string]bool{}
+	for _, p := range pages {
+		for _, id := range p.Stories {
+			in[id] = true
+			ids = append(ids, id)
+		}
+	}
+	var printed []Article
+	db.Where("id IN ?", ids).Find(&printed)
+	var heads []map[string]bool
+	for _, a := range printed {
+		if !gone[a.ID.String()] {
+			heads = append(heads, headWords(a.Title))
+		}
+	}
+	cands := dropRepeats(stories)
+	sort.SliceStable(cands, func(i, j int) bool { return printWeight(cands[i]) > printWeight(cands[j]) })
+	swapped := 0
+	for pi := range pages {
+		plan, planned := planFor(pages[pi].Name)
+		for si, id := range pages[pi].Stories {
+			if !gone[id] {
+				continue
+			}
+			for _, c := range cands {
+				cid := c.ID.String()
+				if in[cid] || gone[cid] || (planned && !plan.match(c)) || repeats(c, heads) {
+					continue
+				}
+				pages[pi].Stories[si] = cid
+				in[cid] = true
+				heads = append(heads, headWords(c.Title))
+				swapped++
+				break
+			}
+		}
+	}
+	if swapped == 0 {
+		return 0, nil
+	}
+	raw, err := json.Marshal(pages)
+	if err != nil {
+		return 0, err
+	}
+	return swapped, db.Model(&Edition{}).Where("date = ?", date).Update("pages", string(raw)).Error
+}
+
+// planFor finds a printed page's plan by its name.
+func planFor(name string) (pagePlan, bool) {
+	name = pageName(name)
+	for _, p := range editionPlan {
+		if p.name == name {
+			return p, true
+		}
+	}
+	return pagePlan{}, false
+}
+
+func repeats(a Article, heads []map[string]bool) bool {
+	w := headWords(a.Title)
+	for _, h := range heads {
+		if sameNews(w, h) {
+			return true
+		}
+	}
+	return false
 }
 
 // fullEditionStories: an edition with fewer stories than this was laid out

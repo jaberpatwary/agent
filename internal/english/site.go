@@ -60,7 +60,7 @@ func Mount(r *gin.Engine, db *gorm.DB, cfg *config.Config, backup imagestore.Bac
 			// desk's free quotas (Gemini, then Groq, Cohere, Cloudflare) take it.
 			rewrites = 150
 		}
-		w := &worker{db: db, rss: rss.NewClient(), images: images, ai: ai.NewGateway(cfg), rewrites: rewrites, failed: map[string]bool{}}
+		w := &worker{db: db, rss: rss.NewClient(), images: images, ai: ai.NewGateway(cfg), rewrites: rewrites, failed: map[string]bool{}, tries: map[string]int{}}
 		go w.loop(context.Background())
 		log.Printf("[en] English feeds are read every 20 minutes (%d rewrites a day)", rewrites)
 	}

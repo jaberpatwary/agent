@@ -66,6 +66,7 @@ type worker struct {
 	ai       *ai.Gateway
 	rewrites int             // a day's cap on AI rewrites, shared with nothing else
 	failed   map[string]bool // e-paper stories whose full text could not be had
+	tries    map[string]int  // failed rewrites of an e-paper story
 }
 
 // run reads every feed once and stores the new stories.
@@ -187,7 +188,11 @@ func (w *worker) build(ctx context.Context, it rss.Item, source string) (Article
 		return Article{}, false
 	}
 	text := plain(body)
-	summary := plain(it.Content)
+	fed := strings.TrimSuffix(plain(it.Content), " Details") // Dhaka Tribune's "Details" link
+	if len(text) < 400 && len(fed) > len(text) {
+		text = fed // the page could not be read, but the feed carries the story
+	}
+	summary := fed
 	if summary == "" || len(summary) > 400 {
 		summary = firstSentences(text, 260)
 	}
@@ -243,10 +248,30 @@ func (w *worker) canRewrite() bool {
 // its source and rewritten in our words, front page first, so the printed
 // pages carry whole stories, not a line or two.
 func (w *worker) fillEdition(ctx context.Context, now time.Time) {
+	// A story whose full text cannot be had is swapped for another of its
+	// page's kind, which the next round fills.
+	for round := 0; round < 4 && ctx.Err() == nil; round++ {
+		if !w.fillRound(ctx, now) {
+			return
+		}
+		n, err := replaceInEdition(w.db, now, w.failed)
+		if err != nil {
+			log.Printf("[en] e-paper: %v", err)
+		}
+		if n == 0 {
+			return
+		}
+		log.Printf("[en] e-paper %s: %d stories without their full text swapped for others", now.Format("2006-01-02"), n)
+	}
+}
+
+// fillRound rewrites the edition's briefs once; it reports whether any
+// story failed (and so could be swapped).
+func (w *worker) fillRound(ctx context.Context, now time.Time) bool {
 	date := now.Format("2006-01-02")
 	ed, pages, err := editionFor(w.db, date)
 	if err != nil || ed.Date != date {
-		return
+		return false
 	}
 	var ids []string
 	for _, p := range pages {
@@ -258,7 +283,7 @@ func (w *worker) fillEdition(ctx context.Context, now time.Time) {
 	for _, a := range briefs {
 		byID[a.ID.String()] = a
 	}
-	done := 0
+	done, failed, aiErrors := 0, false, 0
 	for _, id := range ids {
 		a, ok := byID[id]
 		if !ok || w.failed[id] {
@@ -270,15 +295,23 @@ func (w *worker) fillEdition(ctx context.Context, now time.Time) {
 		_, _, body := w.rss.Enrich(ctx, a.SourceURL)
 		text := plain(body)
 		if len(text) < 400 {
-			w.failed[id] = true
+			w.failed[id] = true // the outlet's page could not be read
+			failed = true
 			continue
 		}
 		head, intro, paras, err := w.rewrite(ctx, a.Title, text)
 		if err != nil {
 			log.Printf("[en] e-paper rewrite %q: %v", a.Title, err)
-			w.failed[id] = true
+			if aiErrors++; aiErrors >= 3 {
+				break // the AI is out of quota or down: try again next run
+			}
+			if w.tries[id]++; w.tries[id] >= 2 {
+				w.failed[id] = true
+				failed = true
+			}
 			continue
 		}
+		aiErrors = 0
 		upd := map[string]any{"title": head, "content": paras, "rewritten": true, "rewritten_at": time.Now()}
 		if intro != "" {
 			upd["summary"] = intro
@@ -290,6 +323,7 @@ func (w *worker) fillEdition(ctx context.Context, now time.Time) {
 	if done > 0 {
 		log.Printf("[en] e-paper %s: %d stories given their full text", date, done)
 	}
+	return failed
 }
 
 // reclassify moves stories an older rule put in the wrong section: headlines
