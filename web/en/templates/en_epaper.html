@@ -4,11 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="/en/static/favicon.ico">
-  <title>{{ if .NoEdition }}E-Paper{{ else }}{{ .Day.Format "January 2, 2006" }} | Dhaka Edition{{ end }} | The Daily Star E-Paper</title>
+  <title>Daily Star ePaper, English News Paper, Today Newspaper, Online News Epaper</title>
+  <meta name="description" content="Daily Star ePaper: English Newspaper provide all latest news from Bangladesh. Current headlines, breaking news on business, sports, world and entertainment with exclusive Opinions and Editorials.">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;0,700;1,400&display=swap">
-  <link rel="stylesheet" href="/en/static/epaper.css?v=6">
+  <link rel="stylesheet" href="/en/static/epaper.css?v=7">
 </head>
 <body class="ep{{ if eq .View 2 }} ep-clipview{{ end }}">
+
+  {{ template "ep_sidenav" }}
 
   {{/* Masthead */}}
   <header class="ep-mast">
@@ -25,10 +28,10 @@
 
   {{/* Tool bar */}}
   <nav class="ep-toolbar" aria-label="E-paper tools">
-    <button type="button" class="ep-ico" data-toggle-pages title="Pages" aria-label="Show or hide the pages">
+    <button type="button" class="ep-ico" data-menu title="Menu" aria-label="Menu">
       <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
     </button>
-    <a class="ep-tb" href="/en/">Home</a>
+    <a class="ep-tb" href="/epaper">Home</a>
     <span class="ep-sep"></span>
     <label class="ep-tb ep-date" title="Choose a date">
       <span>{{ .Day.Format "January 2, 2006" }}</span>
@@ -40,12 +43,14 @@
       <button type="button" data-edition-btn>Dhaka Edition
         <svg class="ep-blue" viewBox="0 0 24 24"><path d="M12 21s-6.5-6.2-6.5-11a6.5 6.5 0 0 1 13 0c0 4.8-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
       </button>
-      <div class="ep-menu" data-edition-menu hidden><a href="/epaper" class="on">Dhaka Edition</a></div>
+      <div class="ep-menu" data-edition-menu hidden>
+        {{ range .Groups }}<a href="#" data-goto-group="{{ (index .Pages 0).No }}"{{ if eq .Key "" }} class="on"{{ end }}>{{ .Label }}</a>{{ end }}
+      </div>
     </div>
     <span class="ep-sep"></span>
     <label class="ep-tb ep-pagesel">
-      <select data-page-select aria-label="Page">
-        {{ range .Pages }}<option value="{{ .No }}"{{ if eq .No $.Page }} selected{{ end }}>{{ .No }}: {{ upper .Name }}</option>{{ end }}
+      <select data-page-select aria-label="Pages">
+        {{ range .Groups }}<optgroup label="{{ .Label }}">{{ range .Pages }}<option value="{{ .No }}"{{ if eq .No $.Page }} selected{{ end }}>{{ .GNo }}: {{ upper .Name }}</option>{{ end }}</optgroup>{{ end }}
       </select>
     </label>
     <span class="ep-sep"></span>
@@ -57,10 +62,6 @@
       <svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M12.5 10v7M9.5 14l3 3 3-3"/></svg>
     </button>
     <span class="ep-sep"></span>
-    <button type="button" class="ep-ico ep-blue" data-textpage title="Text of this page" aria-label="Text of this page">
-      <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18"/><path d="M7 7h10M7 10h10M7 13h10M7 16h6"/></svg>
-    </button>
-    <span class="ep-sep"></span>
 
     <div class="ep-right">
       <div class="ep-search">
@@ -68,16 +69,15 @@
         <svg class="ep-blue" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg>
         <div class="ep-results" data-results hidden></div>
       </div>
-      <button type="button" class="ep-ico" data-full title="Full screen" aria-label="Full screen">
-        <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5M4 4l6 6M20 4l-6 6M4 20l6-6M20 20l-6-6"/></svg>
+      <button type="button" class="ep-ico" data-full title="Fullscreen View" aria-label="Fullscreen View">
+        <svg viewBox="0 0 24 24"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg>
       </button>
-      <button type="button" class="ep-ico ep-view{{ if eq .View 2 }} on{{ end }}" data-view="2" title="Page with story" aria-label="Page with story">
+      <button type="button" class="ep-ico ep-view{{ if eq .View 2 }} on{{ end }}" data-view="2" title="Page and Article View" aria-label="Page and Article View">
         <svg viewBox="0 0 24 24"><rect x="3" y="5" width="8" height="14"/><rect x="13" y="5" width="8" height="14"/><path d="M15 9h4M15 12h4M15 15h3"/></svg>
       </button>
-      <button type="button" class="ep-ico ep-view{{ if eq .View 1 }} on{{ end }}" data-view="1" title="Page only" aria-label="Page only">
+      <button type="button" class="ep-ico ep-view{{ if eq .View 1 }} on{{ end }}" data-view="1" title="Page View" aria-label="Page View">
         <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12"/></svg>
       </button>
-      <span class="ep-user"><span>Guest</span><svg class="ep-blue ep-fill" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg></span>
     </div>
   </nav>
 
@@ -91,10 +91,14 @@
   </div>
 
   <div class="ep-body">
-    {{/* Pages */}}
+    {{/* Pages: the Dhaka Edition, then each supplement, folded like an accordion */}}
     <aside class="ep-side" data-side aria-label="Pages">
-      <div class="ep-side-head"><span>Dhaka Edition</span><button type="button" data-toggle-pages aria-label="Hide the pages">−</button></div>
-      <div class="ep-thumbs" data-thumbs></div>
+      {{ range .Groups }}
+      <section class="ep-group{{ if eq .Key "" }} open{{ end }}" data-group="{{ .Key }}">
+        <div class="ep-side-head"><span>{{ .Label }}</span><button type="button" data-fold aria-label="Show or hide {{ .Label }}"></button></div>
+        <div class="ep-thumbs" data-thumbs="{{ .Key }}"></div>
+      </section>
+      {{ end }}
     </aside>
 
     {{/* The page */}}
@@ -104,33 +108,34 @@
         {{ range .Pages }}{{ template "ep_page" (dict "P" . "Day" $.Day "All" $.Pages "BD" $.BanglaDate "N" $.PageCount) }}{{ end }}
       </div>
       <button type="button" class="ep-arrow ep-arrow-right" data-next aria-label="Next page"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
-      <button type="button" class="ep-share-dot ep-page-share" data-share="page" aria-label="Share this page"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.4"/><circle cx="17" cy="6" r="2.4"/><circle cx="17" cy="18" r="2.4"/><path d="M8.2 11l6.6-3.8M8.2 13l6.6 3.8"/></svg></button>
+      <button type="button" class="ep-share-dot ep-page-share" data-share="page" title="Share Options Page" aria-label="Share this page"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.4"/><circle cx="17" cy="6" r="2.4"/><circle cx="17" cy="18" r="2.4"/><path d="M8.2 11l6.6-3.8M8.2 13l6.6 3.8"/></svg></button>
     </main>
 
     {{/* The story beside the page (view=2) */}}
     <section class="ep-clip" data-clip aria-label="Story">
       <div class="ep-clip-tools">
-        <button type="button" data-mode="image" class="on"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="1.6"/></svg><span>Image View</span></button>
-        <button type="button" data-mode="text"><svg viewBox="0 0 24 24"><path d="M4 5h16M4 9h16M4 13h10M4 17h10M16 13h4v6h-4z"/></svg><span>Text View</span></button>
-        <button type="button" data-fullview><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Full View</span></button>
-        <button type="button" data-favourite><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg><span>Save as favourite</span></button>
-        <button type="button" data-download><svg viewBox="0 0 24 24"><path d="M7 17a4 4 0 0 1-.5-8A5.5 5.5 0 0 1 17 8a4.5 4.5 0 0 1 .5 9M12 11v8M9 16l3 3 3-3"/></svg><span>Dload Image</span></button>
-        <button type="button" data-fontinc disabled><svg viewBox="0 0 24 24"><path d="M4 19l5-14 5 14M6 14h6M17 7v6M14 10h6"/></svg><span>font-inc</span></button>
+        <button type="button" data-textview class="on" title="Text View"><svg viewBox="0 0 24 24"><path d="M4 5h16M4 9h16M4 13h10M4 17h10M16 13h4v6h-4z"/></svg><span>Text View</span></button>
+        <button type="button" data-fullview title="Full View"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5M9 9l6 6M15 9l-6 6"/></svg><span>Full View</span></button>
+        <button type="button" data-download title="Dload Image"><svg viewBox="0 0 24 24"><path d="M7 17a4 4 0 0 1-.5-8A5.5 5.5 0 0 1 17 8a4.5 4.5 0 0 1 .5 9M12 11v8M9 16l3 3 3-3"/></svg><span>Dload Image</span></button>
+        <button type="button" data-fontinc title="font-inc"><svg viewBox="0 0 24 24"><path d="M4 19l5-14 5 14M6 14h6M17 7v6M14 10h6"/></svg><span>font-inc</span></button>
+        <button type="button" data-listen title="Listen"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" class="ep-fill"/><path d="M9.5 9.5v5h1.8l2.7 2.2V7.3l-2.7 2.2z" fill="#fff" stroke="none"/></svg><span data-listen-label>Listen</span></button>
       </div>
       <div class="ep-clip-body" data-clip-body></div>
+      <button type="button" class="ep-arrow ep-arrow-left ep-clip-prev" data-clip-prev aria-label="Previous story"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
       <button type="button" class="ep-arrow ep-arrow-right ep-clip-next" data-clip-next aria-label="Next story"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
-      <button type="button" class="ep-share-dot ep-clip-share" data-share="story" aria-label="Share this story"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.4"/><circle cx="17" cy="6" r="2.4"/><circle cx="17" cy="18" r="2.4"/><path d="M8.2 11l6.6-3.8M8.2 13l6.6 3.8"/></svg></button>
+      <button type="button" class="ep-share-dot ep-clip-share" data-share="story" title="Share Options Article" aria-label="Share this story"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.4"/><circle cx="17" cy="6" r="2.4"/><circle cx="17" cy="18" r="2.4"/><path d="M8.2 11l6.6-3.8M8.2 13l6.6 3.8"/></svg></button>
     </section>
   </div>
 
-  {{/* The stories in full, for the clip, the text view and the full view. */}}
+  {{ template "ep_footer" }}
+
+  {{/* The stories in full, for the story beside the page and the full view. */}}
   {{ range .Pages }}{{ $pg := . }}{{ range .Stories }}
   <template id="st-{{ .ID }}" data-page="{{ $pg.No }}" data-img="{{ .ImageURL }}" data-title="{{ .Title }}">
-    <p class="ep-kicker">{{ upper (subLabel .Section .Sub) }} · PAGE {{ $pg.No }}</p>
     <h2>{{ .Title }}</h2>
     {{ if .Rewritten }}{{ if .Summary }}<p class="ep-intro">{{ .Summary }}</p>{{ end }}{{ end }}
-    <p class="ep-byline">■ Online Desk</p>
-    {{ if .ImageURL }}<figure><img src="{{ .ImageURL }}" alt="" loading="lazy"><figcaption>Photo: Collected</figcaption></figure>{{ end }}
+    {{ if .ImageURL }}<figure><img src="{{ .ImageURL }}" alt="" loading="lazy" onerror="this.parentNode.remove()"><figcaption>Photo: Collected</figcaption></figure>{{ end }}
+    <p class="ep-byline">Online Desk</p>
     <div class="ep-text">{{ if .Brief }}<p>{{ .Summary }}</p>{{ else }}{{ safeHTML .Content }}{{ end }}</div>
     <p class="ep-source">Source: <a href="{{ .SourceURL }}" target="_blank" rel="noopener nofollow">{{ .SourceName }}</a> · <a href="/en/article/{{ .ID }}">Read on thedailystar.net</a></p>
   </template>
@@ -143,24 +148,68 @@
     </div>
   </div>
   <div class="ep-sharebox" data-sharebox hidden>
-    <a data-share-to="facebook" target="_blank" rel="noopener">Facebook</a>
-    <a data-share-to="x" target="_blank" rel="noopener">X</a>
-    <a data-share-to="whatsapp" target="_blank" rel="noopener">WhatsApp</a>
-    <a data-share-to="email">Email</a>
-    <button type="button" data-copy>Copy link</button>
+    <a data-share-to="facebook" target="_blank" rel="noopener" title="Facebook"><svg viewBox="0 0 24 24"><path class="ep-fill" d="M14 8h3V4h-3c-2.8 0-4 1.7-4 4.3V10H7v4h3v7h4v-7h3l1-4h-4V8.6c0-.4.3-.6.6-.6z"/></svg>Facebook</a>
+    <a data-share-to="x" target="_blank" rel="noopener" title="Twitter"><svg viewBox="0 0 24 24"><path d="M4 4l16 16M20 4L4 20"/></svg>Twitter</a>
+    <a data-share-to="whatsapp" target="_blank" rel="noopener" title="WhatsApp"><svg viewBox="0 0 24 24"><path d="M4 20l1.3-4A8 8 0 1 1 8 18.8z"/></svg>WhatsApp</a>
+    <button type="button" data-copy title="Copy link"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/></svg>Copy link</button>
   </div>
   <div class="ep-toast" data-toast></div>
   <script>window.EP = { page: {{ .Page }}, view: {{ .View }}, pages: {{ len .Pages }}, aid: {{ .AID }}, date: {{ .Date }} };</script>
-  <script src="/en/static/epaper.js?v=5"></script>
+  <script src="/en/static/epaper.js?v=7"></script>
   {{ end }}
+  {{ template "ep_cookies" }}
 </body>
 </html>
 {{ end }}
 
-{{/* One printed page. P = the page, Day = the date, All = every page, BD = the Bangla date, N = the number of pages. */}}
+{{/* The menu that slides in from the left (☰). */}}
+{{ define "ep_sidenav" }}
+<div class="ep-nav-shade" data-nav-shade hidden></div>
+<nav class="ep-nav" data-nav aria-label="Menu" hidden>
+  <div class="ep-nav-head">
+    <a href="/epaper"><img src="/en/static/logo.svg" alt="The Daily Star"></a>
+    <button type="button" data-nav-close aria-label="Close">×</button>
+  </div>
+  <ul>
+    <li><a href="/en/">Home</a></li>
+    <li><a href="#" data-popular>MOST POPULAR ARTICLE</a></li>
+    <li><a href="https://www.thedailystar.net/contact-us/" target="_blank" rel="noopener">CONTACT US</a></li>
+    <li><a href="/epaper/faq">FAQs</a></li>
+  </ul>
+</nav>
+{{ end }}
+
+{{ define "ep_footer" }}
+<footer class="ep-foot">© {{ year }} All Rights Reserved.</footer>
+{{ end }}
+
+{{/* The notice The Daily Star's e-paper shows on a first visit. */}}
+{{ define "ep_cookies" }}
+<div class="ep-cookies" data-cookies hidden>
+  <div class="ep-cookies-box" role="dialog" aria-label="Cookies">
+    <p class="ep-cookies-head">This website is using cookies.</p>
+    <p>We use them to give you the best experience. If you continue using our website, we'll assume that you are happy to receive all cookies on this website.</p>
+    <p class="ep-cookies-btns"><button type="button" data-cookies-ok>Continue</button> <a href="https://www.thedailystar.net/privacypolicy" target="_blank" rel="noopener">view cookie policy</a></p>
+  </div>
+</div>
+<script>
+(function () {
+  var box = document.querySelector('[data-cookies]');
+  var ok = false;
+  try { ok = localStorage.getItem('ep-cookies') === '1'; } catch (e) {}
+  if (!ok) box.hidden = false;
+  box.querySelector('[data-cookies-ok]').addEventListener('click', function () {
+    box.hidden = true;
+    try { localStorage.setItem('ep-cookies', '1'); } catch (e) {}
+  });
+})();
+</script>
+{{ end }}
+
+{{/* One printed page. P = the page, Day = the date, All = every page, BD = the Bangla date, N = the Dhaka Edition's page count. */}}
 {{ define "ep_page" }}
 {{ $p := .P }}
-<section class="np-page{{ if eq $p.No 1 }} np-front{{ end }}" data-page="{{ $p.No }}" data-name="{{ upper $p.Name }}">
+<section class="np-page{{ if eq $p.No 1 }} np-front{{ end }}{{ if $p.Group }} np-supp{{ end }}" data-page="{{ $p.No }}" data-gno="{{ $p.GNo }}" data-group="{{ $p.Group }}" data-name="{{ upper $p.Name }}">
   <div class="np-inner">
     {{ if eq $p.No 1 }}
     <div class="np-topline"><span>DHAKA {{ printDate .Day }}</span></div>
@@ -175,20 +224,26 @@
       <span>{{ upper .BD }}</span>
       <span>{{ .N }} PAGES</span>
     </div>
-    <div class="np-index"><b>INSIDE</b>{{ range .All }}{{ if gt .No 1 }}<span>{{ .Name }} <em>{{ .No }}</em></span>{{ end }}{{ end }}</div>
+    <div class="np-index"><b>INSIDE</b>{{ range .All }}{{ if gt .No 1 }}{{ if not .Group }}<span>{{ .Name }} <em>{{ .GNo }}</em></span>{{ end }}{{ end }}{{ end }}</div>
+    {{ else if and $p.Group (eq $p.GNo 1) }}
+    <div class="np-suppmast">
+      <img src="/en/static/logo.svg" alt="The Daily Star">
+      <span class="np-supp-name">{{ upper $p.Group }}</span>
+      <span class="np-folio-date">DHAKA {{ printDate .Day }}</span>
+    </div>
     {{ else }}
     <div class="np-folio">
-      <span class="np-folio-no">{{ $p.No }}</span>
-      <span class="np-folio-name">{{ upper $p.Name }}</span>
+      <span class="np-folio-no">{{ $p.GNo }}</span>
+      <span class="np-folio-name">{{ if $p.Group }}{{ upper $p.Group }}{{ else }}{{ upper $p.Name }}{{ end }}</span>
       <span class="np-folio-mid"><img src="/en/static/logo.svg" alt="The Daily Star"></span>
       <span class="np-folio-date">DHAKA {{ printDate .Day }}</span>
     </div>
     {{ end }}
     <div class="np-grid">
       {{ range $i, $a := $p.Stories }}
-      <article class="np-story np-s{{ add $i 1 }}{{ if gt $i 5 }} np-brief{{ end }}{{ if $a.Brief }} np-short{{ end }}" data-story="{{ $a.ID }}" tabindex="0">
+      <article class="np-story np-s{{ add $i 1 }}{{ if gt $i 5 }} np-brief{{ end }}{{ if $a.Brief }} np-short{{ end }}{{ if $a.ImageURL }} np-has-fig{{ end }}" data-story="{{ $a.ID }}" tabindex="0">
         {{ if eq $i 6 }}<p class="np-brief-label">IN BRIEF</p>{{ end }}
-        {{ if lt $i 2 }}{{ if $a.ImageURL }}<figure class="np-fig"><img src="{{ $a.ImageURL }}" alt="" loading="lazy" onerror="this.parentNode.remove()"><figcaption>Photo: Collected</figcaption></figure>{{ end }}{{ end }}
+        {{ if $a.ImageURL }}<figure class="np-fig"><img src="{{ $a.ImageURL }}" alt="" loading="lazy" onerror="this.parentNode.parentNode.classList.remove('np-has-fig');this.parentNode.remove()">{{ if lt $i 6 }}<figcaption>Photo: Collected</figcaption>{{ end }}</figure>{{ end }}
         <h3>{{ $a.Title }}</h3>
         {{ if lt $i 6 }}{{ if $a.Rewritten }}{{ if $a.Summary }}<p class="np-intro">{{ $a.Summary }}</p>{{ end }}{{ end }}{{ end }}
         <p class="np-byline">■ ONLINE DESK</p>
@@ -196,7 +251,7 @@
       </article>
       {{ end }}
     </div>
-    <div class="np-foot"><span>The Daily Star</span><span>{{ $p.Name }}</span><span>Page {{ $p.No }}</span></div>
+    <div class="np-foot"><span>The Daily Star</span><span>{{ if $p.Group }}{{ $p.Group }} · {{ end }}{{ $p.Name }}</span><span>Page {{ $p.GNo }}</span></div>
   </div>
 </section>
 {{ end }}

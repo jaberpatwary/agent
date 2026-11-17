@@ -62,10 +62,15 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 
 /* Body */
 .ep-body { flex: 1; min-height: 0; display: flex; }
-.ep-side { flex: none; width: 132px; background: var(--side); color: #fff; display: flex; flex-direction: column; }
-.ep-side.closed { display: none; }
-.ep-side-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 6px 8px 7px; background: var(--side-head); font-weight: 600; font-size: 15px; }
-.ep-side-head button { width: 18px; height: 18px; border-radius: 50%; border: 0; background: #fff; color: var(--side-head); font: 700 14px/18px var(--ui); padding: 0; cursor: pointer; }
+/* The page list: the Dhaka Edition and each supplement fold open and shut */
+.ep-side { flex: none; width: 132px; background: var(--side); color: #fff; display: flex; flex-direction: column; overflow-y: auto; }
+.ep-group { flex: none; display: flex; flex-direction: column; border-bottom: 1px solid #5c5c5c; }
+.ep-group.open { flex: 1 1 auto; min-height: 0; }
+.ep-side-head { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 8px 6px 8px 7px; background: var(--side-head); font-weight: 600; font-size: 15px; }
+.ep-side-head button { width: 18px; height: 18px; border-radius: 50%; border: 0; background: #fff; color: var(--side-head); font: 700 15px/18px var(--ui); padding: 0; cursor: pointer; }
+.ep-side-head button::before { content: "+"; }
+.ep-group.open .ep-side-head button::before { content: "−"; }
+.ep-group:not(.open) .ep-thumbs { display: none; }
 .ep-thumbs { flex: 1; overflow-y: auto; padding: 10px 0 16px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .ep-thumb { background: none; border: 0; padding: 0; cursor: pointer; text-align: center; color: #fff; }
 .ep-thumb-box { width: 92px; height: 130px; overflow: hidden; position: relative; background: #fff; border: 3px solid transparent; }
@@ -96,31 +101,21 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ep-clip-tools button.on, .ep-clip-tools button[disabled] { opacity: .45; cursor: default; }
 .ep-clip-tools button:not([disabled]):not(.on):hover { background: #d2d2d2; }
 .ep-clip-tools svg { width: 20px; height: 20px; }
-.ep-clip-body { flex: 1; overflow-y: auto; padding: 36px 64px 30px 56px; }
+.ep-clip-tools button[data-listen] svg circle { color: var(--blue); }
+.ep-clip-body { flex: 1; overflow-y: auto; padding: 30px 64px 30px 50px; }
 .ep-clip-next { top: 150px; right: 18px; }
+.ep-clip-prev { top: 150px; left: 0; }
 .ep-clip-share { top: 66px; right: 30px; }
-/* Image view: the story as it was cut from the page */
-.ep-cut { background: var(--paper); border: 1px solid #e3e1d8; padding: 18px 22px; font-family: var(--serif); color: var(--ink); max-width: 1100px; }
-.ep-cut figure { margin: 0 0 10px; }
-.ep-cut figure img { width: 100%; height: auto; display: block; }
-.ep-cut figcaption { font: 11px var(--ui); color: #666; margin-top: 3px; }
-.ep-cut h2 { font-size: 30px; line-height: 1.12; margin: 6px 0 8px; }
-.ep-cut .ep-kicker { display: none; }
-.ep-cut .ep-intro { font-style: italic; font-size: 16px; margin: 0 0 6px; }
-.ep-cut .ep-byline { font: 600 11px var(--ui); letter-spacing: .06em; text-transform: uppercase; margin: 0 0 8px; }
-.ep-cut .ep-text { column-count: 3; column-gap: 22px; font-size: 14px; line-height: 1.5; text-align: justify; hyphens: auto; }
-.ep-cut .ep-text p { margin: 0 0 8px; }
-.ep-cut .ep-source { display: none; }
-/* Text view */
-.ep-read { max-width: 760px; font-family: var(--serif); color: var(--ink); --fs: 17px; }
-.ep-read .ep-kicker { font: 600 12px var(--ui); letter-spacing: .08em; color: var(--red); margin: 0; }
-.ep-read h2 { font-size: calc(var(--fs) * 1.75); line-height: 1.15; margin: 6px 0 12px; }
-.ep-read figure { margin: 0 0 14px; }
+/* Text View, as The Daily Star's e-paper sets a story: a big serif headline,
+   the deck, the picture, the byline with a bar, then the text. */
+.ep-read { max-width: 760px; font-family: "Times New Roman", Times, Georgia, serif; color: #222; --fs: 17px; }
+.ep-read h2 { font-size: calc(var(--fs) * 2); font-weight: 700; line-height: 1.55; margin: 0 0 10px; color: #111; }
+.ep-read .ep-intro { font-size: calc(var(--fs) * 1.15); line-height: 1.5; margin: 0 0 16px; color: #333; }
+.ep-read figure { margin: 0 0 18px; }
 .ep-read figure img { width: 100%; height: auto; display: block; }
-.ep-read figcaption { font: 12px var(--ui); color: #777; margin-top: 4px; }
-.ep-read p { font-size: var(--fs); line-height: 1.65; }
-.ep-read .ep-intro { font-style: italic; }
-.ep-read .ep-byline { font: 600 12px var(--ui); letter-spacing: .06em; text-transform: uppercase; }
+.ep-read figcaption { font-size: calc(var(--fs) * .95); font-weight: 700; line-height: 1.6; color: #333; margin-top: 8px; }
+.ep-read .ep-byline { font-size: var(--fs); font-weight: 700; text-transform: uppercase; border-left: 4px solid #333; padding-left: 10px; line-height: 1.1; margin: 0 0 16px; }
+.ep-read .ep-text p { font-size: calc(var(--fs) * .95); line-height: 1.75; margin: 0 0 14px; }
 .ep-read .ep-source { font: 14px var(--ui); color: var(--muted); border-top: 1px solid #ddd; padding-top: 10px; }
 .ep-read hr { border: 0; border-top: 2px solid #222; margin: 28px 0 18px; }
 
@@ -147,7 +142,10 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
    to the foot, then on into the next. */
 .np-story { overflow: hidden; position: relative; cursor: pointer; border-top: 1px solid var(--ink); padding-top: 6px; outline: none; display: flex; flex-direction: column; min-height: 0; }
 .np-story > * { flex: none; }
-.np-story:hover, .np-story:focus, .ep-clipview .np-story.sel { box-shadow: inset 0 0 0 2px rgba(26,115,232,.75); background: rgba(26,115,232,.05); }
+/* The story under the pointer, and the one open beside the page, are tinted
+   as on The Daily Star's e-paper. */
+.np-story:hover, .np-story:focus { background: rgba(236, 64, 122, .12); }
+.ep-clipview .np-story.sel { background: rgba(236, 64, 122, .24); }
 .np-story h3 { margin: 0 0 5px; font-weight: 700; line-height: 1.1; font-size: 21px; text-wrap: balance; }
 .np-intro { margin: 0 0 5px; font-style: italic; font-size: 13.5px; line-height: 1.32; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
 .np-s1 .np-intro { -webkit-line-clamp: 3; }
@@ -166,6 +164,17 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .np-s1 h3 { font-size: 40px; line-height: 1.03; }
 .np-s1 .np-text { column-count: 3; font-size: 13px; }
 .np-s1 .np-fig img { max-height: 310px; }
+/* Every story shows its picture: smaller further down the page, and a
+   thumbnail beside the text among the briefs. */
+.np-s2 .np-fig img, .np-s3 .np-fig img { max-height: 165px; }
+.np-s4 .np-fig img, .np-s5 .np-fig img, .np-s6 .np-fig img { max-height: 125px; }
+.np-brief.np-has-fig { display: grid; grid-template-columns: 36% 1fr; grid-template-rows: auto 1fr; column-gap: 8px; }
+.np-s7.np-has-fig { grid-template-rows: auto auto 1fr; }
+.np-brief.np-has-fig > .np-brief-label { grid-column: 1 / 3; }
+.np-brief.np-has-fig > .np-fig { grid-column: 1; grid-row: span 2; margin: 0; }
+.np-brief.np-has-fig > :not(.np-fig):not(.np-brief-label) { grid-column: 2; }
+.np-brief .np-fig img { max-height: 92px; height: 92px; }
+.np-brief.np-has-fig > .np-text { min-height: 0; overflow: hidden; }
 .np-s2 { grid-column: 5 / 7; grid-row: 1 / 2; }
 .np-s2 .np-text, .np-s3 .np-text { column-count: 1; }
 .np-s3 { grid-column: 5 / 7; grid-row: 2 / 3; }
@@ -201,6 +210,53 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ep-toast { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%); background: #222; color: #fff; font: 14px var(--ui); padding: 9px 16px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 50; }
 .ep-toast.show { opacity: 1; }
 .ep-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 24px; border-top: 1px solid var(--line); }
+.ep-sharebox a, .ep-sharebox button { display: flex; align-items: center; gap: 10px; }
+.ep-sharebox svg { width: 18px; height: 18px; color: var(--blue); }
+
+/* A supplement's first page carries its own masthead */
+.np-suppmast { display: grid; grid-template-columns: auto 1fr auto; gap: 18px; align-items: center; border-bottom: 3px double var(--ink); padding-bottom: 8px; margin-bottom: 12px; }
+.np-suppmast img { height: 44px; width: auto; }
+.np-supp-name { font: 700 40px var(--serif); letter-spacing: .06em; color: var(--red); }
+
+/* The menu (☰) */
+.ep-nav-shade { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 60; }
+.ep-nav { position: fixed; top: 0; bottom: 0; left: 0; width: 280px; max-width: 85vw; background: #fff; z-index: 61; box-shadow: 2px 0 14px rgba(0,0,0,.25); display: flex; flex-direction: column; }
+.ep-nav[hidden], .ep-nav-shade[hidden] { display: none; }
+.ep-nav-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 12px 12px 16px; border-bottom: 1px solid var(--line); }
+.ep-nav-head img { width: 170px; height: auto; display: block; }
+.ep-nav-head button { border: 0; background: none; font-size: 28px; line-height: 1; cursor: pointer; color: #333; }
+.ep-nav ul { list-style: none; margin: 0; padding: 0; }
+.ep-nav li a { display: block; padding: 13px 18px; border-bottom: 1px solid #eee; color: #222; text-decoration: none; font: 500 14px var(--ui); letter-spacing: .02em; }
+.ep-nav li a:hover { background: #f2f6fd; color: var(--blue); }
+
+/* Most Popular Article */
+.ep-popular h2 { font: 700 24px "Times New Roman", Times, serif; margin: 0 0 14px; }
+.ep-popular a { display: flex; gap: 14px; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; color: #222; text-decoration: none; font: 17px/1.35 "Times New Roman", Times, serif; }
+.ep-popular a:hover { color: var(--blue); }
+.ep-popular img { width: 110px; height: 70px; object-fit: cover; flex: none; }
+.ep-popular small { display: block; font: 11px var(--ui); color: var(--muted); text-transform: uppercase; margin-top: 4px; }
+
+/* Foot of the page */
+.ep-foot { flex: none; background: #2b2b2b; color: #bbb; text-align: center; font: 12px var(--ui); padding: 5px 10px; }
+
+/* The cookie notice */
+.ep-cookies { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 70; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.ep-cookies[hidden] { display: none; }
+.ep-cookies-box { background: #fff; border-radius: 10px; width: min(800px, 100%); padding: 22px 34px 18px; text-align: center; font-family: var(--ui); }
+.ep-cookies-head { color: #1f4e8c; font-size: 22px; font-weight: 600; margin: 0 0 18px; }
+.ep-cookies-box p { margin: 0 0 14px; color: #111; font-weight: 600; text-align: left; padding: 0 60px; }
+.ep-cookies-box .ep-cookies-head, .ep-cookies-box .ep-cookies-btns { text-align: center; padding: 0; }
+.ep-cookies-box .ep-cookies-head { color: #1f4e8c; font-size: 22px; }
+.ep-cookies-btns button { border: 0; background: none; color: #1f4e8c; font: 600 17px var(--ui); cursor: pointer; margin-right: 18px; }
+.ep-cookies-btns a { color: #1f4e8c; font-size: 12px; font-weight: 400; }
+
+/* FAQs */
+.ep-page-faq { overflow: auto; }
+.ep-faq { flex: 1 0 auto; max-width: 860px; width: 100%; margin: 0 auto; padding: 24px 20px 40px; }
+.ep-faq h1 { font: 700 28px "Times New Roman", Times, serif; margin: 0 0 18px; }
+.ep-faq details { border-bottom: 1px solid #e3e3e3; padding: 12px 0; }
+.ep-faq summary { cursor: pointer; font: 600 16px var(--ui); color: #1f4e8c; }
+.ep-faq p { font: 15px/1.6 var(--ui); color: #333; margin: 10px 0 2px; }
 
 /* Phones: the page full width, the pages in a strip, no story column */
 @media (max-width: 860px) {
@@ -208,10 +264,13 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
   .ep-motto { margin-left: 26px; font-size: 12px; }
   .ep-toolbar { overflow-x: auto; }
   .ep-search input { width: 90px; }
-  .ep-user span, [data-view], [data-allpages] { display: none !important; }
+  [data-view], [data-allpages] { display: none !important; }
   .ep-body { flex-direction: column-reverse; }
-  .ep-side { width: 100%; }
+  .ep-side { width: 100%; flex-direction: row; overflow-x: auto; overflow-y: hidden; }
+  .ep-group, .ep-group:not(.open) .ep-thumbs { display: flex; }
+  .ep-group { flex: none; border: 0; }
   .ep-side-head { display: none; }
+  .ep-cookies-box p { padding: 0; }
   .ep-thumbs { flex-direction: row; overflow-x: auto; padding: 8px; gap: 10px; }
   .ep-thumb-box { width: 62px; height: 88px; }
   .ep-thumb-box .np-page { transform: scale(.056); }
@@ -224,7 +283,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 @media print {
   @page { size: A3 portrait; margin: 0; }
   body.ep { display: block; }
-  .ep-mast, .ep-toolbar, .ep-ticker, .ep-side, .ep-clip, .ep-arrow, .ep-share-dot, .ep-pop, .ep-sharebox, .ep-toast { display: none !important; }
+  .ep-mast, .ep-toolbar, .ep-ticker, .ep-side, .ep-clip, .ep-arrow, .ep-share-dot, .ep-pop, .ep-sharebox, .ep-toast, .ep-foot, .ep-nav, .ep-nav-shade, .ep-cookies { display: none !important; }
   .ep-stage { display: block; padding: 0; overflow: visible; border: 0; }
   .ep-pages { display: block; }
   .ep-scale { display: block !important; width: auto !important; height: auto !important; }

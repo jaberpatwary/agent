@@ -36,7 +36,7 @@ type site struct {
 // server, creates their tables, and starts reading the English feeds when
 // the server runs in production or EN_WORKER=true.
 func Mount(r *gin.Engine, db *gorm.DB, cfg *config.Config, backup imagestore.Backup) error {
-	if err := db.AutoMigrate(&Article{}, &Seen{}, &Edition{}); err != nil {
+	if err := db.AutoMigrate(&Article{}, &Seen{}, &Edition{}, &EpaperRead{}); err != nil {
 		return fmt.Errorf("english: migrate: %w", err)
 	}
 	tpl, err := template.New("").Funcs(funcs()).ParseGlob(TemplateDir + "/*.html")
@@ -80,6 +80,9 @@ func (s *site) routes(r *gin.Engine) {
 	r.GET("/epaper", s.epaperHome)
 	r.GET("/epaper/", s.epaperHome)
 	r.GET("/epaper/DhakaEdition", s.epaper)
+	r.GET("/epaper/faq", s.epaperFAQ)
+	r.GET("/epaper/popular", s.epaperPopular)
+	r.POST("/epaper/read/:id", s.epaperRead)
 }
 
 func (s *site) render(c *gin.Context, code int, name string, data map[string]any) {
@@ -283,14 +286,23 @@ func (s *site) epaper(c *gin.Context) {
 	for _, a := range list {
 		byID[a.ID.String()] = a
 	}
-	type drawnPage struct {
-		No      int
-		Name    string
-		Stories []Article
-	}
 	var drawn []drawnPage
+	var groups []pageGroup
+	main := 0
 	for _, p := range pages {
-		d := drawnPage{No: p.No, Name: pageName(p.Name)}
+		d := drawnPage{No: p.No, Name: pageName(p.Name), Group: p.Group}
+		if len(groups) == 0 || groups[len(groups)-1].Key != p.Group {
+			label := p.Group
+			if label == "" {
+				label = "Dhaka Edition"
+			}
+			groups = append(groups, pageGroup{Key: p.Group, Label: label})
+		}
+		g := &groups[len(groups)-1]
+		d.GNo = len(g.Pages) + 1 // a supplement numbers its pages from 1
+		if p.Group == "" {
+			main++
+		}
 		for _, id := range p.Stories {
 			if a, ok := byID[id]; ok {
 				d.Stories = append(d.Stories, a)
@@ -300,16 +312,117 @@ func (s *site) epaper(c *gin.Context) {
 		// waiting for its full text goes among the briefs at the foot.
 		sort.SliceStable(d.Stories, func(i, j int) bool { return printWeight(d.Stories[i]) > printWeight(d.Stories[j]) })
 		drawn = append(drawn, d)
+		g.Pages = append(g.Pages, d)
 	}
 	var dates []string
 	s.db.Model(&Edition{}).Order("date desc").Limit(366).Pluck("date", &dates)
 	day, _ := time.ParseInLocation("2006-01-02", ed.Date, dhaka)
 	s.render(c, http.StatusOK, "en_epaper.html", map[string]any{
-		"Date": ed.Date, "Day": day, "Pages": drawn, "Page": pg, "View": view, "Dates": dates,
+		"Date": ed.Date, "Day": day, "Pages": drawn, "Groups": groups, "Page": pg, "View": view, "Dates": dates,
 		"PrevDate": neighbour(dates, ed.Date, 1), "NextDate": neighbour(dates, ed.Date, -1),
 		"MinDate": last(dates), "MaxDate": first(dates), "AID": c.Query("aid"),
-		"Ticker": s.latest(12), "BanglaDate": banglaDate(day), "PageCount": len(drawn),
+		"Ticker": s.latest(12), "BanglaDate": banglaDate(day), "PageCount": main,
 	})
+}
+
+// drawnPage is a printed page with its stories, for the template. GNo is its
+// number within its supplement (the Dhaka Edition's pages and each
+// supplement's are numbered from 1, as in print); No is its place in the
+// whole edition, used in links.
+type drawnPage struct {
+	No      int
+	GNo     int
+	Name    string
+	Group   string
+	Stories []Article
+}
+
+// pageGroup is the Dhaka Edition or a supplement, with its pages.
+type pageGroup struct {
+	Key, Label string
+	Pages      []drawnPage
+}
+
+// epaperRead counts one opening of an e-paper story (the reader's browser
+// sends it when a story is opened), for "Most Popular Article".
+func (s *site) epaperRead(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	date := c.Query("date")
+	if _, derr := time.Parse("2006-01-02", date); err != nil || derr != nil {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+	var n int64
+	s.db.Model(&Article{}).Where("id = ?", id).Count(&n)
+	if n == 0 {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	s.db.Exec(`INSERT INTO en_epaper_reads (date, article_id, count) VALUES (?, ?, 1)
+		ON CONFLICT (date, article_id) DO UPDATE SET count = en_epaper_reads.count + 1`, date, id.String())
+	c.Status(http.StatusNoContent)
+}
+
+// epaperPopular lists a day's most opened e-paper stories (then the order
+// they were printed in, while few have been read).
+func (s *site) epaperPopular(c *gin.Context) {
+	ed, pages, err := editionFor(s.db, c.Query("date"))
+	if err != nil {
+		c.JSON(http.StatusOK, []any{})
+		return
+	}
+	var order []string
+	pageOf := map[string]drawnPage{}
+	g, gno := "-", 0
+	for _, p := range pages {
+		if p.Group != g {
+			g, gno = p.Group, 0
+		}
+		gno++
+		for _, id := range p.Stories {
+			order = append(order, id)
+			pageOf[id] = drawnPage{No: p.No, GNo: gno, Name: pageName(p.Name), Group: p.Group}
+		}
+	}
+	var reads []EpaperRead
+	s.db.Where("date = ?", ed.Date).Find(&reads)
+	count := map[string]int{}
+	for _, r := range reads {
+		count[r.ArticleID] = r.Count
+	}
+	sort.SliceStable(order, func(i, j int) bool { return count[order[i]] > count[order[j]] })
+	if len(order) > 10 {
+		order = order[:10]
+	}
+	var list []Article
+	s.db.Where("id IN ?", order).Find(&list)
+	byID := map[string]Article{}
+	for _, a := range list {
+		byID[a.ID.String()] = a
+	}
+	type item struct {
+		ID, Title, Image, Page string
+		No, Reads              int
+	}
+	out := []item{}
+	for _, id := range order {
+		a, ok := byID[id]
+		if !ok {
+			continue
+		}
+		p := pageOf[id]
+		label := fmt.Sprintf("%d: %s", p.GNo, strings.ToUpper(p.Name))
+		if p.Group != "" {
+			label = p.Group + " " + label
+		}
+		out = append(out, item{ID: id, Title: a.Title, Image: a.ImageURL, Page: label, No: p.No, Reads: count[id]})
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// epaperFAQ answers readers' questions about the e-paper.
+func (s *site) epaperFAQ(c *gin.Context) {
+	s.render(c, http.StatusOK, "en_epaper_faq.html", map[string]any{})
 }
 
 // listed is the stories the lists show: not those stored with an outlet's

@@ -1,0 +1,51 @@
+{{ define "en_epaper_faq.html" }}<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="/en/static/favicon.ico">
+  <title>FAQs | Daily Star ePaper</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/en/static/epaper.css?v=7">
+</head>
+<body class="ep ep-page-faq">
+  {{ template "ep_sidenav" }}
+  <header class="ep-mast">
+    <a href="/epaper" class="ep-logo" title="The Daily Star E-Paper"><img src="/en/static/logo.svg" alt="The Daily Star"></a>
+    <p class="ep-motto">Journalism Without Fear or Favour</p>
+  </header>
+  <nav class="ep-toolbar" aria-label="E-paper">
+    <button type="button" class="ep-ico" data-menu title="Menu" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+    <a class="ep-tb" href="/epaper">Home</a>
+    <span class="ep-sep"></span>
+    <span class="ep-tb">FAQs</span>
+  </nav>
+  <main class="ep-faq">
+    <h1>Frequently Asked Questions</h1>
+    <details open><summary>What is The Daily Star e-paper?</summary>
+      <p>The day's newspaper, page by page: the Dhaka Edition (Front, News, City, International, Editorial, Opinion, Art&amp;Ent, Sport, Back) and the Business and Lifestyle supplements. A new edition is made every night after 12:00 am from the previous day's news.</p></details>
+    <details><summary>How do I read a story?</summary>
+      <p>Click a story on the page. In <b>Page and Article View</b> it opens beside the page; in <b>Page View</b> it opens over the page. The arrows beside the story take you to the previous or next story.</p></details>
+    <details><summary>How do I go to another page?</summary>
+      <p>Click a page in the list on the left, choose it in the page box of the tool bar, or use the blue arrows beside the page. On a keyboard, the left and right arrow keys turn the pages; on a phone, swipe.</p></details>
+    <details><summary>How do I read an older edition?</summary>
+      <p>Click the date in the tool bar and choose a day.</p></details>
+    <details><summary>Can I make the text bigger?</summary>
+      <p>Yes. In Text View, <b>font-inc</b> makes the story's text bigger with each click, then back to the start. <b>Full View</b> opens the story over the whole page.</p></details>
+    <details><summary>Can the e-paper read a story aloud?</summary>
+      <p>Yes. Open a story and click <b>Listen</b>; click <b>Pause</b> to stop. It uses your browser's own voice, so it works in most up-to-date browsers.</p></details>
+    <details><summary>How do I save the edition as a PDF?</summary>
+      <p>Click the download button in the tool bar, then choose <b>Save as PDF</b> in the print window. Every page of the edition is saved.</p></details>
+    <details><summary>How do I share a page or a story?</summary>
+      <p>Click the green share button on the page or the story, then choose Facebook, Twitter, WhatsApp, or copy the link.</p></details>
+    <details><summary>What is "Most Popular Article"?</summary>
+      <p>The stories of the day's edition that readers opened most often. It is in the menu (☰).</p></details>
+    <details><summary>Do I need to sign in?</summary>
+      <p>No. The e-paper is free to read.</p></details>
+  </main>
+  {{ template "ep_footer" }}
+  <script src="/en/static/epaper.js?v=7"></script>
+  {{ template "ep_cookies" }}
+</body>
+</html>
+{{ end }}

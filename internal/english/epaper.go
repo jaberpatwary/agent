@@ -15,6 +15,7 @@ import (
 // out from the stories of the day before, page by page, as a printed paper.
 
 type pagePlan struct {
+	group string // "" for the Dhaka Edition, else its supplement (Business, Lifestyle)
 	name  string
 	max   int
 	match func(Article) bool
@@ -36,26 +37,41 @@ func in(a Article, section string, subs ...string) bool {
 }
 
 func notOpinion(a Article) bool { return a.Section != "opinion" }
-func anyStory(Article) bool     { return true }
 
-// editionPlan is the order of the printed pages. Front Page takes the day's
-// leading stories first; every other page takes what is left that fits it.
+// homeNews is a news page's fare: anything from the news desk but the world.
+func homeNews(a Article) bool {
+	return (a.Section == "news" && a.Sub != "world") || a.Section == "youth"
+}
+
+// notSupplement: the Back page takes anything the supplements will not.
+func notSupplement(a Article) bool { return a.Section != "business" && a.Section != "lifestyle" }
+
+// editionPlan is the order of the printed pages, as in The Daily Star's
+// e-paper: the Dhaka Edition (Front, News, City, News, International,
+// Editorial, Opinion, Art&Ent, News, Sport, Back), then the Business and
+// Lifestyle supplements. Front takes the day's leading stories first; every
+// other page takes what is left that fits it.
 var editionPlan = []pagePlan{
-	{"Front", 9, notOpinion},
-	{"News", 9, func(a Article) bool {
+	{"", "Front", 9, notOpinion},
+	{"", "News", 9, func(a Article) bool {
 		return in(a, "news", "politics", "governance", "education", "technology") || in(a, "youth")
 	}},
-	{"City", 9, func(a Article) bool {
+	{"", "City", 9, func(a Article) bool {
 		return in(a, "news", "crime-justice", "accidents-and-fires", "healthcare", "environment")
 	}},
-	{"Business", 9, func(a Article) bool { return in(a, "business") }},
-	{"World", 9, func(a Article) bool { return in(a, "news", "world") }},
-	{"Sports", 9, func(a Article) bool { return in(a, "sports") }},
-	{"Editorial", 6, func(a Article) bool { return in(a, "opinion", "editorial", "views") }},
-	{"Op-Ed", 6, func(a Article) bool { return in(a, "opinion") || in(a, "slow-reads") }},
-	{"Arts & Entertainment", 8, func(a Article) bool { return in(a, "culture") }},
-	{"Life & Living", 8, func(a Article) bool { return in(a, "lifestyle") }},
-	{"Back Page", 9, anyStory},
+	{"", "News", 9, homeNews},
+	{"", "International", 9, func(a Article) bool { return in(a, "news", "world") }},
+	{"", "Editorial", 6, func(a Article) bool { return in(a, "opinion", "editorial", "views") }},
+	{"", "Opinion", 6, func(a Article) bool { return in(a, "opinion") || in(a, "slow-reads") }},
+	{"", "Art&Ent", 8, func(a Article) bool { return in(a, "culture") }},
+	{"", "News", 9, homeNews},
+	{"", "Sport", 9, func(a Article) bool { return in(a, "sports") }},
+	{"", "Back", 9, notSupplement},
+	{"Business", "BizFront", 9, func(a Article) bool { return in(a, "business") }},
+	{"Business", "BizInner", 9, func(a Article) bool { return in(a, "business") }},
+	{"Business", "BizBack", 9, func(a Article) bool { return in(a, "business") }},
+	{"Lifestyle", "Ls", 8, func(a Article) bool { return in(a, "lifestyle") }},
+	{"Lifestyle", "Ls", 8, func(a Article) bool { return in(a, "lifestyle") }},
 }
 
 // printWeight orders a page's stories for print: whole stories first, then
@@ -71,13 +87,23 @@ func printWeight(a Article) int {
 }
 
 // pageName gives editions laid out before the pages were renamed the
-// paper's names: "Front Page" is "Front", "Nation" is "News".
+// paper's names ("Front Page" is "Front", "World" is "International").
 func pageName(name string) string {
 	switch name {
 	case "Front Page":
 		return "Front"
 	case "Nation":
 		return "News"
+	case "World":
+		return "International"
+	case "Sports":
+		return "Sport"
+	case "Op-Ed":
+		return "Opinion"
+	case "Arts & Entertainment":
+		return "Art&Ent"
+	case "Back Page":
+		return "Back"
 	}
 	return name
 }
@@ -127,11 +153,11 @@ func layoutEdition(stories []Article) []EditionPage {
 			cands = cands[:plan.max]
 		}
 		// A page with only a story or two would print mostly blank: its stories
-		// wait for a later page (Back Page takes any) instead.
-		if len(cands) == 0 || (i > 0 && i < len(editionPlan)-1 && len(cands) < minPageStories) {
+		// wait for a later page (Back takes most) instead.
+		if len(cands) == 0 || (i > 0 && plan.name != "Back" && len(cands) < minPageStories) {
 			continue
 		}
-		p := EditionPage{Name: plan.name}
+		p := EditionPage{Name: plan.name, Group: plan.group}
 		for _, a := range cands {
 			used[a.ID.String()] = true
 			p.Stories = append(p.Stories, a.ID.String())
@@ -210,7 +236,7 @@ func sameNews(a, b map[string]bool) bool {
 
 // editionLayout is the version of the layout rules. An edition made with
 // older rules is laid out again from the same day's stories.
-const editionLayout = 3
+const editionLayout = 4
 
 // minPageStories: the fewest stories an inner page is printed with.
 const minPageStories = 4
@@ -313,7 +339,7 @@ func replaceInEdition(db *gorm.DB, now time.Time, gone map[string]bool) (int, er
 	sort.SliceStable(cands, func(i, j int) bool { return printWeight(cands[i]) > printWeight(cands[j]) })
 	swapped := 0
 	for pi := range pages {
-		plan, planned := planFor(pages[pi].Name)
+		plan, planned := planFor(pages[pi].Group, pages[pi].Name)
 		for si, id := range pages[pi].Stories {
 			if !gone[id] {
 				continue
@@ -341,11 +367,11 @@ func replaceInEdition(db *gorm.DB, now time.Time, gone map[string]bool) (int, er
 	return swapped, db.Model(&Edition{}).Where("date = ?", date).Update("pages", string(raw)).Error
 }
 
-// planFor finds a printed page's plan by its name.
-func planFor(name string) (pagePlan, bool) {
+// planFor finds a printed page's plan by its supplement and name.
+func planFor(group, name string) (pagePlan, bool) {
 	name = pageName(name)
 	for _, p := range editionPlan {
-		if p.name == name {
+		if p.group == group && p.name == name {
 			return p, true
 		}
 	}

@@ -159,6 +159,7 @@ func funcs() template.FuncMap {
 		"safeHTML":     func(s string) template.HTML { return template.HTML(s) },
 		"plain":        func(s string) string { return strings.Join(strings.Fields(tagStrip.ReplaceAllString(s, " ")), " ") },
 		"enToday":      func() string { return time.Now().In(dhaka).Format("Monday, January 2, 2006") },
+		"year":         func() int { return time.Now().In(dhaka).Year() },
 		"enAgo":        enAgo,
 		"enDate":       func(t time.Time) string { return t.In(dhaka).Format("2 January 2006") },
 		"enDateTime":   func(t time.Time) string { return t.In(dhaka).Format("2 January 2006, 15:04") },

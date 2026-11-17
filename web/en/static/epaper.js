@@ -1,33 +1,89 @@
-/* The Daily Star E-Paper viewer (Dhaka Edition): the page fitted to the
-   screen, the page list, the story beside the page (image or text view),
-   full view, favourites, photo download, search, date and page choice, all
-   pages, PDF, text of the page, sharing, full screen, keyboard and swipe. */
+/* The Daily Star E-Paper viewer (Dhaka Edition and its supplements): the
+   menu, the page fitted to the screen, the page list by supplement, the story
+   beside the page (Text View, Full View, Dload Image, font-inc, Listen),
+   search, date and page choice, all pages, PDF, sharing, full screen,
+   keyboard and swipe, and the most popular stories. */
 (function () {
-  var stage = document.querySelector('[data-stage]');
-  if (!stage) return;
   var EP = window.EP || {};
   var body = document.body;
-  var pages = Array.prototype.slice.call(stage.querySelectorAll('.np-page'));
-  var W = 1000, H = 1414;
-  var state = { page: Math.max(1, Math.min(pages.length, EP.page || 1)), view: EP.view === 1 ? 1 : 2, story: null, mode: 'image', fs: 17, all: false };
-
   function $(s) { return document.querySelector(s); }
   function $$(s, root) { return Array.prototype.slice.call((root || document).querySelectorAll(s)); }
   function on(el, ev, fn) { if (el) el.addEventListener(ev, fn); }
   function wide() { return window.innerWidth > 860; }
   function toast(msg) {
     var t = $('[data-toast]');
+    if (!t) return;
     t.textContent = msg;
     t.classList.add('show');
     clearTimeout(toast.t);
     toast.t = setTimeout(function () { t.classList.remove('show'); }, 2200);
   }
-  function store(key, val) {
-    try {
-      if (val === undefined) return JSON.parse(localStorage.getItem(key) || 'null');
-      localStorage.setItem(key, JSON.stringify(val));
-    } catch (e) { return null; }
+
+  // The menu (☰) slides in from the left.
+  var nav = $('[data-nav]'), shade = $('[data-nav-shade]');
+  function openNav(v) { nav.hidden = !v; shade.hidden = !v; }
+  $$('[data-menu]').forEach(function (b) { on(b, 'click', function () { openNav(true); }); });
+  on($('[data-nav-close]'), 'click', function () { openNav(false); });
+  on(shade, 'click', function () { openNav(false); });
+
+  // Most Popular Article: the day's stories readers opened most.
+  var pop = $('[data-pop]'), popBody = $('[data-pop-body]');
+  on($('[data-popular]'), 'click', function (e) {
+    e.preventDefault();
+    openNav(false);
+    if (!pop) { window.location = '/epaper#popular'; return; } // from the FAQs
+    var url = '/epaper/popular' + (EP.date ? '?date=' + EP.date : '');
+    fetch(url).then(function (r) { return r.json(); }).then(function (list) {
+      var box = document.createElement('div');
+      box.className = 'ep-popular';
+      var h = document.createElement('h2');
+      h.textContent = 'Most Popular Article';
+      box.appendChild(h);
+      if (!list.length) {
+        var p = document.createElement('p');
+        p.textContent = 'No edition yet.';
+        box.appendChild(p);
+      }
+      list.forEach(function (s, i) {
+        var a = document.createElement('a');
+        a.href = '#';
+        if (s.Image) { var img = document.createElement('img'); img.src = s.Image; img.alt = ''; img.loading = 'lazy'; a.appendChild(img); }
+        var t = document.createElement('span');
+        var n = document.createElement('b'); n.textContent = (i + 1) + '. ';
+        t.appendChild(n);
+        t.appendChild(document.createTextNode(s.Title));
+        var small = document.createElement('small'); small.textContent = s.Page;
+        t.appendChild(small);
+        a.appendChild(t);
+        a.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          pop.hidden = true;
+          if (typeof window.EPgo === 'function') window.EPgo(s.No, s.ID, true);
+        });
+        box.appendChild(a);
+      });
+      popBody.innerHTML = '';
+      popBody.appendChild(box);
+      pop.hidden = false;
+    }).catch(function () { toast('Could not load the list'); });
+  });
+  on(pop, 'click', function (e) { if (e.target === pop || e.target.closest('[data-pop-close]')) closePop(); });
+  function closePop() { pop.hidden = true; stopListening(); }
+
+  // Read aloud with the browser's own voice.
+  var speaking = false;
+  function stopListening() {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    speaking = false;
+    var l = $('[data-listen-label]');
+    if (l) l.textContent = 'Listen';
   }
+
+  var stage = document.querySelector('[data-stage]');
+  if (!stage) return;
+  var pages = Array.prototype.slice.call(stage.querySelectorAll('.np-page'));
+  var W = 1000, H = 1414;
+  var state = { page: Math.max(1, Math.min(pages.length, EP.page || 1)), view: EP.view === 1 ? 1 : 2, story: null, fs: 17, all: false };
 
   // Each page sits in a box of its scaled size, so the stage lays it out.
   pages.forEach(function (p) {
@@ -37,14 +93,16 @@
     box.appendChild(p);
   });
 
-  // The page list: a small copy of every page, "1 FRONT", "2 NEWS" …
-  var thumbs = $('[data-thumbs]');
+  // The page list, by supplement: "1 FRONT", "2 NEWS" …, "1 BIZFRONT" …
+  var side = $('[data-side]');
   pages.forEach(function (p) {
+    var list = side.querySelector('[data-thumbs="' + (p.dataset.group || '') + '"]');
+    if (!list) return;
     var b = document.createElement('button');
     b.type = 'button';
     b.className = 'ep-thumb';
     b.dataset.page = p.dataset.page;
-    b.setAttribute('aria-label', 'Page ' + p.dataset.page + ': ' + p.dataset.name);
+    b.title = p.dataset.gno + ': ' + p.dataset.name;
     var box = document.createElement('div');
     box.className = 'ep-thumb-box';
     var copy = p.cloneNode(true);
@@ -54,17 +112,21 @@
     $$('img', copy).forEach(function (i) { i.loading = 'lazy'; });
     box.appendChild(copy);
     var label = document.createElement('span');
-    label.textContent = p.dataset.page + ' ' + p.dataset.name;
+    label.textContent = p.dataset.gno + ' ' + p.dataset.name;
     b.appendChild(box);
     b.appendChild(label);
     b.addEventListener('click', function () { go(+b.dataset.page); });
-    thumbs.appendChild(b);
+    list.appendChild(b);
+  });
+  $$('[data-fold]').forEach(function (b) {
+    b.addEventListener('click', function () { b.closest('.ep-group').classList.toggle('open'); });
   });
 
   function storiesOn(n) {
     return $$('[data-story]', pages[n - 1]).map(function (s) { return s.dataset.story; });
   }
   function tpl(id) { return document.getElementById('st-' + id); }
+  function pageEl(n) { return pages[n - 1]; }
 
   // Fit the page to the screen: the whole page in view, the story beside it.
   function draw() {
@@ -77,7 +139,7 @@
     } else if (!wide()) {
       scale = (stage.clientWidth - 64) / W;
     } else if (state.view === 2) {
-      var room = body.clientWidth - (side.classList.contains('closed') ? 0 : side.offsetWidth) - 420 - 80;
+      var room = body.clientWidth - side.offsetWidth - 440 - 80;
       scale = Math.max(0.2, Math.min(availH / H, room / W));
       stage.style.width = Math.ceil(W * scale + 80) + 'px';
     } else {
@@ -90,16 +152,16 @@
       p.parentNode.style.width = (W * scale) + 'px';
       p.parentNode.style.height = (H * scale) + 'px';
     });
-    $$('.ep-thumb', thumbs).forEach(function (t) { t.classList.toggle('on', +t.dataset.page === state.page); });
+    $$('.ep-thumb', side).forEach(function (t) { t.classList.toggle('on', +t.dataset.page === state.page); });
     var sel = $('[data-page-select]');
     if (sel) sel.value = String(state.page);
     $('[data-prev]').hidden = state.all || state.page <= 1;
     $('[data-next]').hidden = state.all || state.page >= pages.length;
-    // The arrows sit a little above the middle of the screen, as on the paper's site.
     var mid = Math.round(Math.min(stage.clientHeight, H * scale + 28) * 0.36);
     $('[data-prev]').style.top = mid + 'px';
     $('[data-next]').style.top = mid + 'px';
     $('[data-clip-next]').style.top = mid + 'px';
+    $('[data-clip-prev]').style.top = mid + 'px';
   }
 
   function remember() {
@@ -111,58 +173,66 @@
     history.replaceState(null, '', u);
   }
 
-  function go(n, story) {
+  function go(n, story, opened) {
     state.page = Math.max(1, Math.min(pages.length, n));
     if (state.all) setAll(false);
+    // The page list opens the Dhaka Edition or the supplement this page is in.
+    var g = pageEl(state.page).dataset.group || '';
+    $$('.ep-group', side).forEach(function (x) { x.classList.toggle('open', x.dataset.group === g); });
     draw();
     stage.scrollTop = 0;
     stage.scrollLeft = 0;
-    var t = thumbs.querySelector('.ep-thumb.on');
+    var t = side.querySelector('.ep-thumb.on');
     if (t) t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     select(story || storiesOn(state.page)[0]);
+    if (story && opened) {
+      read(story);
+      if (!(state.view === 2 && wide())) open(story);
+    }
     remember();
+  }
+  window.EPgo = go;
+
+  // A story opened by the reader counts once per visit for Most Popular.
+  var counted = {};
+  function read(id) {
+    if (!id || counted[id] || !EP.date) return;
+    counted[id] = true;
+    fetch('/epaper/read/' + id + '?date=' + EP.date, { method: 'POST', keepalive: true }).catch(function () {});
   }
 
   // The story beside the page.
   var clipBody = $('[data-clip-body]');
   function select(id) {
     state.story = id || null;
+    stopListening();
     $$('.np-story.sel').forEach(function (s) { s.classList.remove('sel'); });
     if (!id) { clipBody.innerHTML = ''; return; }
     var s = stage.querySelector('[data-story="' + id + '"]');
     if (s) s.classList.add('sel');
     drawClip();
   }
-  function drawClip() {
-    var t = state.story && tpl(state.story);
-    clipBody.innerHTML = '';
-    if (!t) return;
+  function storyBox(id) {
+    var t = tpl(id);
     var box = document.createElement('div');
-    box.className = state.mode === 'text' ? 'ep-read' : 'ep-cut';
+    box.className = 'ep-read';
     box.style.setProperty('--fs', state.fs + 'px');
-    box.appendChild(t.content.cloneNode(true));
-    clipBody.appendChild(box);
-    clipBody.scrollTop = 0;
-    $$('[data-mode]').forEach(function (b) { b.classList.toggle('on', b.dataset.mode === state.mode); });
-    $('[data-fontinc]').disabled = state.mode !== 'text';
+    if (t) box.appendChild(t.content.cloneNode(true));
+    return box;
   }
-  $$('[data-mode]').forEach(function (b) {
-    b.addEventListener('click', function () { state.mode = b.dataset.mode; drawClip(); });
-  });
+  function drawClip() {
+    clipBody.innerHTML = '';
+    if (!state.story) return;
+    clipBody.appendChild(storyBox(state.story));
+    clipBody.scrollTop = 0;
+    var list = storiesOn(state.page), i = list.indexOf(state.story);
+    $('[data-clip-prev]').hidden = i <= 0 && state.page <= 1;
+  }
   on($('[data-fontinc]'), 'click', function () {
     state.fs = state.fs >= 23 ? 17 : state.fs + 2;
-    drawClip();
+    $$('.ep-read').forEach(function (b) { b.style.setProperty('--fs', state.fs + 'px'); });
   });
   on($('[data-fullview]'), 'click', function () { if (state.story) open(state.story); });
-  on($('[data-favourite]'), 'click', function () {
-    var t = state.story && tpl(state.story);
-    if (!t) return;
-    var favs = store('ep-favourites') || [];
-    if (favs.some(function (f) { return f.id === state.story; })) { toast('Already in your favourites'); return; }
-    favs.unshift({ id: state.story, title: t.dataset.title, date: EP.date, page: +t.dataset.page });
-    store('ep-favourites', favs.slice(0, 100));
-    toast(store('ep-favourites') ? 'Saved as favourite' : 'Favourites cannot be saved in this browser');
-  });
   on($('[data-download]'), 'click', function () {
     var t = state.story && tpl(state.story);
     var src = t && t.dataset.img;
@@ -176,50 +246,45 @@
     a.click();
     a.remove();
   });
-  function nextStory() {
+  on($('[data-listen]'), 'click', function () {
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) { toast('Your browser cannot read aloud'); return; }
+    if (speaking) { stopListening(); return; }
+    var t = state.story && tpl(state.story);
+    if (!t) return;
+    var c = t.content;
+    var text = [c.querySelector('h2'), c.querySelector('.ep-intro'), c.querySelector('.ep-text')]
+      .filter(Boolean).map(function (n) { return n.textContent.trim(); }).join('. ');
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-GB';
+    u.onend = stopListening;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+    speaking = true;
+    $('[data-listen-label]').textContent = 'Pause';
+  });
+  function stepStory(d) {
     var list = storiesOn(state.page), i = list.indexOf(state.story);
-    if (i >= 0 && i < list.length - 1) { select(list[i + 1]); remember(); }
-    else if (state.page < pages.length) go(state.page + 1);
+    if (d > 0) {
+      if (i >= 0 && i < list.length - 1) { select(list[i + 1]); remember(); }
+      else if (state.page < pages.length) go(state.page + 1);
+    } else {
+      if (i > 0) { select(list[i - 1]); remember(); }
+      else if (state.page > 1) { var prev = storiesOn(state.page - 1); go(state.page - 1, prev[prev.length - 1]); }
+    }
   }
-  on($('[data-clip-next]'), 'click', nextStory);
+  on($('[data-clip-next]'), 'click', function () { stepStory(1); });
+  on($('[data-clip-prev]'), 'click', function () { stepStory(-1); });
 
-  // Full view: the story (or the whole page's text) in a box over the page.
-  var pop = $('[data-pop]'), popBody = $('[data-pop-body]');
-  function showPop(nodes) {
+  // Full view: the story over the page.
+  function open(id) {
+    if (!tpl(id)) return;
     popBody.innerHTML = '';
-    var box = document.createElement('div');
-    box.className = 'ep-read';
-    box.style.setProperty('--fs', state.fs + 'px');
-    nodes.forEach(function (n) { box.appendChild(n); });
-    popBody.appendChild(box);
+    popBody.appendChild(storyBox(id));
     pop.hidden = false;
     pop.querySelector('.ep-pop-box').scrollTop = 0;
   }
-  function open(id) {
-    var t = tpl(id);
-    if (t) showPop([t.content.cloneNode(true)]);
-  }
-  function close() { pop.hidden = true; }
-  on(pop, 'click', function (e) { if (e.target === pop || e.target.closest('[data-pop-close]')) close(); });
-  on($('[data-textpage]'), 'click', function () {
-    var nodes = [];
-    var h = document.createElement('p');
-    h.className = 'ep-kicker';
-    h.textContent = 'PAGE ' + state.page + ': ' + pages[state.page - 1].dataset.name;
-    nodes.push(h);
-    storiesOn(state.page).forEach(function (id, i) {
-      var t = tpl(id);
-      if (!t) return;
-      if (i > 0) nodes.push(document.createElement('hr'));
-      var c = t.content.cloneNode(true);
-      var k = c.querySelector('.ep-kicker');
-      if (k) k.remove();
-      nodes.push(c);
-    });
-    showPop(nodes);
-  });
 
-  // Clicking a story: beside the page in the two-part view, else full view.
+  // Clicking a story: beside the page in Page and Article View, else over it.
   stage.addEventListener('click', function (e) {
     if (state.all) {
       var p = e.target.closest('.np-page');
@@ -228,6 +293,7 @@
     }
     var s = e.target.closest('[data-story]');
     if (!s) return;
+    read(s.dataset.story);
     if (state.view === 2 && wide()) { select(s.dataset.story); remember(); }
     else open(s.dataset.story);
   });
@@ -240,11 +306,6 @@
   on($('[data-prev]'), 'click', function () { go(state.page - 1); });
   on($('[data-next]'), 'click', function () { go(state.page + 1); });
   on($('[data-page-select]'), 'change', function (e) { go(+e.target.value); });
-  var side = $('[data-side]');
-  $$('[data-toggle-pages]').forEach(function (b) {
-    b.addEventListener('click', function () { side.classList.toggle('closed'); draw(); });
-  });
-  if (!wide()) side.classList.remove('closed');
   $$('[data-view]').forEach(function (b) {
     b.addEventListener('click', function () {
       state.view = +b.dataset.view;
@@ -277,9 +338,12 @@
     window.location = '/epaper/DhakaEdition?eid=1&edate=' + encodeURIComponent(d[2] + '/' + d[1] + '/' + d[0]) + '&pgid=1&view=' + state.view;
   });
 
-  // Edition: Dhaka is the only one.
+  // Edition: the Dhaka Edition or a supplement.
   var edMenu = $('[data-edition-menu]');
   on($('[data-edition-btn]'), 'click', function (e) { e.stopPropagation(); edMenu.hidden = !edMenu.hidden; });
+  $$('[data-goto-group]').forEach(function (a) {
+    a.addEventListener('click', function (e) { e.preventDefault(); edMenu.hidden = true; go(+a.dataset.gotoGroup); });
+  });
 
   // PDF: every page through the browser's print dialog ("Save as PDF").
   on($('[data-print]'), 'click', function () {
@@ -316,13 +380,10 @@
       b.type = 'button';
       b.textContent = s.title;
       var small = document.createElement('small');
-      small.textContent = 'Page ' + s.page + ': ' + pages[s.page - 1].dataset.name;
+      var pe = pageEl(s.page);
+      small.textContent = (pe.dataset.group ? pe.dataset.group + ' ' : '') + 'Page ' + pe.dataset.gno + ': ' + pe.dataset.name;
       b.appendChild(small);
-      b.addEventListener('click', function () {
-        results.hidden = true;
-        go(s.page, s.id);
-        if (!(state.view === 2 && wide())) open(s.id);
-      });
+      b.addEventListener('click', function () { results.hidden = true; go(s.page, s.id, true); });
       results.appendChild(b);
     });
     results.hidden = false;
@@ -353,8 +414,7 @@
       var to = {
         facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + u,
         x: 'https://x.com/intent/tweet?text=' + tt + '&url=' + u,
-        whatsapp: 'https://wa.me/?text=' + tt + '%20' + u,
-        email: 'mailto:?subject=' + tt + '&body=' + u
+        whatsapp: 'https://wa.me/?text=' + tt + '%20' + u
       };
       $$('[data-share-to]', sharebox).forEach(function (a) { a.href = to[a.dataset.shareTo]; });
       var r = b.getBoundingClientRect();
@@ -382,11 +442,13 @@
   // Keyboard
   document.addEventListener('keydown', function (e) {
     if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
-    if (!pop.hidden) { if (e.key === 'Escape') close(); return; }
+    if (!pop.hidden) { if (e.key === 'Escape') closePop(); return; }
+    if (!nav.hidden) { if (e.key === 'Escape') openNav(false); return; }
     if (e.key === 'Escape') { sharebox.hidden = true; if (state.all) { setAll(false); draw(); } }
     if (e.key === 'ArrowRight' || e.key === 'PageDown') go(state.page + 1);
     if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(state.page - 1);
-    if (e.key === 'ArrowDown' && state.view === 2) { e.preventDefault(); nextStory(); }
+    if (e.key === 'ArrowDown' && state.view === 2) { e.preventDefault(); stepStory(1); }
+    if (e.key === 'ArrowUp' && state.view === 2) { e.preventDefault(); stepStory(-1); }
     if (e.key === 'Home') go(1);
     if (e.key === 'End') go(pages.length);
   });
@@ -404,10 +466,10 @@
   window.addEventListener('resize', draw);
   // A shared story link opens on its page with that story.
   var start = EP.aid && tpl(EP.aid);
-  if (start) {
-    go(+start.dataset.page, EP.aid);
-    if (!(state.view === 2 && wide())) open(EP.aid);
-  } else {
-    go(state.page);
+  if (start) go(+start.dataset.page, EP.aid, true);
+  else go(state.page);
+  if (window.location.hash === '#popular') {
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+    $('[data-popular]').click();
   }
 })();

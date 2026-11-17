@@ -2,7 +2,6 @@ package english
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"strings"
@@ -110,13 +109,24 @@ func sampleStories() []Article {
 
 func TestEditionPutsEachStoryOnOnePage(t *testing.T) {
 	pages := layoutEdition(sampleStories())
-	if len(pages) < 8 || pages[0].Name != "Front" || pages[len(pages)-1].Name != "Back Page" {
+	if len(pages) < 8 || pages[0].Name != "Front" {
 		t.Fatalf("pages = %+v", pages)
 	}
+	// The Dhaka Edition ends with its Back page; the supplements follow it.
+	back, supp := -1, -1
 	seen := map[string]bool{}
 	for i, p := range pages {
 		if p.No != i+1 {
 			t.Fatalf("page %d numbered %d", i+1, p.No)
+		}
+		if p.Group == "" && p.Name == "Back" {
+			back = i
+		}
+		if p.Group != "" && supp < 0 {
+			supp = i
+		}
+		if p.Group == "" && supp >= 0 {
+			t.Fatalf("Dhaka Edition page %q after a supplement", p.Name)
 		}
 		for _, id := range p.Stories {
 			if seen[id] {
@@ -124,6 +134,9 @@ func TestEditionPutsEachStoryOnOnePage(t *testing.T) {
 			}
 			seen[id] = true
 		}
+	}
+	if back < 0 || supp != back+1 || pages[supp].Name != "BizFront" {
+		t.Fatalf("Back at %d, first supplement page at %d: %+v", back, supp, pages)
 	}
 }
 
@@ -188,27 +201,35 @@ func TestEPaperDraws(t *testing.T) {
 	for _, a := range all {
 		byID[a.ID.String()] = a
 	}
-	type drawnPage struct {
-		No      int
-		Name    string
-		Stories []Article
-	}
 	var drawn []drawnPage
+	var groups []pageGroup
+	main := 0
 	for _, p := range pages {
-		d := drawnPage{No: p.No, Name: p.Name}
+		if len(groups) == 0 || groups[len(groups)-1].Key != p.Group {
+			label := p.Group
+			if label == "" {
+				label = "Dhaka Edition"
+			}
+			groups = append(groups, pageGroup{Key: p.Group, Label: label})
+		}
+		g := &groups[len(groups)-1]
+		d := drawnPage{No: p.No, GNo: len(g.Pages) + 1, Name: p.Name, Group: p.Group}
+		if p.Group == "" {
+			main++
+		}
 		for _, id := range p.Stories {
 			d.Stories = append(d.Stories, byID[id])
 		}
 		drawn = append(drawn, d)
+		g.Pages = append(g.Pages, d)
 	}
-	raw, _ := json.Marshal(pages)
-	_ = raw
 	out := draw(t, "en_epaper.html", map[string]any{"Date": "2026-11-17", "Day": time.Date(2026, 11, 17, 0, 0, 0, 0, dhaka),
-		"Pages": drawn, "Page": 1, "View": 2, "Dates": []string{"2026-11-17", "2026-11-16"},
-		"BanglaDate": banglaDate(time.Date(2026, 11, 17, 0, 0, 0, 0, dhaka)), "PageCount": len(drawn), "Ticker": all[:3]})
+		"Pages": drawn, "Groups": groups, "Page": 1, "View": 2, "Dates": []string{"2026-11-17", "2026-11-16"},
+		"BanglaDate": banglaDate(time.Date(2026, 11, 17, 0, 0, 0, 0, dhaka)), "PageCount": main, "Ticker": all[:3]})
 	for _, want := range []string{"np-front", "Journalism Without Fear or Favour", "DHAKA TUESDAY, NOVEMBER 17, 2026", "AGRAHAYAN 2, 1433 BS",
 		"data-story=", `<template id="st-`, "Dhaka Edition", `value="2026-11-17"`, "INSIDE", "IN BRIEF", "Photo: Collected",
-		"Breaking News", "Image View", "Text View", "Full View", "Save as favourite", "Dload Image", "1: FRONT", "ep-clipview"} {
+		"Breaking News", "Text View", "Full View", "Dload Image", "font-inc", "Listen", "1: FRONT", "ep-clipview",
+		`<optgroup label="Business">`, "1: BIZFRONT", "MOST POPULAR ARTICLE", "CONTACT US", "FAQs", "This website is using cookies.", "All Rights Reserved."} {
 		if !strings.Contains(out, want) {
 			t.Errorf("e-paper lacks %q", want)
 		}
@@ -216,7 +237,15 @@ func TestEPaperDraws(t *testing.T) {
 	if n := strings.Count(out, `class="np-page`); n != len(pages) {
 		t.Errorf("%d pages drawn, want %d", n, len(pages))
 	}
+	// Every story with a photo shows it on the page, not only the leads.
+	if n, want := strings.Count(out, `<figure class="np-fig">`), len(all); n < len(pages)*4 {
+		t.Errorf("%d photos on the pages (of %d stories)", n, want)
+	}
 	draw(t, "en_epaper.html", map[string]any{"NoEdition": true, "View": 1, "Page": 1})
+	faq := draw(t, "en_epaper_faq.html", map[string]any{})
+	if !strings.Contains(faq, "Frequently Asked Questions") {
+		t.Error("FAQ page lacks its heading")
+	}
 }
 
 func TestOutletLogosAreNotPhotos(t *testing.T) {

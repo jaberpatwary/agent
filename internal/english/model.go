@@ -64,9 +64,20 @@ type Edition struct {
 
 func (Edition) TableName() string { return "en_editions" }
 
+// EpaperRead counts how often a story of a day's e-paper was opened, for the
+// e-paper's "Most Popular Article" list.
+type EpaperRead struct {
+	Date      string `gorm:"primaryKey;size:10"`
+	ArticleID string `gorm:"primaryKey;size:36"`
+	Count     int
+}
+
+func (EpaperRead) TableName() string { return "en_epaper_reads" }
+
 // EditionPage is one printed page of an edition.
 type EditionPage struct {
 	No      int      `json:"no"`
 	Name    string   `json:"name"`
-	Stories []string `json:"stories"` // article ids, the lead first
+	Group   string   `json:"group,omitempty"` // a supplement (Business, Lifestyle); "" is the Dhaka Edition
+	Stories []string `json:"stories"`         // article ids, the lead first
 }
