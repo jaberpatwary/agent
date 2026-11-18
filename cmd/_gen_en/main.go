@@ -229,6 +229,7 @@ func main() {
 		html := outer(s)
 		html = strings.ReplaceAll(html, "@@HEADER_NEWS@@", `{{ template "en_header_news" . }}`)
 		html = replaceDates(html)
+		html = strings.ReplaceAll(html, "Powered by: RSI Lab", "Powered by: Jaber Patwary") // the footer credit, at the user's request
 		fmt.Fprintf(&chrome, "{{ define %q }}\n%s\n{{ end }}\n\n", name, html)
 	}
 	must(os.MkdirAll("web/en/templates", 0o755))
