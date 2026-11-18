@@ -227,7 +227,8 @@ func TestEPaperDraws(t *testing.T) {
 		"Pages": drawn, "Groups": groups, "Page": 1, "View": 2, "Dates": []string{"2026-11-17", "2026-11-16"},
 		"BanglaDate": banglaDate(time.Date(2026, 11, 17, 0, 0, 0, 0, dhaka)), "PageCount": main, "Ticker": all[:3]})
 	for _, want := range []string{"np-front", "Journalism Without Fear or Favour", "DHAKA TUESDAY, NOVEMBER 17, 2026", "AGRAHAYAN 2, 1433 BS",
-		"data-story=", `<template id="st-`, "Dhaka Edition", `value="2026-11-17"`, "INSIDE", "IN BRIEF", "Photo: Collected",
+		"data-story=", `<template id="st-`, "Dhaka Edition", `value="2026-11-17"`, "YOUR RIGHT", "PAGES PLUS BUSINESS", "IN BRIEF", "Photo: Collected",
+		`class="np-folio"`, "/en/static/emblem.svg", `class="np-brief-box"`, `class="np-kicker"`, `class="np-suppmast"`,
 		"Breaking News", "Text View", "Full View", "Dload Image", "font-inc", "Listen", "1: FRONT", "ep-clipview",
 		`<optgroup label="Business">`, "1: BIZFRONT", "MOST POPULAR ARTICLE", "CONTACT US", "FAQs", "This website is using cookies.", "All Rights Reserved."} {
 		if !strings.Contains(out, want) {
@@ -245,6 +246,29 @@ func TestEPaperDraws(t *testing.T) {
 	faq := draw(t, "en_epaper_faq.html", map[string]any{})
 	if !strings.Contains(faq, "Frequently Asked Questions") {
 		t.Error("FAQ page lacks its heading")
+	}
+}
+
+func TestLongStoryGetsAPullQuote(t *testing.T) {
+	long := "<p>The minister spoke at the event in Dhaka yesterday.</p><p>He said the plan was ready.</p>" +
+		"<p>Dr. Rahman, who chairs the committee, attended. \"We will finish the new bridge before the monsoon begins next year,\" he told reporters at the site.</p>" +
+		"<p>Work started in 2024 at a cost of Tk 1.5 crore.</p><p>Officials expect traffic to ease.</p>"
+	out := string(withPull(long))
+	at := strings.Index(out, `<blockquote class="np-pull">`)
+	if at < 0 {
+		t.Fatalf("no pull quote in %s", out)
+	}
+	if at != strings.Index(long, "<p>Dr.") {
+		t.Errorf("pull quote not after the second paragraph: %s", out)
+	}
+	if !strings.Contains(out, "&#34;We will finish the new bridge before the monsoon begins next year,&#34; he told reporters at the site.</blockquote>") {
+		t.Errorf("pull quote is not the quoted sentence: %s", out)
+	}
+	if short := "<p>One.</p><p>Two.</p>"; string(withPull(short)) != short {
+		t.Error("a short story got a pull quote")
+	}
+	if got := sentences("Dr. Rahman came. He left at 5.30 pm today. Then it rained."); len(got) != 3 {
+		t.Errorf("sentences = %q", got)
 	}
 }
 

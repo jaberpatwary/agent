@@ -83,7 +83,7 @@
   if (!stage) return;
   var pages = Array.prototype.slice.call(stage.querySelectorAll('.np-page'));
   var W = 1000, H = 1414;
-  var state = { page: Math.max(1, Math.min(pages.length, EP.page || 1)), view: EP.view === 1 ? 1 : 2, story: null, fs: 17, all: false };
+  var state = { page: Math.max(1, Math.min(pages.length, EP.page || 1)), view: EP.view === 1 ? 1 : 2, story: null, fs: 16, all: false };
 
   // Each page sits in a box of its scaled size, so the stage lays it out.
   pages.forEach(function (p) {
@@ -229,7 +229,7 @@
     $('[data-clip-prev]').hidden = i <= 0 && state.page <= 1;
   }
   on($('[data-fontinc]'), 'click', function () {
-    state.fs = state.fs >= 23 ? 17 : state.fs + 2;
+    state.fs = state.fs >= 22 ? 16 : state.fs + 2;
     $$('.ep-read').forEach(function (b) { b.style.setProperty('--fs', state.fs + 'px'); });
   });
   on($('[data-fullview]'), 'click', function () { if (state.story) open(state.story); });

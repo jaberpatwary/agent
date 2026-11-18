@@ -6,8 +6,8 @@
   <link rel="icon" href="/en/static/favicon.ico">
   <title>Daily Star ePaper, English News Paper, Today Newspaper, Online News Epaper</title>
   <meta name="description" content="Daily Star ePaper: English Newspaper provide all latest news from Bangladesh. Current headlines, breaking news on business, sports, world and entertainment with exclusive Opinions and Editorials.">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;0,700;1,400&display=swap">
-  <link rel="stylesheet" href="/en/static/epaper.css?v=8">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600;700&family=Tinos:ital,wght@0,400;0,700;1,400&display=swap">
+  <link rel="stylesheet" href="/en/static/epaper.css?v=9">
 </head>
 <body class="ep{{ if eq .View 2 }} ep-clipview{{ end }}">
 
@@ -155,7 +155,7 @@
   </div>
   <div class="ep-toast" data-toast></div>
   <script>window.EP = { page: {{ .Page }}, view: {{ .View }}, pages: {{ len .Pages }}, aid: {{ .AID }}, date: {{ .Date }} };</script>
-  <script src="/en/static/epaper.js?v=8"></script>
+  <script src="/en/static/epaper.js?v=9"></script>
   {{ end }}
   {{ template "ep_cookies" }}
 </body>
@@ -206,52 +206,63 @@
 </script>
 {{ end }}
 
-{{/* One printed page. P = the page, Day = the date, All = every page, BD = the Bangla date, N = the Dhaka Edition's page count. */}}
+{{/* One printed page, set as The Daily Star prints its pages: the masthead
+     on the front, a supplement's own nameplate, else the section's folio
+     (the Star's S, the section, the date, the page number); then the stories,
+     the briefs boxed under an IN BRIEF ribbon.
+     P = the page, Day = the date, All = every page, BD = the Bangla date,
+     N = the Dhaka Edition's page count. */}}
 {{ define "ep_page" }}
-{{ $p := .P }}
-<section class="np-page{{ if eq $p.No 1 }} np-front{{ end }}{{ if $p.Group }} np-supp{{ end }}" data-page="{{ $p.No }}" data-gno="{{ $p.GNo }}" data-group="{{ $p.Group }}" data-name="{{ upper $p.Name }}">
+{{ $p := .P }}{{ $name := upper $p.Name }}
+<section class="np-page{{ if eq $p.No 1 }} np-front{{ end }}{{ if $p.Group }} np-supp{{ end }}" data-page="{{ $p.No }}" data-gno="{{ $p.GNo }}" data-group="{{ $p.Group }}" data-name="{{ $name }}">
   <div class="np-inner">
     {{ if eq $p.No 1 }}
-    <div class="np-topline"><span>DHAKA {{ printDate .Day }}</span></div>
+    <div class="np-topline">DHAKA {{ printDate .Day }}</div>
     <div class="np-mast">
-      <span class="np-ear">YOUR RIGHT<br>TO KNOW</span>
+      <span class="np-rtk">YOUR RIGHT<br>TO KNOW</span>
       <img src="/en/static/logo.svg" alt="The Daily Star">
-      <span class="np-ear">thedailystar.net</span>
+      <span class="np-edition">DHAKA EDITION</span>
     </div>
     <div class="np-dateline">
       <span>DHAKA EDITION</span>
       <span>{{ printDate .Day }}</span>
       <span>{{ upper .BD }}</span>
-      <span>{{ .N }} PAGES</span>
+      <span class="np-url">www.thedailystar.net</span>
+      <span>{{ .N }} PAGES{{ $plus := " PLUS " }}{{ range .All }}{{ if and .Group (eq .GNo 1) }}{{ $plus }}{{ upper .Group }}{{ $plus = " & " }}{{ end }}{{ end }}</span>
     </div>
-    <div class="np-index"><b>INSIDE</b>{{ range .All }}{{ if gt .No 1 }}{{ if not .Group }}<span>{{ .Name }} <em>{{ .GNo }}</em></span>{{ end }}{{ end }}{{ end }}</div>
     {{ else if and $p.Group (eq $p.GNo 1) }}
     <div class="np-suppmast">
+      <span class="np-supp-date">DHAKA {{ printDate .Day }}, {{ upper .BD }}</span>
       <img src="/en/static/logo.svg" alt="The Daily Star">
-      <span class="np-supp-name">{{ upper $p.Group }}</span>
-      <span class="np-folio-date">DHAKA {{ printDate .Day }}</span>
+      <span class="np-supp-name">{{ $p.Group }}</span>
+    </div>
+    {{ else if eq $name "BACK" }}
+    <div class="np-folio np-folio-back">
+      <span class="np-folio-no">{{ $p.GNo }}</span>
+      <span class="np-folio-date">DHAKA {{ printDate .Day }}, {{ upper .BD }}</span>
+      <span class="np-folio-logo"><img src="/en/static/logo.svg" alt="The Daily Star"></span>
     </div>
     {{ else }}
     <div class="np-folio">
+      <span class="np-folio-name"><img src="/en/static/emblem.svg" alt="">{{ if $p.Group }}{{ upper $p.Group }}{{ else if eq $name "ART&ENT" }}ARTS &amp; ENTERTAINMENT{{ else }}{{ $name }}{{ end }}</span>
+      <span class="np-folio-date">DHAKA {{ printDate .Day }}<br>{{ upper .BD }}<br><img src="/en/static/logo.svg" alt="The Daily Star"></span>
       <span class="np-folio-no">{{ $p.GNo }}</span>
-      <span class="np-folio-name">{{ if $p.Group }}{{ upper $p.Group }}{{ else }}{{ upper $p.Name }}{{ end }}</span>
-      <span class="np-folio-mid"><img src="/en/static/logo.svg" alt="The Daily Star"></span>
-      <span class="np-folio-date">DHAKA {{ printDate .Day }}</span>
     </div>
     {{ end }}
     <div class="np-grid">
+      {{ if gt (len $p.Stories) 6 }}<div class="np-brief-box" aria-hidden="true"><span class="np-brief-tag">IN BRIEF</span></div>{{ end }}
       {{ range $i, $a := $p.Stories }}
       <article class="np-story np-s{{ add $i 1 }}{{ if gt $i 5 }} np-brief{{ end }}{{ if $a.Brief }} np-short{{ end }}{{ if $a.ImageURL }} np-has-fig{{ end }}" data-story="{{ $a.ID }}" tabindex="0">
-        {{ if eq $i 6 }}<p class="np-brief-label">IN BRIEF</p>{{ end }}
+        {{ if and (eq $i 0) (eq $name "EDITORIAL") }}<div class="np-edmast"><img src="/en/static/logo.svg" alt="The Daily Star"><span>FOUNDER EDITOR: LATE S. M. ALI</span></div>{{ end }}
         {{ if $a.ImageURL }}<figure class="np-fig"><img src="{{ $a.ImageURL }}" alt="" loading="lazy" onerror="this.parentNode.parentNode.classList.remove('np-has-fig');this.parentNode.remove()">{{ if lt $i 6 }}<figcaption>Photo: Collected</figcaption>{{ end }}</figure>{{ end }}
+        {{ if gt $i 5 }}<p class="np-kicker">{{ subLabel $a.Section $a.Sub }}</p>{{ end }}
         <h3>{{ $a.Title }}</h3>
         {{ if lt $i 6 }}{{ if $a.Rewritten }}{{ if $a.Summary }}<p class="np-intro">{{ $a.Summary }}</p>{{ end }}{{ end }}{{ end }}
-        <p class="np-byline">■ ONLINE DESK</p>
-        <div class="np-text">{{ if $a.Brief }}<p>{{ $a.Summary }}</p>{{ else }}{{ safeHTML $a.Content }}{{ end }}</div>
+        <p class="np-byline">Online Desk</p>
+        <div class="np-text">{{ if $a.Brief }}<p>{{ $a.Summary }}</p>{{ else if eq $i 0 }}{{ withPull $a.Content }}{{ else }}{{ safeHTML $a.Content }}{{ end }}</div>
       </article>
       {{ end }}
     </div>
-    <div class="np-foot"><span>The Daily Star</span><span>{{ if $p.Group }}{{ $p.Group }} · {{ end }}{{ $p.Name }}</span><span>Page {{ $p.GNo }}</span></div>
   </div>
 </section>
 {{ end }}

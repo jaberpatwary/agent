@@ -2,10 +2,13 @@ package english
 
 import (
 	"fmt"
+	"html"
 	"html/template"
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 // BlockSpec is one block of a page (blocks_gen.go, made from The Daily
@@ -171,7 +174,79 @@ func funcs() template.FuncMap {
 		"epURL":        epaperURL,
 		"dayParam":     func(d string) string { t, _ := time.Parse("2006-01-02", d); return t.Format("02/01/2006") },
 		"dayLabel":     func(d string) string { t, _ := time.Parse("2006-01-02", d); return t.Format("2 Jan 2006") },
+		"withPull":     withPull,
 	}
+}
+
+var (
+	paraRe      = regexp.MustCompile(`(?is)<p\b[^>]*>.*?</p>`)
+	sentenceEnd = regexp.MustCompile(`[.!?]["”’']?\s+`)
+	abbrevs     = map[string]bool{"Mr.": true, "Mrs.": true, "Ms.": true, "Dr.": true, "Prof.": true, "St.": true, "Gen.": true,
+		"Lt.": true, "Col.": true, "Maj.": true, "Capt.": true, "Md.": true, "No.": true, "Jr.": true, "Sr.": true, "Rev.": true, "Govt.": true}
+)
+
+// withPull sets a pull quote into a long story as The Daily Star's printed
+// pages do: a sentence from further down the story, in bold between rules,
+// after the second paragraph. A short story is left as it is.
+func withPull(content string) template.HTML {
+	paras := paraRe.FindAllStringIndex(content, -1)
+	if len(paras) < 5 {
+		return template.HTML(content)
+	}
+	q := pullSentence(content, paras[2:])
+	if q == "" {
+		return template.HTML(content)
+	}
+	at := paras[1][1]
+	return template.HTML(content[:at] + `<blockquote class="np-pull">` + template.HTMLEscapeString(q) + `</blockquote>` + content[at:])
+}
+
+// pullSentence picks the quote: the first sentence of 10 to 28 words that
+// quotes someone, else the first one of that length.
+func pullSentence(content string, paras [][]int) string {
+	first := ""
+	for _, p := range paras {
+		text := html.UnescapeString(strings.Join(strings.Fields(tagStrip.ReplaceAllString(content[p[0]:p[1]], " ")), " "))
+		for _, s := range sentences(text) {
+			n := len(strings.Fields(s))
+			if n < 10 || n > 28 {
+				continue
+			}
+			if r, _ := utf8.DecodeRuneInString(s); !unicode.IsUpper(r) && !strings.ContainsRune("\"“‘'", r) {
+				continue
+			}
+			if strings.ContainsAny(s, "\"“”") {
+				return s
+			}
+			if first == "" {
+				first = s
+			}
+		}
+	}
+	return first
+}
+
+// sentences splits text at a full stop, question or exclamation mark that is
+// followed by a capital or a quote mark, and not after a title such as "Dr.".
+func sentences(text string) []string {
+	var out []string
+	start := 0
+	for _, m := range sentenceEnd.FindAllStringIndex(text, -1) {
+		if m[1] < len(text) {
+			if r, _ := utf8.DecodeRuneInString(text[m[1]:]); !unicode.IsUpper(r) && !strings.ContainsRune("\"“‘'", r) {
+				continue
+			}
+		}
+		if w := strings.Fields(text[start:m[1]]); len(w) > 0 && abbrevs[w[len(w)-1]] {
+			continue
+		}
+		out = append(out, strings.TrimSpace(text[start:m[1]]))
+		start = m[1]
+	}
+	if s := strings.TrimSpace(text[start:]); s != "" {
+		out = append(out, s)
+	}
+	return out
 }
 
 // enAgo is The Daily Star's card time: "26 MIN(S)", "2 HOUR(s)", else the date.
