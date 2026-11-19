@@ -2,6 +2,7 @@ package english
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"strings"
@@ -342,6 +343,31 @@ func TestPrintLayouts(t *testing.T) {
 	}
 	if len(weekdays) != 7 {
 		t.Errorf("plans for %d weekdays", len(weekdays))
+	}
+}
+
+// A local copy reads the hosted site's export back whole: the same story ids,
+// text and pages.
+func TestEditionExportReadsBack(t *testing.T) {
+	a := story("news", "politics", 1, true)
+	now := time.Now().UTC().Truncate(time.Second)
+	a.RewrittenAt = &now
+	pages := []EditionPage{{No: 1, Name: "Front", Layout: "2026-11-17/0/1", Stories: []string{a.ID.String()}}}
+	raw, _ := json.Marshal(pages)
+	out, err := json.Marshal(edExport{Date: "2026-11-17", Layout: editionLayout, Pages: raw, Articles: []Article{a}, Dates: []string{"2026-11-17"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back edExport
+	if err := json.Unmarshal(out, &back); err != nil {
+		t.Fatal(err)
+	}
+	var got []EditionPage
+	json.Unmarshal(back.Pages, &got)
+	b := back.Articles[0]
+	if b.ID != a.ID || b.Content != a.Content || b.SourceURL != a.SourceURL || b.RewrittenAt == nil || !b.RewrittenAt.Equal(now) ||
+		len(got) != 1 || got[0].Layout != pages[0].Layout || got[0].Stories[0] != a.ID.String() || back.Layout != editionLayout {
+		t.Errorf("read back %+v / %+v", b, got)
 	}
 }
 
