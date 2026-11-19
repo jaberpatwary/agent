@@ -301,7 +301,7 @@ func (s *site) epaper(c *gin.Context) {
 		"Date": ed.Date, "Day": day, "Pages": drawn, "Groups": groups, "Page": pg, "View": view, "Dates": dates,
 		"PrevDate": neighbour(dates, ed.Date, 1), "NextDate": neighbour(dates, ed.Date, -1),
 		"MinDate": last(dates), "MaxDate": first(dates), "AID": c.Query("aid"),
-		"Ticker": s.latest(12), "BanglaDate": banglaDate(day), "PageCount": main,
+		"Ticker": s.tickerOf(), "BanglaDate": banglaDate(day), "PageCount": main,
 	})
 }
 
@@ -462,6 +462,9 @@ func (s *site) epaperRead(c *gin.Context) {
 // epaperPopular lists a day's most opened e-paper stories (then the order
 // they were printed in, while few have been read).
 func (s *site) epaperPopular(c *gin.Context) {
+	if popularFromMirror(c) {
+		return
+	}
 	ed, pages, err := editionFor(s.db, c.Query("date"))
 	if err != nil {
 		c.JSON(http.StatusOK, []any{})

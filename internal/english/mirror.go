@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -27,7 +29,75 @@ type edExport struct {
 	Layout   int             `json:"layout"`
 	Pages    json.RawMessage `json:"pages"`
 	Articles []Article       `json:"articles"`
-	Dates    []string        `json:"dates"` // the editions there are, newest first
+	Dates    []string        `json:"dates"`  // the editions there are, newest first
+	Ticker   []Article       `json:"ticker"` // the e-paper's breaking news, as the hosted site runs it
+}
+
+// mirrored is what a copy took from the hosted site besides the editions:
+// its address (for "Most Popular Article") and its breaking news.
+var mirrored struct {
+	sync.RWMutex
+	base   string
+	ticker []string
+}
+
+func mirrorBase() string {
+	mirrored.RLock()
+	defer mirrored.RUnlock()
+	return mirrored.base
+}
+
+// tickerOf is the breaking news a copy shows: the hosted site's, else its own.
+func (s *site) tickerOf() []Article {
+	mirrored.RLock()
+	ids := append([]string(nil), mirrored.ticker...)
+	mirrored.RUnlock()
+	if len(ids) == 0 {
+		return s.latest(12)
+	}
+	var list []Article
+	s.db.Where("id IN ?", ids).Find(&list)
+	byID := map[string]Article{}
+	for _, a := range list {
+		byID[a.ID.String()] = a
+	}
+	out := make([]Article, 0, len(ids))
+	for _, id := range ids {
+		if a, ok := byID[id]; ok {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// popularFromMirror hands on the hosted site's "Most Popular Article", so a
+// copy shows the same list; false when this is no copy or it cannot be had.
+func popularFromMirror(c *gin.Context) bool {
+	base := mirrorBase()
+	if base == "" {
+		return false
+	}
+	u := base + "/epaper/popular"
+	if d := c.Query("date"); d != "" {
+		u += "?date=" + url.QueryEscape(d)
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return false
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer res.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	if err != nil || res.StatusCode != http.StatusOK {
+		return false
+	}
+	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
+	return true
 }
 
 // epaperExport hands out an edition (the latest, or the one of ?date=) with
@@ -47,6 +117,7 @@ func (s *site) epaperExport(c *gin.Context) {
 		s.db.Where("id IN ?", ids).Find(&out.Articles)
 	}
 	s.db.Model(&Edition{}).Order("date desc").Limit(14).Pluck("date", &out.Dates)
+	out.Ticker = s.tickerOf()
 	c.Header("Cache-Control", "public, max-age=120")
 	c.JSON(http.StatusOK, out)
 }
@@ -61,6 +132,9 @@ type mirror struct {
 
 func startMirror(db *gorm.DB, base string) {
 	m := &mirror{db: db, base: strings.TrimRight(base, "/"), client: &http.Client{Timeout: 90 * time.Second}, done: map[string]string{}}
+	mirrored.Lock()
+	mirrored.base = m.base
+	mirrored.Unlock()
 	go func() {
 		time.Sleep(5 * time.Second)
 		for {
@@ -77,9 +151,10 @@ func startMirror(db *gorm.DB, base string) {
 	log.Printf("[en] the e-paper is copied from %s every 20 minutes", base)
 }
 
-// sync takes the latest edition and the six before it. A past day is taken
-// again only when its pages changed; today's every time, as its stories get
-// their full text during the day.
+// sync takes the latest edition, every other the hosted site lists and its
+// breaking news; an edition of this copy's own among those days goes. A past
+// day is taken again only when its pages changed; today's every time, as its
+// stories get their full text during the day.
 func (m *mirror) sync(ctx context.Context) (int, error) {
 	latest, err := m.fetch(ctx, "")
 	if err != nil {
@@ -90,8 +165,24 @@ func (m *mirror) sync(ctx context.Context) (int, error) {
 		return n, err
 	}
 	n++
-	for i, d := range latest.Dates {
-		if i >= 7 || d == latest.Date {
+	if len(latest.Ticker) > 0 {
+		ids := make([]string, 0, len(latest.Ticker))
+		for _, a := range latest.Ticker {
+			if err := m.store(m.db, a); err != nil {
+				return n, err
+			}
+			ids = append(ids, a.ID.String())
+		}
+		mirrored.Lock()
+		mirrored.ticker = ids
+		mirrored.Unlock()
+	}
+	if len(latest.Dates) > 0 {
+		oldest := latest.Dates[len(latest.Dates)-1]
+		m.db.Where("date >= ? AND date NOT IN ?", oldest, latest.Dates).Delete(&Edition{})
+	}
+	for _, d := range latest.Dates {
+		if d == latest.Date {
 			continue
 		}
 		var have Edition
@@ -139,13 +230,7 @@ func (m *mirror) take(ex edExport) error {
 	}
 	return m.db.Transaction(func(tx *gorm.DB) error {
 		for _, a := range ex.Articles {
-			if strings.HasPrefix(a.ImageURL, "/") { // a photo the hosted site keeps
-				a.ImageURL = m.base + a.ImageURL
-			}
-			if err := tx.Where("source_url = ? AND id <> ?", a.SourceURL, a.ID).Delete(&Article{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Clauses(clause.OnConflict{UpdateAll: true}).Create(&a).Error; err != nil {
+			if err := m.store(tx, a); err != nil {
 				return err
 			}
 		}
@@ -156,4 +241,15 @@ func (m *mirror) take(ex edExport) error {
 		m.done[ex.Date] = ed.Pages
 		return nil
 	})
+}
+
+// store keeps a story as the hosted site has it.
+func (m *mirror) store(tx *gorm.DB, a Article) error {
+	if strings.HasPrefix(a.ImageURL, "/") { // a photo the hosted site keeps
+		a.ImageURL = m.base + a.ImageURL
+	}
+	if err := tx.Where("source_url = ? AND id <> ?", a.SourceURL, a.ID).Delete(&Article{}).Error; err != nil {
+		return err
+	}
+	return tx.Clauses(clause.OnConflict{UpdateAll: true}).Create(&a).Error
 }
