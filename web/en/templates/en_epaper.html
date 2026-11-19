@@ -7,7 +7,7 @@
   <title>Daily Star ePaper, English News Paper, Today Newspaper, Online News Epaper</title>
   <meta name="description" content="Daily Star ePaper: English Newspaper provide all latest news from Bangladesh. Current headlines, breaking news on business, sports, world and entertainment with exclusive Opinions and Editorials.">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600;700&family=Tinos:ital,wght@0,400;0,700;1,400&display=swap">
-  <link rel="stylesheet" href="/en/static/epaper.css?v=9">
+  <link rel="stylesheet" href="/en/static/epaper.css?v=10">
 </head>
 <body class="ep{{ if eq .View 2 }} ep-clipview{{ end }}">
 
@@ -155,7 +155,7 @@
   </div>
   <div class="ep-toast" data-toast></div>
   <script>window.EP = { page: {{ .Page }}, view: {{ .View }}, pages: {{ len .Pages }}, aid: {{ .AID }}, date: {{ .Date }} };</script>
-  <script src="/en/static/epaper.js?v=9"></script>
+  <script src="/en/static/epaper.js?v=10"></script>
   {{ end }}
   {{ template "ep_cookies" }}
 </body>
@@ -206,63 +206,99 @@
 </script>
 {{ end }}
 
-{{/* One printed page, set as The Daily Star prints its pages: the masthead
-     on the front, a supplement's own nameplate, else the section's folio
-     (the Star's S, the section, the date, the page number); then the stories,
-     the briefs boxed under an IN BRIEF ribbon.
-     P = the page, Day = the date, All = every page, BD = the Bangla date,
-     N = the Dhaka Edition's page count. */}}
+{{/* One printed page, set as The Daily Star prints it: the masthead on the
+     front, a supplement's own nameplate, else the section's folio (the Star's
+     S, the section, the date, the page number); then every box of the Star's
+     own page plan (cmd/_gen_epl), in the paper's units, each filled with one
+     of our stories. epaper.js pours the text into the columns.
+     P = the page, Day = the date, All = every page, BD = the Bangla date. */}}
 {{ define "ep_page" }}
-{{ $p := .P }}{{ $name := upper $p.Name }}
-<section class="np-page{{ if eq $p.No 1 }} np-front{{ end }}{{ if $p.Group }} np-supp{{ end }}" data-page="{{ $p.No }}" data-gno="{{ $p.GNo }}" data-group="{{ $p.Group }}" data-name="{{ $name }}">
-  <div class="np-inner">
-    {{ if eq $p.No 1 }}
-    <div class="np-topline">DHAKA {{ printDate .Day }}</div>
-    <div class="np-mast">
-      <span class="np-rtk">YOUR RIGHT<br>TO KNOW</span>
-      <img src="/en/static/logo.svg" alt="The Daily Star">
-      <span class="np-edition">DHAKA EDITION</span>
-    </div>
-    <div class="np-dateline">
-      <span>DHAKA EDITION</span>
-      <span>{{ printDate .Day }}</span>
-      <span>{{ upper .BD }}</span>
-      <span class="np-url">www.thedailystar.net</span>
-      <span>{{ .N }} PAGES{{ $plus := " PLUS " }}{{ range .All }}{{ if and .Group (eq .GNo 1) }}{{ $plus }}{{ upper .Group }}{{ $plus = " & " }}{{ end }}{{ end }}</span>
-    </div>
-    {{ else if and $p.Group (eq $p.GNo 1) }}
-    <div class="np-suppmast">
-      <span class="np-supp-date">DHAKA {{ printDate .Day }}, {{ upper .BD }}</span>
-      <img src="/en/static/logo.svg" alt="The Daily Star">
-      <span class="np-supp-name">{{ $p.Group }}</span>
-    </div>
-    {{ else if eq $name "BACK" }}
-    <div class="np-folio np-folio-back">
-      <span class="np-folio-no">{{ $p.GNo }}</span>
-      <span class="np-folio-date">DHAKA {{ printDate .Day }}, {{ upper .BD }}</span>
-      <span class="np-folio-logo"><img src="/en/static/logo.svg" alt="The Daily Star"></span>
-    </div>
-    {{ else }}
-    <div class="np-folio">
-      <span class="np-folio-name"><img src="/en/static/emblem.svg" alt="">{{ if $p.Group }}{{ upper $p.Group }}{{ else if eq $name "ART&ENT" }}ARTS &amp; ENTERTAINMENT{{ else }}{{ $name }}{{ end }}</span>
-      <span class="np-folio-date">DHAKA {{ printDate .Day }}<br>{{ upper .BD }}<br><img src="/en/static/logo.svg" alt="The Daily Star"></span>
-      <span class="np-folio-no">{{ $p.GNo }}</span>
-    </div>
-    {{ end }}
-    <div class="np-grid">
-      {{ if gt (len $p.Stories) 6 }}<div class="np-brief-box" aria-hidden="true"><span class="np-brief-tag">IN BRIEF</span></div>{{ end }}
-      {{ range $i, $a := $p.Stories }}
-      <article class="np-story np-s{{ add $i 1 }}{{ if gt $i 5 }} np-brief{{ end }}{{ if $a.Brief }} np-short{{ end }}{{ if $a.ImageURL }} np-has-fig{{ end }}" data-story="{{ $a.ID }}" tabindex="0">
-        {{ if and (eq $i 0) (eq $name "EDITORIAL") }}<div class="np-edmast"><img src="/en/static/logo.svg" alt="The Daily Star"><span>FOUNDER EDITOR: LATE S. M. ALI</span></div>{{ end }}
-        {{ if $a.ImageURL }}<figure class="np-fig"><img src="{{ $a.ImageURL }}" alt="" loading="lazy" onerror="this.parentNode.parentNode.classList.remove('np-has-fig');this.parentNode.remove()">{{ if lt $i 6 }}<figcaption>Photo: Collected</figcaption>{{ end }}</figure>{{ end }}
-        {{ if gt $i 5 }}<p class="np-kicker">{{ subLabel $a.Section $a.Sub }}</p>{{ end }}
-        <h3>{{ $a.Title }}</h3>
-        {{ if lt $i 6 }}{{ if $a.Rewritten }}{{ if $a.Summary }}<p class="np-intro">{{ $a.Summary }}</p>{{ end }}{{ end }}{{ end }}
-        <p class="np-byline">Online Desk</p>
-        <div class="np-text">{{ if $a.Brief }}<p>{{ $a.Summary }}</p>{{ else if eq $i 0 }}{{ withPull $a.Content }}{{ else }}{{ safeHTML $a.Content }}{{ end }}</div>
-      </article>
-      {{ end }}
-    </div>
-  </div>
+{{ $p := .P }}{{ $name := upper $p.Name }}{{ $t := $p.Title }}
+<section class="np-page np-t-{{ lower $t }}{{ if eq $p.No 1 }} np-front{{ end }}{{ if $p.Group }} np-supp{{ end }}{{ if lt $p.W 900 }} np-tabloid{{ end }}" data-page="{{ $p.No }}" data-gno="{{ $p.GNo }}" data-group="{{ $p.Group }}" data-name="{{ $name }}" data-w="{{ $p.W }}" data-h="{{ $p.H }}" style="width:{{ $p.W }}px;height:{{ $p.H }}px">
+  {{ if and (eq $p.No 1) (not $p.Group) }}
+  <header class="np-mast">
+    <p class="np-topline">DHAKA {{ paperDate .Day }}</p>
+    <span class="np-rtk">YOUR RIGHT<br>TO KNOW</span>
+    <img class="np-mast-logo" src="/en/static/logo.svg" alt="The Daily Star">
+    <span class="np-edition">SECOND EDITION</span>
+    <p class="np-dateline"><span>REGD. NO. DA 781</span><span>{{ volNo .Day }}</span><span>{{ upper .BD }}</span><span class="np-url">www.thedailystar.net</span><span>{{ hijri .Day }}</span><span>{{ pagesLine .All }}</span></p>
+  </header>
+  {{ else if lt $p.W 900 }}
+  <header class="np-tabfolio"><span class="np-tab-no">{{ printf "%02d" $p.GNo }}</span> <span class="np-tab-name">{{ if eq $p.Group "Lifestyle" }}<b>LIFE</b><i>Style</i>{{ else }}{{ $p.Group }}{{ end }}</span><span class="np-tab-date">{{ paperDate .Day }}, {{ upper .BD }}</span></header>
+  {{ else if eq $t "BIZFRONT" }}
+  <header class="np-bizmast">
+    <img class="np-emblem" src="/en/static/emblem.svg" alt="">
+    <span class="np-biz-date">DHAKA {{ paperDate .Day }}, {{ upper .BD }}<br><span>starbusiness@thedailystar.net</span></span>
+    <span class="np-biz-name">Business</span>
+  </header>
+  {{ else if eq $p.Group "Business" }}
+  <header class="np-bizfolio">
+    <span class="np-biz-no"><b>B</b>{{ $p.GNo }}</span>
+    <span class="np-biz-date">DHAKA {{ paperDate .Day }}<br>{{ upper .BD }}<br><img src="/en/static/logo.svg" alt="The Daily Star"></span>
+    <span class="np-biz-name"><img class="np-emblem" src="/en/static/emblem.svg" alt="">Business</span>
+  </header>
+  {{ else if eq $t "SPORT" }}
+  <header class="np-sportmast">
+    <img class="np-emblem" src="/en/static/emblem.svg" alt="">
+    <span class="np-sport-date">DHAKA {{ paperDate .Day }}, {{ upper .BD }}</span>
+    <span class="np-sport-name">SPORT</span>
+  </header>
+  {{ else if eq $t "BACK" }}
+  <header class="np-folio np-folio-back">
+    <span class="np-folio-no">{{ $p.GNo }}</span>
+    <span class="np-folio-date">DHAKA {{ paperDate .Day }}, {{ upper .BD }}</span>
+    <img class="np-folio-logo" src="/en/static/logo.svg" alt="The Daily Star">
+  </header>
+  {{ else }}
+  {{ if eq $t "EDITORIAL" }}<div class="np-edmast"><img src="/en/static/logo.svg" alt="The Daily Star"><span>FOUNDER EDITOR: <b>LATE S. M. ALI</b></span></div>{{ end }}
+  <header class="np-folio{{ if eq $t "EDITORIAL" }} np-folio-ed{{ end }}">
+    <span class="np-folio-name"><img class="np-emblem" src="/en/static/emblem.svg" alt="">{{ folioName $t }}</span>
+    <span class="np-folio-date">DHAKA {{ paperDate .Day }}<br>{{ upper .BD }}<br><img src="/en/static/logo.svg" alt="The Daily Star"></span>
+    <span class="np-folio-no">{{ $p.GNo }}</span>
+  </header>
+  {{ end }}
+  {{ range $p.Boxes }}{{ if .Has }}{{ template "ep_box" . }}{{ end }}{{ end }}
+  {{ if eq $t "EDITORIAL" }}
+  <footer class="np-imprint">
+    <span><b>The Daily Star</b><br>Reg. No. DA 781</span>
+    <span><b>EDITOR &amp; PUBLISHER:</b> Mahfuz Anam<br>Printed by him on behalf of Mediaworld Ltd at Transcraft Ltd, 229, Tejgaon Industrial Area, editor@thedailystar.net</span>
+    <span><b>Registered &amp; Head Offices:</b> The Daily Star Centre<br>64-65 Kazi Nazrul Islam Avenue, Dhaka-1215<br>Phone: 09610222222</span>
+    <span><b>Newsroom:</b> Fax- 58156306<br>reporting@thedailystar.net</span>
+    <span><b>Advertisement:</b> 01711623910<br>advertisement@thedailystar.net<br>GPO Box: 3257</span>
+    <span><b>Subscription:</b><br>01711623906</span>
+    <span class="np-imprint-web">thedailystar.net<br>bangla.thedailystar.net/</span>
+  </footer>
+  {{ end }}
 </section>
+{{ end }}
+
+{{/* One box of a page: a story (its pictures where the plan has them, the
+     kicker, headline, deck and byline, then its text poured into the
+     columns, "SEE PAGE 2 COL 4" when it goes on), a news photo with its
+     caption, the IN BRIEF column, a quote, or a story's rest ("FROM PAGE 1"). */}}
+{{ define "ep_box" }}
+<article class="np-story np-box np-k-{{ .Kind }}{{ if .Lead }} np-lead{{ end }}{{ if .Light }} np-light{{ end }}" data-story="{{ if eq .Kind "brief" }}{{ (index .Briefs 0).ID }}{{ else }}{{ .Story.ID }}{{ end }}" data-cols="{{ .Cols }}"{{ if .JumpKey }} data-jump="{{ .JumpKey }}"{{ end }} style="left:{{ .X }}px;top:{{ .Y }}px;width:{{ .W }}px;height:{{ .H }}px" tabindex="0">
+  {{ if eq .Kind "story" }}
+  {{ $a := .Story }}{{ if $a.ImageURL }}{{ range .Pics }}<figure class="np-pic" style="left:{{ index . 0 }}px;top:{{ index . 1 }}px;width:{{ index . 2 }}px;height:{{ index . 3 }}px"><img src="{{ $a.ImageURL }}" alt="" loading="lazy" onerror="this.parentNode.remove()"><figcaption>PHOTO: COLLECTED</figcaption></figure>{{ end }}{{ end }}
+  <header class="np-head">
+    {{ if .Kicker }}<p class="np-kicker">{{ upper (subLabel $a.Section $a.Sub) }}</p>{{ end }}
+    <h3>{{ $a.Title }}</h3>
+    {{ if and (ge .Heads 2) $a.Rewritten $a.Summary }}<p class="np-deck">{{ deckOf $a.Summary }}</p>{{ end }}
+    {{ if or .Byline .Lead }}<p class="np-byline">ONLINE DESK</p>{{ end }}
+  </header>
+  <div class="np-src" hidden>{{ if $a.Brief }}<p>{{ $a.Summary }}</p>{{ else }}{{ safeHTML $a.Content }}{{ end }}</div>
+  {{ if .JumpPage }}<p class="np-see">SEE PAGE {{ .JumpPage }} COL {{ .JumpCol }}</p>{{ end }}
+  {{ else if eq .Kind "photo" }}
+  {{ $a := .Story }}{{ range .Pics }}<figure class="np-pic" style="left:{{ index . 0 }}px;top:{{ index . 1 }}px;width:{{ index . 2 }}px;height:{{ index . 3 }}px"><img src="{{ $a.ImageURL }}" alt="" loading="lazy"></figure>{{ end }}
+  <p class="np-caption">{{ caption $a }}</p>
+  <p class="np-credit">PHOTO: COLLECTED</p>
+  {{ else if eq .Kind "brief" }}
+  <header class="np-brief-head"><span>IN BRIEF</span></header>
+  <div class="np-src" hidden>{{ range .Briefs }}<div class="np-bitem" data-story="{{ .ID }}"><h4>{{ .Title }}</h4><p>{{ if .Summary }}{{ .Summary }}{{ else }}{{ caption . }}{{ end }}</p></div>{{ end }}</div>
+  {{ else if eq .Kind "quote" }}
+  <blockquote class="np-quote">{{ .Quote }}</blockquote>
+  {{ else if eq .Kind "jump" }}
+  <header class="np-head"><h3>{{ jumpHead .Story.Title }}</h3><p class="np-from">FROM PAGE {{ .FromPage }}</p></header>
+  {{ end }}
+</article>
 {{ end }}

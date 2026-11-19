@@ -286,34 +286,7 @@ func (s *site) epaper(c *gin.Context) {
 	for _, a := range list {
 		byID[a.ID.String()] = a
 	}
-	var drawn []drawnPage
-	var groups []pageGroup
-	main := 0
-	for _, p := range pages {
-		d := drawnPage{No: p.No, Name: pageName(p.Name), Group: p.Group}
-		if len(groups) == 0 || groups[len(groups)-1].Key != p.Group {
-			label := p.Group
-			if label == "" {
-				label = "Dhaka Edition"
-			}
-			groups = append(groups, pageGroup{Key: p.Group, Label: label})
-		}
-		g := &groups[len(groups)-1]
-		d.GNo = len(g.Pages) + 1 // a supplement numbers its pages from 1
-		if p.Group == "" {
-			main++
-		}
-		for _, id := range p.Stories {
-			if a, ok := byID[id]; ok {
-				d.Stories = append(d.Stories, a)
-			}
-		}
-		// Whole stories take the big places on the page; a story still
-		// waiting for its full text goes among the briefs at the foot.
-		sort.SliceStable(d.Stories, func(i, j int) bool { return printWeight(d.Stories[i]) > printWeight(d.Stories[j]) })
-		drawn = append(drawn, d)
-		g.Pages = append(g.Pages, d)
-	}
+	drawn, groups, main := drawPages(ed.Date, pages, byID)
 	var dates []string
 	s.db.Model(&Edition{}).Order("date desc").Limit(366).Pluck("date", &dates)
 	day, _ := time.ParseInLocation("2006-01-02", ed.Date, dhaka)
@@ -323,6 +296,116 @@ func (s *site) epaper(c *gin.Context) {
 		"MinDate": last(dates), "MaxDate": first(dates), "AID": c.Query("aid"),
 		"Ticker": s.latest(12), "BanglaDate": banglaDate(day), "PageCount": main,
 	})
+}
+
+// drawPages sets an edition's pages for the template: each page's stories in
+// the boxes of the Star's page it is set like, the stories that go on to
+// another page tied to the box they go on in ("SEE PAGE 2 COL 4" and "FROM
+// PAGE 1"), and the pages grouped by supplement.
+func drawPages(date string, pages []EditionPage, byID map[string]Article) ([]drawnPage, []pageGroup, int) {
+	var drawn []drawnPage
+	var groups []pageGroup
+	main := 0
+	nth := map[string]int{}
+	for _, p := range pages {
+		d := drawnPage{No: p.No, Name: pageName(p.Name), Group: p.Group, Key: p.Layout}
+		if d.Key == "" {
+			n := p.Group + "/" + d.Name
+			d.Key = keyForOld(date, p.Group, d.Name, nth[n])
+			nth[n]++
+		}
+		for _, id := range p.Stories {
+			if a, ok := byID[id]; ok {
+				d.Stories = append(d.Stories, a)
+			}
+		}
+		// Whole stories take the big places on the page; a story still
+		// waiting for its full text goes among the briefs at the foot.
+		sort.SliceStable(d.Stories, func(i, j int) bool { return printWeight(d.Stories[i]) > printWeight(d.Stories[j]) })
+		lp, ok := printPageByKey(d.Key)
+		if !ok {
+			lp, d.Key = fallbackPage(len(d.Stories))
+		}
+		d.Title, d.W, d.H, d.Top = lp.Title, lp.W, lp.H, lp.Top
+		d.Boxes = fillBoxes(lp, d.Stories)
+		drawn = append(drawn, d)
+	}
+	// A story that goes on: its rest is set in the jump box the Star's plan
+	// keeps for it on the later page.
+	at := map[string]int{}
+	for i, d := range drawn {
+		at[d.Key] = i
+	}
+	for i := range drawn {
+		for bi := range drawn[i].Boxes {
+			b := &drawn[i].Boxes[bi]
+			if len(b.to) != 2 || !b.Has || b.Kind != "story" || b.Story.Brief() {
+				continue
+			}
+			k := drawn[i].Key[:strings.LastIndex(drawn[i].Key, "/")+1] + strconv.Itoa(b.to[0])
+			j, ok := at[k]
+			if !ok || b.to[1] >= len(drawn[j].Boxes) {
+				continue
+			}
+			t := &drawn[j].Boxes[b.to[1]]
+			if t.Kind != "jump" || t.Has {
+				continue
+			}
+			b.JumpKey = fmt.Sprintf("j%d-%d", drawn[i].No, bi)
+			t.JumpKey, t.Story, t.Has = b.JumpKey, b.Story, true
+			b.JumpCol = gridCol(t.X)
+			drawn[i].Boxes[bi].JumpPage = -(j + 1) // numbered below, once pages are grouped
+			t.FromPage = -(i + 1)
+		}
+	}
+	for i := range drawn {
+		d := &drawn[i]
+		if len(groups) == 0 || groups[len(groups)-1].Key != d.Group {
+			label := d.Group
+			if label == "" {
+				label = "Dhaka Edition"
+			}
+			groups = append(groups, pageGroup{Key: d.Group, Label: label})
+		}
+		g := &groups[len(groups)-1]
+		d.GNo = len(g.Pages) + 1 // a supplement numbers its pages from 1
+		if d.Group == "" {
+			main++
+		}
+		g.Pages = append(g.Pages, *d)
+	}
+	for i := range drawn {
+		for bi := range drawn[i].Boxes {
+			b := &drawn[i].Boxes[bi]
+			if b.JumpPage < 0 {
+				b.JumpPage = drawn[-b.JumpPage-1].GNo
+			}
+			if b.FromPage < 0 {
+				b.FromPage = drawn[-b.FromPage-1].GNo
+			}
+		}
+	}
+	return drawn, groups, main
+}
+
+// fallbackPage is a plan for a page none fits: a news page of the Star's
+// with room for its stories.
+func fallbackPage(n int) (printPage, string) {
+	var best printPage
+	key := ""
+	for _, d := range printDays {
+		for ei, e := range d.Eds {
+			if e.Name != "Dhaka Edition" {
+				continue
+			}
+			for _, p := range e.Pages {
+				if p.Title == "NEWS" && (key == "" || (p.capacity() >= n && (best.capacity() < n || p.capacity() < best.capacity()))) {
+					best, key = p, layoutKey(d, ei, p.No)
+				}
+			}
+		}
+	}
+	return best, key
 }
 
 // drawnPage is a printed page with its stories, for the template. GNo is its
@@ -335,6 +418,12 @@ type drawnPage struct {
 	Name    string
 	Group   string
 	Stories []Article
+	// The Star's page it is set like: its key, title ("NEWS"), size in the
+	// paper's units, where the stories start under the folio, and the boxes.
+	Key       string
+	Title     string
+	W, H, Top int
+	Boxes     []drawnBox
 }
 
 // pageGroup is the Dhaka Edition or a supplement, with its pages.
