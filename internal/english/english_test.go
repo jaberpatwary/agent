@@ -2,7 +2,6 @@ package english
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"strings"
@@ -108,11 +107,8 @@ func sampleStories() []Article {
 	return out
 }
 
-// tuesday is a day the Star prints its Lifestyle supplement.
-var tuesday = time.Date(2026, 11, 17, 0, 0, 0, 0, dhaka)
-
 func TestEditionPutsEachStoryOnOnePage(t *testing.T) {
-	pages := layoutEdition(sampleStories(), tuesday)
+	pages := layoutEdition(sampleStories())
 	if len(pages) < 8 || pages[0].Name != "Front" {
 		t.Fatalf("pages = %+v", pages)
 	}
@@ -200,22 +196,41 @@ func TestEveryPageDraws(t *testing.T) {
 
 func TestEPaperDraws(t *testing.T) {
 	all := sampleStories()
-	pages := layoutEdition(all, tuesday)
+	pages := layoutEdition(all)
 	byID := map[string]Article{}
 	for _, a := range all {
 		byID[a.ID.String()] = a
 	}
-	drawn, groups, main := drawPages("2026-11-17", pages, byID)
-	out := draw(t, "en_epaper.html", map[string]any{"Date": "2026-11-17", "Day": tuesday,
+	var drawn []drawnPage
+	var groups []pageGroup
+	main := 0
+	for _, p := range pages {
+		if len(groups) == 0 || groups[len(groups)-1].Key != p.Group {
+			label := p.Group
+			if label == "" {
+				label = "Dhaka Edition"
+			}
+			groups = append(groups, pageGroup{Key: p.Group, Label: label})
+		}
+		g := &groups[len(groups)-1]
+		d := drawnPage{No: p.No, GNo: len(g.Pages) + 1, Name: p.Name, Group: p.Group}
+		if p.Group == "" {
+			main++
+		}
+		for _, id := range p.Stories {
+			d.Stories = append(d.Stories, byID[id])
+		}
+		drawn = append(drawn, d)
+		g.Pages = append(g.Pages, d)
+	}
+	out := draw(t, "en_epaper.html", map[string]any{"Date": "2026-11-17", "Day": time.Date(2026, 11, 17, 0, 0, 0, 0, dhaka),
 		"Pages": drawn, "Groups": groups, "Page": 1, "View": 2, "Dates": []string{"2026-11-17", "2026-11-16"},
-		"BanglaDate": banglaDate(tuesday), "PageCount": main, "Ticker": all[:3]})
-	for _, want := range []string{"np-front", "Journalism Without Fear or Favour", "DHAKA TUESDAY NOVEMBER 17, 2026", "AGRAHAYAN 2, 1433 BS",
-		"data-story=", `<template id="st-`, "Dhaka Edition", `value="2026-11-17"`, "YOUR RIGHT", "REGD. NO. DA 781", "VOL. XXXVI NO. 293",
-		"JAMADIUS SANI 6, 1448 HIJRI", "PLUS LIFE STYLE: TK 15.00", "PHOTO: COLLECTED", "SEE PAGE 2 COL", "FROM PAGE 1", "np-k-photo", "np-k-jump",
-		`class="np-folio"`, "/en/static/emblem.svg", `class="np-bizmast"`, "FOUNDER EDITOR:", "EDITOR &amp; PUBLISHER:", "ARTS &amp; ENTERTAINMENT",
+		"BanglaDate": banglaDate(time.Date(2026, 11, 17, 0, 0, 0, 0, dhaka)), "PageCount": main, "Ticker": all[:3]})
+	for _, want := range []string{"np-front", "Journalism Without Fear or Favour", "DHAKA TUESDAY, NOVEMBER 17, 2026", "AGRAHAYAN 2, 1433 BS",
+		"data-story=", `<template id="st-`, "Dhaka Edition", `value="2026-11-17"`, "YOUR RIGHT", "PAGES PLUS BUSINESS", "IN BRIEF", "Photo: Collected",
+		`class="np-folio"`, "/en/static/emblem.svg", `class="np-brief-box"`, `class="np-kicker"`, `class="np-suppmast"`,
 		"Breaking News", "Text View", "Full View", "Dload Image", "font-inc", "Listen", "1: FRONT", "ep-clipview",
-		`<optgroup label="Business">`, "1: BIZFRONT", `<optgroup label="Lifestyle">`, "MOST POPULAR ARTICLE", "CONTACT US", "FAQs",
-		"This website is using cookies.", "All Rights Reserved."} {
+		`<optgroup label="Business">`, "1: BIZFRONT", "MOST POPULAR ARTICLE", "CONTACT US", "FAQs", "This website is using cookies.", "All Rights Reserved."} {
 		if !strings.Contains(out, want) {
 			t.Errorf("e-paper lacks %q", want)
 		}
@@ -223,12 +238,9 @@ func TestEPaperDraws(t *testing.T) {
 	if n := strings.Count(out, `class="np-page`); n != len(pages) {
 		t.Errorf("%d pages drawn, want %d", n, len(pages))
 	}
-	// Every box stands where the Star's plan puts it, in the paper's units.
-	if !strings.Contains(out, `style="width:1008px;height:1548px"`) || !strings.Contains(out, `class="np-story np-box np-k-story np-lead`) {
-		t.Error("the pages are not set on the Star's page plans")
-	}
-	if n := strings.Count(out, `<figure class="np-pic"`); n < len(pages) {
-		t.Errorf("only %d photos on %d pages", n, len(pages))
+	// Every story with a photo shows it on the page, not only the leads.
+	if n, want := strings.Count(out, `<figure class="np-fig">`), len(all); n < len(pages)*4 {
+		t.Errorf("%d photos on the pages (of %d stories)", n, want)
 	}
 	draw(t, "en_epaper.html", map[string]any{"NoEdition": true, "View": 1, "Page": 1})
 	faq := draw(t, "en_epaper_faq.html", map[string]any{})
@@ -286,9 +298,9 @@ func TestThinPagesAreLeftOut(t *testing.T) {
 		all = append(all, story("news", "politics", i, true))
 	}
 	all = append(all, story("sports", "cricket", 20, true), story("sports", "football", 21, true))
-	pages := layoutEdition(all, tuesday)
+	pages := layoutEdition(all)
 	for _, p := range pages {
-		if p.Name == "Sport" {
+		if p.Name == "Sports" {
 			t.Fatalf("a Sports page with %d stories was laid out", len(p.Stories))
 		}
 	}
@@ -298,91 +310,6 @@ func TestThinPagesAreLeftOut(t *testing.T) {
 	}
 	if total != len(all) {
 		t.Fatalf("%d of %d stories placed: the thin page's stories must go to a later page", total, len(all))
-	}
-}
-
-// The page plans: every day has a front page, and a story that goes on
-// points at a box kept for its rest that points back.
-func TestPrintLayouts(t *testing.T) {
-	if len(printDays) < 7 {
-		t.Fatalf("%d days of page plans", len(printDays))
-	}
-	weekdays := map[int]bool{}
-	for _, d := range printDays {
-		weekdays[d.Weekday] = true
-		front := d.Eds[0].Pages[0]
-		if d.Eds[0].Name != "Dhaka Edition" || front.Title != "FRONT" || front.capacity() < 4 || front.W != 1008 {
-			t.Errorf("%s: front page %+v", d.Date, front.Title)
-		}
-		jumps := 0
-		for ei, e := range d.Eds {
-			for _, p := range e.Pages {
-				for bi, b := range p.Boxes {
-					if b.X < 0 || b.Y < 0 || b.X+b.W > p.W || b.Y+b.H > p.H {
-						t.Errorf("%s page %d box %d off the page", d.Date, p.No, bi)
-					}
-					if len(b.To) != 2 {
-						continue
-					}
-					to, ok := printPageByKey(layoutKey(d, ei, b.To[0]))
-					if !ok || b.To[1] >= len(to.Boxes) {
-						continue
-					}
-					if j := to.Boxes[b.To[1]]; j.Kind == "jump" {
-						jumps++
-						if len(j.From) != 2 || j.From[0] != p.No || j.From[1] != bi {
-							t.Errorf("%s: jump %v does not point back to page %d box %d", d.Date, j.From, p.No, bi)
-						}
-					}
-				}
-			}
-		}
-		if jumps == 0 {
-			t.Errorf("%s: no story goes on to another page", d.Date)
-		}
-	}
-	if len(weekdays) != 7 {
-		t.Errorf("plans for %d weekdays", len(weekdays))
-	}
-}
-
-// A local copy reads the hosted site's export back whole: the same story ids,
-// text and pages.
-func TestEditionExportReadsBack(t *testing.T) {
-	a := story("news", "politics", 1, true)
-	now := time.Now().UTC().Truncate(time.Second)
-	a.RewrittenAt = &now
-	pages := []EditionPage{{No: 1, Name: "Front", Layout: "2026-11-17/0/1", Stories: []string{a.ID.String()}}}
-	raw, _ := json.Marshal(pages)
-	out, err := json.Marshal(edExport{Date: "2026-11-17", Layout: editionLayout, Pages: raw, Articles: []Article{a}, Dates: []string{"2026-11-17"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var back edExport
-	if err := json.Unmarshal(out, &back); err != nil {
-		t.Fatal(err)
-	}
-	var got []EditionPage
-	json.Unmarshal(back.Pages, &got)
-	b := back.Articles[0]
-	if b.ID != a.ID || b.Content != a.Content || b.SourceURL != a.SourceURL || b.RewrittenAt == nil || !b.RewrittenAt.Equal(now) ||
-		len(got) != 1 || got[0].Layout != pages[0].Layout || got[0].Stories[0] != a.ID.String() || back.Layout != editionLayout {
-		t.Errorf("read back %+v / %+v", b, got)
-	}
-}
-
-func TestFrontPageParticulars(t *testing.T) {
-	if got := hijriDate(tuesday); got != "JAMADIUS SANI 6, 1448 HIJRI" {
-		t.Errorf("hijri = %q", got)
-	}
-	if got := volNo(tuesday); got != "VOL. XXXVI NO. 293" {
-		t.Errorf("vol = %q", got)
-	}
-	if got := paperDate(tuesday); got != "TUESDAY NOVEMBER 17, 2026" {
-		t.Errorf("date = %q", got)
-	}
-	if got := jumpHead("MPs may get up to Tk 15cr to soothe constituents"); got != "MPs may get" {
-		t.Errorf("jump head = %q", got)
 	}
 }
 

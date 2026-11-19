@@ -67,7 +67,6 @@ type worker struct {
 	rewrites int             // a day's cap on AI rewrites, shared with nothing else
 	failed   map[string]bool // e-paper stories whose full text could not be had
 	tries    map[string]int  // failed rewrites of an e-paper story
-	mirrored bool            // the e-paper is copied from the hosted site (EN_MIRROR): lay out none here
 }
 
 // run reads every feed once and stores the new stories.
@@ -416,22 +415,18 @@ func (w *worker) loop(ctx context.Context) {
 	for {
 		// Today's e-paper first: made (or remade by newer rules) and its
 		// stories given their full text, before new stories take the day's
-		// rewrites. A copy that takes the hosted site's e-paper makes none.
-		if !w.mirrored {
-			if err := ensureEdition(w.db, time.Now().In(dhaka)); err != nil {
-				log.Printf("[en] e-paper: %v", err)
-			}
-			fillCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
-			w.fillEdition(fillCtx, time.Now().In(dhaka))
-			cancel()
+		// rewrites.
+		if err := ensureEdition(w.db, time.Now().In(dhaka)); err != nil {
+			log.Printf("[en] e-paper: %v", err)
 		}
+		fillCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+		w.fillEdition(fillCtx, time.Now().In(dhaka))
+		cancel()
 		runCtx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 		w.run(runCtx)
 		cancel()
-		if !w.mirrored {
-			if err := ensureEdition(w.db, time.Now().In(dhaka)); err != nil {
-				log.Printf("[en] e-paper: %v", err)
-			}
+		if err := ensureEdition(w.db, time.Now().In(dhaka)); err != nil {
+			log.Printf("[en] e-paper: %v", err)
 		}
 		select {
 		case <-ctx.Done():
