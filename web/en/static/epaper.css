@@ -15,8 +15,10 @@
   --rule: #8a8a8a; --brief: #19a2c6;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; }
-body.ep { font-family: var(--ui); color: var(--text); background: #fff; display: flex; flex-direction: column; }
+html, body { margin: 0; }
+/* The window scrolls, as on the Star's e-paper: the masthead goes up out of
+   view and the tool bar and breaking news stay at the top. */
+body.ep { font-family: var(--ui); color: var(--text); background: #fff; }
 svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .ep-blue { color: var(--blue); }
 .ep-fill { fill: currentColor; stroke: none; }
@@ -27,7 +29,12 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ep-motto { margin: 2px 0 0 38px; color: var(--motto); font-size: 15px; letter-spacing: .01em; }
 
 /* Tool bar */
-.ep-toolbar { flex: none; display: flex; align-items: center; gap: 0; height: 38px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 0 6px; background: #fff; white-space: nowrap; }
+.ep-toolbar { position: relative; z-index: 31; display: flex; align-items: center; gap: 0; height: 35px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 0 6px; background: #fff; white-space: nowrap; }
+.ep-logo-sm { display: none; align-items: center; height: 100%; padding: 0 12px 0 6px; }
+.ep-logo-sm img { width: 103px; height: 21px; display: block; }
+body.ep-sticky .ep-toolbar { position: fixed; top: 0; left: 0; right: 0; }
+body.ep-sticky .ep-logo-sm { display: inline-flex; }
+body.ep-sticky .ep-home { display: none; }
 .ep-ico { background: none; border: 0; padding: 0 9px; height: 100%; display: inline-flex; align-items: center; cursor: pointer; color: var(--blue); }
 .ep-ico:hover { background: #f2f6fd; }
 .ep-ico[data-full] { color: #222; }
@@ -40,7 +47,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ep-date { cursor: pointer; }
 .ep-date input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
 .ep-edition button { background: none; border: 0; font: inherit; color: inherit; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; padding: 0; }
-.ep-menu { position: absolute; top: 37px; left: 0; background: #fff; border: 1px solid var(--line); box-shadow: 0 4px 12px rgba(0,0,0,.15); z-index: 30; min-width: 170px; }
+.ep-menu { position: absolute; top: 34px; left: 0; background: #fff; border: 1px solid var(--line); box-shadow: 0 4px 12px rgba(0,0,0,.15); z-index: 30; min-width: 170px; }
 .ep-menu[hidden] { display: none; }
 .ep-menu a { display: block; padding: 9px 14px; color: #222; text-decoration: none; }
 .ep-menu a.on { color: var(--blue); font-weight: 600; }
@@ -58,7 +65,10 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ep-user { display: inline-flex; align-items: center; gap: 6px; padding: 0 8px 0 14px; font-size: 15px; color: #222; }
 
 /* Breaking news */
-.ep-ticker { flex: none; display: flex; align-items: stretch; height: 34px; background: var(--ticker); overflow: hidden; }
+.ep-ticker { position: relative; z-index: 30; display: flex; align-items: stretch; height: 35px; background: var(--ticker); overflow: hidden; }
+body.ep-sticky .ep-ticker { position: fixed; top: 35px; left: 0; right: 0; }
+body.ep-sticky .ep-body, body.ep-sticky .ep-empty { margin-top: 70px; }
+body.ep-sticky .ep-faq { margin-top: 35px; }
 .ep-ticker-label { flex: none; background: var(--red); color: #fff; font-weight: 600; font-size: 16px; display: flex; align-items: center; padding: 0 12px 0 11px; }
 .ep-ticker-track { flex: 1; overflow: hidden; display: flex; align-items: center; }
 .ep-ticker-run { display: inline-flex; gap: 64px; white-space: nowrap; animation: ep-ticker 90s linear infinite; padding-left: 24px; }
@@ -69,28 +79,29 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 @media (prefers-reduced-motion: reduce) { .ep-ticker-run { animation: none; } }
 
 /* Body */
-.ep-body { flex: 1; min-height: 0; display: flex; }
+.ep-body { display: flex; align-items: stretch; }
 /* The page list: the Dhaka Edition and each supplement fold open and shut */
-.ep-side { flex: none; width: 132px; background: var(--side); color: #fff; display: flex; flex-direction: column; overflow-y: auto; }
+.ep-side { flex: none; width: 150px; background: #505050; color: #fff; display: flex; flex-direction: column; }
 .ep-group { flex: none; display: flex; flex-direction: column; border-bottom: 1px solid #5c5c5c; }
-.ep-group.open { flex: 1 1 auto; min-height: 0; }
 .ep-side-head { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 8px 6px 8px 7px; background: var(--side-head); font-weight: 600; font-size: 15px; }
 .ep-side-head button { width: 18px; height: 18px; border-radius: 50%; border: 0; background: #fff; color: var(--side-head); font: 700 15px/18px var(--ui); padding: 0; cursor: pointer; }
 .ep-side-head button::before { content: "+"; }
 .ep-group.open .ep-side-head button::before { content: "−"; }
 .ep-group:not(.open) .ep-thumbs { display: none; }
-.ep-thumbs { flex: 1; overflow-y: auto; padding: 10px 0 16px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+/* The open list is 1060 high and scrolls on its own, as the Star's does. */
+.ep-thumbs { position: relative; max-height: 1060px; overflow-y: auto; padding: 10px 0 16px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .ep-thumb { background: none; border: 0; padding: 0; cursor: pointer; text-align: center; color: #fff; }
 .ep-thumb-box { width: 86px; height: 130px; overflow: hidden; position: relative; background: #fff; outline: 3px solid transparent; margin: 0 auto; }
 .ep-thumb.on .ep-thumb-box { outline-color: #6aa9ff; }
 .ep-thumb-box .np-page { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; box-shadow: none; }
 .ep-thumb span { display: block; font-size: 12px; margin-top: 5px; text-transform: uppercase; }
 
-.ep-stage { flex: 1; min-width: 0; position: relative; overflow: auto; background: var(--stage); display: flex; justify-content: center; align-items: flex-start; padding: 14px 40px; }
+.ep-stage { flex: 1; min-width: 0; position: relative; background: var(--stage); display: flex; justify-content: center; align-items: flex-start; padding: 22px 0 24px; }
 .ep-clipview .ep-stage { flex: 0 0 auto; border-right: 1px solid var(--line); }
 .ep-pages { display: flex; gap: 10px; }
 .ep-scale { flex: none; position: relative; }
-.ep-arrow { position: absolute; top: 200px; width: 22px; height: 36px; border: 0; background: var(--blue-btn); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; z-index: 5; }
+/* The arrows stay at one height in the window while the page scrolls. */
+.ep-arrow { position: fixed; top: 42vh; width: 22px; height: 36px; border: 0; background: var(--blue-btn); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; z-index: 5; }
 .ep-arrow[hidden] { display: none; }
 .ep-arrow svg { width: 18px; height: 18px; stroke-width: 2.6; }
 .ep-arrow-left { left: 9px; }
@@ -98,10 +109,12 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ep-ico.on { background: #e8f0fd; }
 .ep-share-dot { position: absolute; width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--green); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 6; padding: 0; }
 .ep-share-dot svg { width: 17px; height: 17px; fill: #fff; stroke: #fff; stroke-width: 1.4; }
-.ep-page-share { top: 14px; right: 6px; }
+.ep-page-share { top: 14px; right: -2px; }
 
 /* The story beside the page */
 .ep-clip { display: none; flex: 1; min-width: 0; position: relative; flex-direction: column; background: #fff; }
+.ep-clip-tools { position: sticky; top: 0; z-index: 6; }
+body.ep-sticky .ep-clip-tools { top: 70px; }
 .ep-clipview .ep-clip { display: flex; }
 .ep-clip-tools { flex: none; display: flex; background: var(--tools); }
 .ep-clip-tools button { flex: 1; background: none; border: 0; padding: 6px 4px 5px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--blue); font: 13px var(--ui); }
@@ -110,9 +123,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ep-clip-tools button:not([disabled]):not(.on):hover { background: #d2d2d2; }
 .ep-clip-tools svg { width: 20px; height: 20px; }
 .ep-clip-tools button[data-listen] svg circle { color: var(--blue); }
-.ep-clip-body { flex: 1; overflow-y: auto; padding: 30px 64px 30px 50px; }
-.ep-clip-next { top: 150px; right: 18px; }
-.ep-clip-prev { top: 150px; left: 0; }
+.ep-clip-body { flex: 1; padding: 30px 64px 30px 50px; }
 .ep-clip-share { top: 66px; right: 30px; }
 /* Text View, as The Daily Star's e-paper sets a story: a big serif headline,
    the deck, the picture, the byline with a bar, then the text. */
@@ -283,7 +294,13 @@ body:not(.ep-set) .np-box .np-head { visibility: hidden; }
 .ep-popular small { display: block; font: 11px var(--ui); color: var(--muted); text-transform: uppercase; margin-top: 4px; }
 
 /* Foot of the page */
-.ep-foot { flex: none; background: #2b2b2b; color: #bbb; text-align: center; font: 12px var(--ui); padding: 5px 10px; }
+/* Back to the top: the Star's light blue button at the foot of the window,
+   once the page has scrolled. */
+.ep-totop { position: fixed; right: 15px; bottom: 15px; z-index: 40; width: 41px; height: 38px; border: 1px solid #0dcaf0; border-radius: 6px; background: #0dcaf0; color: #fff; opacity: .5; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+.ep-totop[hidden] { display: none; }
+.ep-totop:hover { opacity: 1; }
+.ep-totop svg { width: 18px; height: 18px; stroke-width: 2.4; }
+.ep-foot { background: #2b2b2b; color: #bbb; text-align: center; font: 12px var(--ui); padding: 5px 10px; }
 
 /* The cookie notice */
 .ep-cookies { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 70; display: flex; align-items: center; justify-content: center; padding: 16px; }

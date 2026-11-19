@@ -7,7 +7,7 @@
   <title>Daily Star ePaper, English News Paper, Today Newspaper, Online News Epaper</title>
   <meta name="description" content="Daily Star ePaper: English Newspaper provide all latest news from Bangladesh. Current headlines, breaking news on business, sports, world and entertainment with exclusive Opinions and Editorials.">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600;700&family=Tinos:ital,wght@0,400;0,700;1,400&display=swap">
-  <link rel="stylesheet" href="/en/static/epaper.css?v=10">
+  <link rel="stylesheet" href="/en/static/epaper.css?v=11">
 </head>
 <body class="ep{{ if eq .View 2 }} ep-clipview{{ end }}">
 
@@ -31,7 +31,8 @@
     <button type="button" class="ep-ico" data-menu title="Menu" aria-label="Menu">
       <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
     </button>
-    <a class="ep-tb" href="/epaper">Home</a>
+    <a class="ep-logo-sm" href="/epaper" title="The Daily Star"><img src="/en/static/logo.svg" alt="The Daily Star"></a>
+    <a class="ep-tb ep-home" href="/epaper">Home</a>
     <span class="ep-sep"></span>
     <label class="ep-tb ep-date" title="Choose a date">
       <span>{{ .Day.Format "January 2, 2006" }}</span>
@@ -128,6 +129,7 @@
   </div>
 
   {{ template "ep_footer" }}
+  <button type="button" class="ep-totop" data-totop title="Click to return on the top page " aria-label="Back to top" hidden><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
 
   {{/* The stories in full, for the story beside the page and the full view. */}}
   {{ range .Pages }}{{ $pg := . }}{{ range .Stories }}
@@ -155,7 +157,7 @@
   </div>
   <div class="ep-toast" data-toast></div>
   <script>window.EP = { page: {{ .Page }}, view: {{ .View }}, pages: {{ len .Pages }}, aid: {{ .AID }}, date: {{ .Date }} };</script>
-  <script src="/en/static/epaper.js?v=10"></script>
+  <script src="/en/static/epaper.js?v=11"></script>
   {{ end }}
   {{ template "ep_cookies" }}
 </body>

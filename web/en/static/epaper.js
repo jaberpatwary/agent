@@ -79,6 +79,30 @@
     if (l) l.textContent = 'Listen';
   }
 
+  // The window scrolls as on the Star's e-paper: past 120 pixels the tool bar
+  // and breaking news hold to the top (the small nameplate in place of Home)
+  // and the button back to the top shows; it goes up in 0.8 seconds.
+  var totop = $('[data-totop]');
+  function onScroll() {
+    var y = window.pageYOffset || document.documentElement.scrollTop;
+    body.classList.toggle('ep-sticky', y >= 120);
+    if (totop) totop.hidden = y <= 120;
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+  function scrollToY(to, ms) {
+    var from = window.pageYOffset, t0 = null;
+    if (!ms || Math.abs(to - from) < 2) { window.scrollTo(0, to); return; }
+    function step(t) {
+      if (t0 === null) t0 = t;
+      var p = Math.min(1, (t - t0) / ms);
+      window.scrollTo(0, from + (to - from) * (0.5 - Math.cos(p * Math.PI) / 2)); // jQuery's "swing"
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  on(totop, 'click', function () { scrollToY(0, 800); });
+
   var stage = document.querySelector('[data-stage]');
   if (!stage) return;
   var pages = Array.prototype.slice.call(stage.querySelectorAll('.np-page'));
@@ -365,19 +389,21 @@
   function draw() {
     var shown = state.all ? pages.map(function (p) { return +p.dataset.page; }) : [state.page];
     var availH = stage.clientHeight - 28;
-    var cur = dims(pageEl(state.page)), W = cur.w, H = cur.h;
+    var cur = dims(pageEl(state.page)), W = cur.w;
     var scale;
     stage.style.width = '';
+    // The page fits the width of its column and the window scrolls down it,
+    // as on the Star's e-paper: beside the story the column is 500 wide.
     if (state.all) {
       scale = 0.24;
     } else if (!wide()) {
       scale = (stage.clientWidth - 64) / W;
     } else if (state.view === 2) {
-      var room = body.clientWidth - side.offsetWidth - 440 - 80;
-      scale = Math.max(0.2, Math.min(availH / H, room / W));
-      stage.style.width = Math.ceil(W * scale + 80) + 'px';
+      var col = Math.round(Math.max(320, Math.min(500, (body.clientWidth - side.offsetWidth) * 0.4)));
+      scale = col / W;
+      stage.style.width = col + 'px';
     } else {
-      scale = Math.max(0.2, Math.min(availH / H, (stage.clientWidth - 80) / W));
+      scale = Math.min(1, (stage.clientWidth - 80) / W);
     }
     pages.forEach(function (p) {
       var show = shown.indexOf(+p.dataset.page) >= 0, d = dims(p);
@@ -393,11 +419,29 @@
     if (sel) sel.value = String(state.page);
     $('[data-prev]').hidden = state.all || state.page <= 1;
     $('[data-next]').hidden = state.all || state.page >= pages.length;
-    var mid = Math.round(Math.min(stage.clientHeight, H * scale + 28) * 0.36);
-    $('[data-prev]').style.top = mid + 'px';
-    $('[data-next]').style.top = mid + 'px';
-    $('[data-clip-next]').style.top = mid + 'px';
-    $('[data-clip-prev]').style.top = mid + 'px';
+    // The arrows hold their height in the window; across, they sit at the
+    // edges of the page's column and of the story beside it.
+    var sr = stage.getBoundingClientRect(), cr = $('[data-clip]').getBoundingClientRect();
+    $('[data-prev]').style.left = sr.left + 'px';
+    $('[data-next]').style.left = (sr.right - 22) + 'px';
+    $('[data-clip-prev]').style.left = (cr.left + 4) + 'px';
+    $('[data-clip-next]').style.left = (cr.right - 40) + 'px';
+  }
+  // A page list keeps its page in view by scrolling itself, not the window.
+  function showThumb(t) {
+    var list = t && t.parentNode;
+    if (!list) return;
+    if (list.scrollWidth > list.clientWidth + 2) {
+      if (t.offsetLeft < list.scrollLeft || t.offsetLeft + t.offsetWidth > list.scrollLeft + list.clientWidth) list.scrollLeft = t.offsetLeft - 8;
+    } else if (t.offsetTop < list.scrollTop || t.offsetTop + t.offsetHeight > list.scrollTop + list.clientHeight) {
+      list.scrollTop = t.offsetTop - 10;
+    }
+  }
+  // The window comes up to the top of the page (or the story) when it has
+  // scrolled past it.
+  function bringUp(el) {
+    var top = el.getBoundingClientRect().top + window.pageYOffset - 70;
+    if (window.pageYOffset > top) window.scrollTo(0, Math.max(0, top));
   }
 
   function remember() {
@@ -416,10 +460,8 @@
     var g = pageEl(state.page).dataset.group || '';
     $$('.ep-group', side).forEach(function (x) { x.classList.toggle('open', x.dataset.group === g); });
     draw();
-    stage.scrollTop = 0;
-    stage.scrollLeft = 0;
-    var t = side.querySelector('.ep-thumb.on');
-    if (t) t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    bringUp(stage);
+    showThumb(side.querySelector('.ep-thumb.on'));
     select(story || storiesOn(state.page)[0]);
     if (story && opened) {
       read(story);
@@ -459,7 +501,6 @@
     clipBody.innerHTML = '';
     if (!state.story) return;
     clipBody.appendChild(storyBox(state.story));
-    clipBody.scrollTop = 0;
     var list = storiesOn(state.page), i = list.indexOf(state.story);
     $('[data-clip-prev]').hidden = i <= 0 && state.page <= 1;
   }
@@ -529,7 +570,7 @@
     var s = e.target.closest('[data-story]');
     if (!s) return;
     read(s.dataset.story);
-    if (state.view === 2 && wide()) { select(s.dataset.story); remember(); }
+    if (state.view === 2 && wide()) { select(s.dataset.story); remember(); bringUp($('[data-clip]')); }
     else open(s.dataset.story);
   });
   stage.addEventListener('keydown', function (e) {
@@ -707,8 +748,7 @@
     EP.setMs = Date.now() - t0;
     draw();
     thumbs();
-    var t = side.querySelector('.ep-thumb.on');
-    if (t) t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    showThumb(side.querySelector('.ep-thumb.on'));
     body.classList.add('ep-set');
   });
   // A shared story link opens on its page with that story.
