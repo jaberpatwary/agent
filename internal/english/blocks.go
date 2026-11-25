@@ -175,6 +175,17 @@ func funcs() template.FuncMap {
 		"dayParam":     func(d string) string { t, _ := time.Parse("2006-01-02", d); return t.Format("02/01/2006") },
 		"dayLabel":     func(d string) string { t, _ := time.Parse("2006-01-02", d); return t.Format("2 Jan 2006") },
 		"withPull":     withPull,
+		"paperDate":    func(t time.Time) string { return paperDate(t.In(dhaka)) },
+		"hijri":        func(t time.Time) string { return hijriDate(t.In(dhaka)) },
+		"volNo":        func(t time.Time) string { return volNo(t.In(dhaka)) },
+		"jumpHead":     jumpHead,
+		"folioName":    folioName,
+		"caption":      caption,
+		"deckOf":       deckOf,
+		"pagesLine":    pagesLine,
+		"lower":        strings.ToLower,
+		"teasers":      frontTeasers,
+		"bizTeaser":    bizTeaser,
 	}
 }
 

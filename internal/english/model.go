@@ -86,6 +86,7 @@ func (EpaperRead) TableName() string { return "en_epaper_reads" }
 type EditionPage struct {
 	No      int      `json:"no"`
 	Name    string   `json:"name"`
-	Group   string   `json:"group,omitempty"` // a supplement (Business, Lifestyle); "" is the Dhaka Edition
-	Stories []string `json:"stories"`         // article ids, the lead first
+	Group   string   `json:"group,omitempty"`  // a supplement (Business, Lifestyle); "" is the Dhaka Edition
+	Layout  string   `json:"layout,omitempty"` // the Star's page it is set like (layoutKey)
+	Stories []string `json:"stories"`          // article ids, the lead first
 }

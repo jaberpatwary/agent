@@ -15,8 +15,10 @@
   --rule: #8a8a8a; --brief: #19a2c6;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; }
-body.ep { font-family: var(--ui); color: var(--text); background: #fff; display: flex; flex-direction: column; }
+html, body { margin: 0; }
+/* The window scrolls, as on the Star's e-paper: the masthead goes up out of
+   view and the tool bar and breaking news stay at the top. */
+body.ep { font-family: var(--ui); color: var(--text); background: #fff; }
 svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .ep-blue { color: var(--blue); }
 .ep-fill { fill: currentColor; stroke: none; }
@@ -27,10 +29,21 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ep-motto { margin: 2px 0 0 38px; color: var(--motto); font-size: 15px; letter-spacing: .01em; }
 
 /* Tool bar */
-.ep-toolbar { flex: none; display: flex; align-items: center; gap: 0; height: 38px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 0 6px; background: #fff; white-space: nowrap; }
+.ep-toolbar { position: relative; z-index: 31; display: flex; align-items: center; gap: 0; height: 35px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 0 6px; background: #fff; white-space: nowrap; }
+.ep-logo-sm { display: none; align-items: center; height: 100%; padding: 0 12px 0 6px; }
+.ep-logo-sm img { width: 103px; height: 21px; display: block; }
+body.ep-sticky .ep-toolbar { position: fixed; top: 0; left: 0; right: 0; }
+body.ep-sticky .ep-logo-sm { display: inline-flex; }
+body.ep-sticky .ep-home { display: none; }
 .ep-ico { background: none; border: 0; padding: 0 9px; height: 100%; display: inline-flex; align-items: center; cursor: pointer; color: var(--blue); }
 .ep-ico:hover { background: #f2f6fd; }
 .ep-ico[data-full] { color: #222; }
+/* InDesign's own mark: "Id" in pink on plum. */
+.ep-indd-ico { display: inline-block; width: 22px; height: 20px; border-radius: 3px; background: #49021f; color: #ff3366; font: 700 12px/20px var(--ui); text-align: center; letter-spacing: -.02em; }
+.ep-indd.busy .ep-indd-ico { opacity: .45; }
+.ep-help { max-width: 560px; font: 15px/1.55 var(--ui); color: #222; }
+.ep-help h2 { font-size: 20px; margin: 0 0 10px; }
+.ep-help code { background: #f2f2f2; padding: 1px 5px; border-radius: 3px; }
 /* The view in use is greyed; the other one is the blue button to switch. */
 .ep-ico.ep-view { color: var(--blue); }
 .ep-ico.ep-view.on { color: #b8c4d6; cursor: default; background: none; }
@@ -40,7 +53,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ep-date { cursor: pointer; }
 .ep-date input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
 .ep-edition button { background: none; border: 0; font: inherit; color: inherit; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; padding: 0; }
-.ep-menu { position: absolute; top: 37px; left: 0; background: #fff; border: 1px solid var(--line); box-shadow: 0 4px 12px rgba(0,0,0,.15); z-index: 30; min-width: 170px; }
+.ep-menu { position: absolute; top: 34px; left: 0; background: #fff; border: 1px solid var(--line); box-shadow: 0 4px 12px rgba(0,0,0,.15); z-index: 30; min-width: 170px; }
 .ep-menu[hidden] { display: none; }
 .ep-menu a { display: block; padding: 9px 14px; color: #222; text-decoration: none; }
 .ep-menu a.on { color: var(--blue); font-weight: 600; }
@@ -58,7 +71,10 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ep-user { display: inline-flex; align-items: center; gap: 6px; padding: 0 8px 0 14px; font-size: 15px; color: #222; }
 
 /* Breaking news */
-.ep-ticker { flex: none; display: flex; align-items: stretch; height: 34px; background: var(--ticker); overflow: hidden; }
+.ep-ticker { position: relative; z-index: 30; display: flex; align-items: stretch; height: 35px; background: var(--ticker); overflow: hidden; }
+body.ep-sticky .ep-ticker { position: fixed; top: 35px; left: 0; right: 0; }
+body.ep-sticky .ep-body, body.ep-sticky .ep-empty { margin-top: 70px; }
+body.ep-sticky .ep-faq { margin-top: 35px; }
 .ep-ticker-label { flex: none; background: var(--red); color: #fff; font-weight: 600; font-size: 16px; display: flex; align-items: center; padding: 0 12px 0 11px; }
 .ep-ticker-track { flex: 1; overflow: hidden; display: flex; align-items: center; }
 .ep-ticker-run { display: inline-flex; gap: 64px; white-space: nowrap; animation: ep-ticker 90s linear infinite; padding-left: 24px; }
@@ -69,28 +85,29 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 @media (prefers-reduced-motion: reduce) { .ep-ticker-run { animation: none; } }
 
 /* Body */
-.ep-body { flex: 1; min-height: 0; display: flex; }
+.ep-body { display: flex; align-items: stretch; }
 /* The page list: the Dhaka Edition and each supplement fold open and shut */
-.ep-side { flex: none; width: 132px; background: var(--side); color: #fff; display: flex; flex-direction: column; overflow-y: auto; }
+.ep-side { flex: none; width: 150px; background: #505050; color: #fff; display: flex; flex-direction: column; }
 .ep-group { flex: none; display: flex; flex-direction: column; border-bottom: 1px solid #5c5c5c; }
-.ep-group.open { flex: 1 1 auto; min-height: 0; }
 .ep-side-head { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 8px 6px 8px 7px; background: var(--side-head); font-weight: 600; font-size: 15px; }
 .ep-side-head button { width: 18px; height: 18px; border-radius: 50%; border: 0; background: #fff; color: var(--side-head); font: 700 15px/18px var(--ui); padding: 0; cursor: pointer; }
 .ep-side-head button::before { content: "+"; }
 .ep-group.open .ep-side-head button::before { content: "−"; }
 .ep-group:not(.open) .ep-thumbs { display: none; }
-.ep-thumbs { flex: 1; overflow-y: auto; padding: 10px 0 16px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+/* The open list is 1060 high and scrolls on its own, as the Star's does. */
+.ep-thumbs { position: relative; max-height: 1060px; overflow-y: auto; padding: 10px 0 16px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .ep-thumb { background: none; border: 0; padding: 0; cursor: pointer; text-align: center; color: #fff; }
-.ep-thumb-box { width: 92px; height: 130px; overflow: hidden; position: relative; background: #fff; border: 3px solid transparent; }
-.ep-thumb.on .ep-thumb-box { border-color: #6aa9ff; }
-.ep-thumb-box .np-page { position: absolute; left: 0; top: 0; transform-origin: 0 0; transform: scale(.086); pointer-events: none; box-shadow: none; }
+.ep-thumb-box { width: 86px; height: 130px; overflow: hidden; position: relative; background: #fff; outline: 3px solid transparent; margin: 0 auto; }
+.ep-thumb.on .ep-thumb-box { outline-color: #6aa9ff; }
+.ep-thumb-box .np-page { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; box-shadow: none; }
 .ep-thumb span { display: block; font-size: 12px; margin-top: 5px; text-transform: uppercase; }
 
-.ep-stage { flex: 1; min-width: 0; position: relative; overflow: auto; background: var(--stage); display: flex; justify-content: center; align-items: flex-start; padding: 14px 40px; }
+.ep-stage { flex: 1; min-width: 0; position: relative; background: var(--stage); display: flex; justify-content: center; align-items: flex-start; padding: 22px 0 24px; }
 .ep-clipview .ep-stage { flex: 0 0 auto; border-right: 1px solid var(--line); }
 .ep-pages { display: flex; gap: 10px; }
 .ep-scale { flex: none; position: relative; }
-.ep-arrow { position: absolute; top: 200px; width: 22px; height: 36px; border: 0; background: var(--blue-btn); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; z-index: 5; }
+/* The arrows stay at one height in the window while the page scrolls. */
+.ep-arrow { position: fixed; top: 42vh; width: 22px; height: 36px; border: 0; background: var(--blue-btn); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; z-index: 5; }
 .ep-arrow[hidden] { display: none; }
 .ep-arrow svg { width: 18px; height: 18px; stroke-width: 2.6; }
 .ep-arrow-left { left: 9px; }
@@ -98,10 +115,12 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ep-ico.on { background: #e8f0fd; }
 .ep-share-dot { position: absolute; width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--green); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 6; padding: 0; }
 .ep-share-dot svg { width: 17px; height: 17px; fill: #fff; stroke: #fff; stroke-width: 1.4; }
-.ep-page-share { top: 14px; right: 6px; }
+.ep-page-share { top: 14px; right: -2px; }
 
 /* The story beside the page */
 .ep-clip { display: none; flex: 1; min-width: 0; position: relative; flex-direction: column; background: #fff; }
+.ep-clip-tools { position: sticky; top: 0; z-index: 6; }
+body.ep-sticky .ep-clip-tools { top: 70px; }
 .ep-clipview .ep-clip { display: flex; }
 .ep-clip-tools { flex: none; display: flex; background: var(--tools); }
 .ep-clip-tools button { flex: 1; background: none; border: 0; padding: 6px 4px 5px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--blue); font: 13px var(--ui); }
@@ -110,9 +129,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ep-clip-tools button:not([disabled]):not(.on):hover { background: #d2d2d2; }
 .ep-clip-tools svg { width: 20px; height: 20px; }
 .ep-clip-tools button[data-listen] svg circle { color: var(--blue); }
-.ep-clip-body { flex: 1; overflow-y: auto; padding: 30px 64px 30px 50px; }
-.ep-clip-next { top: 150px; right: 18px; }
-.ep-clip-prev { top: 150px; left: 0; }
+.ep-clip-body { flex: 1; padding: 30px 64px 30px 50px; }
 .ep-clip-share { top: 66px; right: 30px; }
 /* Text View, as The Daily Star's e-paper sets a story: a big serif headline,
    the deck, the picture, the byline with a bar, then the text. */
@@ -129,121 +146,135 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ep-read .ep-source { font: 14px var(--ui); color: var(--muted); border-top: 1px solid #ddd; padding-top: 10px; }
 .ep-read hr { border: 0; border-top: 2px solid #222; margin: 28px 0 18px; }
 
-/* A printed page: 1000 x 1414 (A3), scaled to the stage by epaper.js, set
-   as The Daily Star prints its pages (epbeta.thedailystar.net, Nov 2026). */
-.np-page { width: 1000px; height: 1414px; background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px #d4d4d4; font-family: var(--body); transform-origin: 0 0; }
-.np-inner { height: 100%; padding: 22px 32px 22px; display: flex; flex-direction: column; }
+/* A printed page, in the paper's own units (1008 x 1548 broadsheet, 792 x
+   1008 tabloid), scaled to the stage by epaper.js. Its boxes stand where the
+   Star's own page plan puts them; the type is the paper's: Denton heads,
+   bold and light, light decks, and a Times text of 9.2 on 9.8 in columns of
+   145 with 14 between, as measured on epbeta.thedailystar.net (Nov 2026). */
+.np-page { position: relative; overflow: hidden; background: var(--paper); color: #111; box-shadow: 0 0 0 1px #d4d4d4; font-family: var(--body); transform-origin: 0 0; }
+.np-page img[src$="logo.svg"] { filter: brightness(0); }
+.np-page p { margin: 0; }
 
-/* Front: the date over the nameplate, "Your right to know" beside it, the
-   edition boxed, and the line of particulars between rules. */
-.np-topline { text-align: center; font: 700 10.5px var(--body); letter-spacing: .02em; }
-.np-mast { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; column-gap: 8px; margin-top: 2px; }
-.np-mast img { width: 500px; height: auto; display: block; }
-.np-rtk { justify-self: end; margin-top: 16px; font: 700 9px/1.1 var(--ui); color: #2269b3; letter-spacing: .02em; }
-.np-edition { justify-self: start; margin-top: 18px; font: 700 8.5px var(--body); letter-spacing: .04em; border-top: 1px solid #111; border-bottom: 1px solid #111; padding: 1px 2px; }
-.np-dateline { display: flex; justify-content: space-between; font: 700 9px var(--body); letter-spacing: .02em; border-top: 1px solid #111; border-bottom: 1px solid #111; padding: 3px 0; margin: 6px 0 10px; }
-.np-url { color: #2269b3; }
+/* Front: the date over the nameplate, "Your right to know" and the edition
+   beside it, and the line of particulars between rules. */
+.np-mast { position: absolute; left: 36px; right: 36px; top: 0; height: 196px; }
+.np-topline { position: absolute; left: 0; right: 0; top: 31px; text-align: center; font: 700 11.6px/1 var(--body); letter-spacing: .01em; }
+.np-mast-logo { position: absolute; left: 50%; top: 52px; width: 560px; height: auto; transform: translateX(-50%); }
+.np-rtk { position: absolute; left: 274px; top: 63px; font: 700 9.6px/1.05 var(--body); color: #1f6bb5; letter-spacing: .01em; }
+.np-edition { position: absolute; left: 681px; top: 75px; font: 700 7.4px/1.2 var(--body); letter-spacing: .02em; border-top: 1px solid #111; border-bottom: 1px solid #111; }
+.np-dateline { position: absolute; left: 0; right: 0; top: 171px; display: flex; justify-content: space-between; border-top: 1px solid #111; border-bottom: 1px solid #111; padding: 4px 10px 3px; font: 700 8.6px/1 var(--body); letter-spacing: .01em; }
+.np-url { color: #1f6bb5; }
 
 /* Inside pages: the Star's S and the section, the date and nameplate, the
-   page number behind a double rule. */
-.np-folio { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #111; padding-bottom: 5px; margin-bottom: 10px; }
-.np-folio-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; font: 400 42px/1 var(--body); white-space: nowrap; }
-.np-folio-name img { height: 50px; width: auto; flex: none; }
-.np-folio-date { text-align: right; font: 700 9px/1.25 var(--body); letter-spacing: .01em; }
+   page number behind a double rule, a rule under all. */
+/* The four teasers under the front page's particulars, as the paper sets
+   them (B1, P3, P5, P11): the page in heavy condensed type, a red bar, two
+   lines of capitals. */
+.np-teasers { position: absolute; left: 0; right: 0; top: 199px; height: 36px; display: flex; justify-content: space-between; gap: 20px; }
+.np-teaser { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 9px; color: #111; text-decoration: none; cursor: pointer; }
+.np-teaser b { flex: none; font: 700 37px/1 "Fira Sans Extra Condensed", "Arial Narrow", sans-serif; letter-spacing: -.01em; }
+.np-teaser span { border-left: 3px solid #e2231a; padding-left: 9px; font: 700 13.4px/1.02 "Fira Sans Extra Condensed", "Arial Narrow", sans-serif; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-height: 2.04em; }
+.np-teaser:hover span { color: #1f6bb5; }
+/* The box beside the Business nameplate: a page inside, with its photo. */
+.np-bizteaser { position: absolute; left: 783px; top: 58px; width: 189px; height: 86px; display: flex; align-items: center; gap: 7px; border-top: 1px solid #999; border-bottom: 1px solid #999; color: #111; text-decoration: none; cursor: pointer; }
+.np-bt-img { position: relative; flex: none; width: 92px; height: 70px; overflow: hidden; background: #b71c1c; }
+.np-bt-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.np-bt-img b { position: absolute; right: 4px; bottom: 1px; font: 700 28px/1 "Fira Sans Extra Condensed", "Arial Narrow", sans-serif; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .7); }
+.np-bt-head { font: 700 11.6px/1.06 "Fira Sans Extra Condensed", "Arial Narrow", sans-serif; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; }
+.np-folio { position: absolute; left: 36px; right: 36px; top: 30px; height: 58px; display: flex; align-items: flex-end; gap: 14px; border-bottom: 1px solid #111; padding-bottom: 5px; }
+.np-folio-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 13px; font: 400 51px/1 var(--body); letter-spacing: -.005em; white-space: nowrap; }
+.np-emblem { height: 50px; width: auto; flex: none; }
+.np-folio-date { text-align: right; font: 700 9.4px/1.2 var(--body); letter-spacing: -.01em; padding-bottom: 2px; }
 .np-folio-date img { height: 12px; width: auto; display: inline-block; margin-top: 1px; }
-.np-folio-no { font: 400 50px/1 var(--body); border-left: 3px double #111; padding-left: 14px; min-width: 40px; text-align: center; }
-.np-page[data-name="SPORT"] .np-folio-name { font: 700 74px/.9 var(--hed); color: #009084; letter-spacing: -.01em; }
-.np-page[data-name="SPORT"] .np-folio-name img { height: 64px; }
-.np-folio-back .np-folio-no { order: -1; border-left: 0; border-right: 3px double #111; padding: 0 14px 0 0; }
-.np-folio-back .np-folio-date { flex: 1; text-align: left; font-size: 10px; }
-.np-folio-logo img { height: 30px; width: auto; display: block; }
-/* A supplement's front: its name as a big nameplate. */
-.np-suppmast { display: grid; grid-template-columns: 1fr auto; align-items: end; border-bottom: 1px solid #111; padding-bottom: 6px; margin-bottom: 10px; --supp: #0078c0; }
-.np-page[data-group="Lifestyle"] .np-suppmast { --supp: #a8326e; }
-.np-supp-date { font: 700 9px var(--body); letter-spacing: .02em; align-self: start; }
-.np-suppmast img { height: 22px; width: auto; align-self: start; }
-.np-supp-name { grid-column: 1 / -1; font: 700 96px/.86 var(--hed); color: var(--supp); letter-spacing: -.015em; }
-/* The editorial page names the founder editor over its first leader. */
-.np-edmast { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; border-bottom: 1px solid #111; padding-bottom: 5px; margin-bottom: 6px; }
-.np-edmast img { height: 26px; width: auto; }
-.np-edmast span { font: 700 8.5px var(--body); letter-spacing: .03em; }
+.np-folio-no { font: 400 56px/.9 var(--body); border-left: 3px double #111; padding-left: 16px; min-width: 52px; text-align: center; }
+/* The editorial page: the nameplate and founder editor over its leaders. */
+.np-folio-ed { left: 290px; }
+.np-edmast { position: absolute; left: 36px; top: 36px; width: 236px; border-bottom: 1px solid #111; padding-bottom: 6px; }
+.np-edmast img { height: 29px; width: auto; display: block; }
+.np-edmast span { display: block; margin-top: 6px; font: 400 8.8px/1 var(--body); letter-spacing: .02em; color: #333; }
+.np-edmast b { color: #111; }
+/* The back page: the number first, the nameplate at the right. */
+.np-folio-back { align-items: center; height: 40px; gap: 20px; padding-bottom: 4px; }
+.np-folio-back .np-folio-no { order: -1; border: 0; padding: 0; min-width: 0; font-size: 34px; }
+.np-folio-back .np-folio-date { flex: 1; text-align: left; font-size: 9px; padding: 0; }
+.np-folio-logo { height: 26px; width: auto; }
+/* Sport: its name huge in green. */
+.np-sportmast { position: absolute; left: 36px; top: 18px; width: 600px; height: 128px; }
+.np-sportmast .np-emblem { position: absolute; left: 0; top: 12px; }
+.np-sport-date { position: absolute; left: 124px; top: 12px; font: 700 9.2px/1 var(--body); }
+.np-sport-name { position: absolute; left: 30px; top: 20px; font: 700 128px/1 var(--hed); color: #009084; letter-spacing: -.02em; }
+/* Business: its nameplate in blue on its front, a "B2" folio inside. */
+.np-bizmast { position: absolute; left: 36px; top: 16px; width: 650px; height: 170px; }
+.np-bizmast .np-emblem { position: absolute; left: 0; top: 16px; height: 56px; }
+.np-biz-date { font: 700 9.2px/1.25 var(--body); }
+.np-bizmast .np-biz-date { position: absolute; left: 316px; top: 18px; text-align: right; }
+.np-biz-date span { font-weight: 400; }
+.np-bizmast .np-biz-name { position: absolute; left: 34px; top: 26px; font: 700 150px/1 var(--hed); color: #0a6eb4; letter-spacing: -.02em; }
+.np-bizfolio { position: absolute; left: 36px; right: 36px; top: 34px; height: 64px; display: flex; align-items: flex-end; gap: 18px; border-bottom: 4px double #111; padding-bottom: 6px; }
+.np-biz-no { font: 700 46px/.9 var(--hed); }
+.np-biz-no b { color: #0a6eb4; }
+.np-bizfolio .np-biz-date { font-size: 8.6px; }
+.np-bizfolio .np-biz-date img { height: 11px; width: auto; display: block; margin-top: 2px; }
+.np-bizfolio .np-biz-name { margin-left: auto; display: flex; align-items: center; gap: 2px; font: 700 64px/.9 var(--hed); color: #0a6eb4; letter-spacing: -.015em; }
+.np-bizfolio .np-emblem { height: 38px; align-self: flex-start; }
+/* A tabloid supplement's folio: the page number and the supplement's name. */
+.np-tabfolio { position: absolute; left: 40px; right: 40px; top: 22px; display: flex; align-items: baseline; gap: 10px; font: 700 18px/1 var(--hed); }
+.np-tab-name b { font-weight: 700; letter-spacing: .02em; }
+.np-tab-name i { font-weight: 300; }
+.np-tab-date { margin-left: auto; font: 700 8px var(--body); }
 
-/* The stories on a six-column grid, a hairline between them. */
-.np-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: 1.25fr 1fr 1fr .62fr; gap: 10px 0; position: relative; }
-.np-front .np-grid { grid-template-rows: 1.3fr 1fr .95fr .58fr; }
-/* A story fills its place as in print: the text runs down the first column
-   to the foot, then on into the next. */
-.np-story { overflow: hidden; position: relative; cursor: pointer; border-top: 1px solid #222; padding: 6px 9px 0; outline: none; display: flex; flex-direction: column; min-height: 0; }
-.np-story > * { flex: none; }
-.np-s1, .np-s4, .np-s7 { padding-left: 0; }
-.np-s2, .np-s3, .np-s6, .np-s9 { padding-right: 0; }
-.np-s2, .np-s3, .np-s5, .np-s6 { border-left: 1px solid var(--rule); }
-.np-s1, .np-s2 { border-top: 0; padding-top: 0; }
-/* The story under the pointer, and the one open beside the page, are tinted
-   as on The Daily Star's e-paper. */
-.np-story:hover, .np-story:focus { background-color: rgba(236, 64, 122, .12); }
-.ep-clipview .np-story.sel { background-color: rgba(236, 64, 122, .24); }
-.np-story h3 { margin: 0 0 4px; font: 700 23px/1.02 var(--hed); letter-spacing: -.003em; color: #111; text-wrap: balance; }
-.np-s2 h3, .np-s5 h3 { font-weight: 300; }
-.np-intro { margin: 0 0 5px; font: 300 15px/1.12 var(--hed); color: #222; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
-.np-s1 .np-intro { font-size: 21px; line-height: 1.08; -webkit-line-clamp: 2; }
-.np-byline { margin: 2px 0 6px; font: 700 9px/1 var(--body); text-transform: uppercase; letter-spacing: .03em; border-left: 3px solid #111; padding: 1px 0 1px 4px; color: #111; }
-.np-story > .np-text { flex: 1 1 0; min-height: 0; overflow: hidden; }
-.np-text { font: 400 10.8px/1.24 var(--body); color: #111; text-align: justify; hyphens: auto; column-count: 2; column-gap: 12px; column-fill: auto; }
-.np-text p { margin: 0; text-indent: 1.1em; }
-.np-text p:first-child { text-indent: 0; }
-/* A story still waiting for its full text: its few lines spread evenly. */
-.np-short .np-text { column-fill: balance; }
-/* The pull quote, bold between rules. */
-.np-pull { margin: 8px 2px 8px; padding: 7px 0 6px; border-top: 1px solid #111; border-bottom: 1px solid #111; font: 700 15px/1.14 var(--hed); text-align: center; text-indent: 0; color: #111; break-inside: avoid; }
-/* The nameplate prints black. */
-.np-page img[src$="logo.svg"] { filter: brightness(0); }
-.np-fig { margin: 0 0 5px; }
-.np-fig img { width: 100%; height: auto; max-height: 280px; object-fit: cover; display: block; }
-.np-fig figcaption { font: 700 7px/1.2 var(--body); text-transform: uppercase; letter-spacing: .05em; text-align: right; color: #222; margin-top: 2px; }
-.np-s1 { grid-column: 1 / 5; grid-row: 1 / 3; }
-.np-s1 h3 { font-size: 42px; line-height: .98; margin-bottom: 5px; }
-.np-front .np-s1 h3 { font-size: 46px; }
-.np-s1 .np-text { column-count: 4; }
-.np-s1 .np-fig img { max-height: 320px; }
-.np-s2 h3, .np-s3 h3 { font-size: 28px; }
-/* Every story shows its picture: smaller further down the page, and a
-   thumbnail beside the text among the briefs. */
-.np-s2 .np-fig img, .np-s3 .np-fig img { max-height: 150px; }
-.np-s4 .np-fig img, .np-s5 .np-fig img, .np-s6 .np-fig img { max-height: 118px; }
-.np-s2 { grid-column: 5 / 7; grid-row: 1 / 2; }
-.np-s3 { grid-column: 5 / 7; grid-row: 2 / 3; }
-.np-s4 { grid-column: 1 / 3; grid-row: 3; }
-.np-s5 { grid-column: 3 / 5; grid-row: 3; }
-.np-s6 { grid-column: 5 / 7; grid-row: 3; }
-.np-s7 { grid-column: 1 / 3; grid-row: 4; }
-.np-s8 { grid-column: 3 / 5; grid-row: 4; }
-.np-s9 { grid-column: 5 / 7; grid-row: 4; }
-
-/* The briefs, boxed under an IN BRIEF ribbon: a kicker over each headline,
-   a thumbnail beside the text. */
-.np-brief-box { grid-column: 1 / 7; grid-row: 4; margin-top: 9px; border: 1px solid #444; border-top: 0; pointer-events: none; position: relative; }
-.np-brief-box::before, .np-brief-box::after { content: ""; position: absolute; top: 0; width: calc(50% - 74px); height: 1px; background: #444; }
-.np-brief-box::before { left: 0; }
-.np-brief-box::after { right: 0; }
-.np-brief-tag { position: absolute; top: -9px; left: 50%; transform: translateX(-50%); background: var(--brief); color: #fff; font: 700 10.5px/1 var(--body); letter-spacing: .3em; padding: 4px 22px 4px 26px; white-space: nowrap; clip-path: polygon(0 0, 100% 0, calc(100% - 9px) 50%, 100% 100%, 0 100%, 9px 50%); }
+/* A box: tinted under the pointer and while open beside the page, as on
+   the Star's e-paper. */
+.np-box { position: absolute; overflow: hidden; cursor: pointer; outline: none; background: #fff; }
+.np-box:hover, .np-box:focus, .np-bitem:hover { box-shadow: inset 0 0 0 3000px rgba(255, 0, 0, .2); }
+.ep-clipview .np-box.sel, .ep-clipview .np-bitem.sel { box-shadow: inset 0 0 0 3000px rgba(255, 0, 0, .14); }
+.np-empty { display: none; }
+.np-rule { position: absolute; z-index: 3000; width: 0; border-left: 1px solid #a7a7a7; pointer-events: none; }
+.np-head { position: absolute; left: 0; top: 0; width: 100%; }
+.np-head h3 { margin: 0; font: 700 var(--hs, 24px)/1.02 var(--hed); letter-spacing: -.004em; color: #111; }
+.np-light .np-head h3 { font-weight: 300; }
+.np-kicker { font: 700 10.4px/1 var(--body); text-transform: uppercase; letter-spacing: .01em; margin-bottom: 3px !important; }
+.np-deck { margin-top: 3px !important; font: 300 calc(var(--hs, 24px) * .5)/1.1 var(--hed); color: #1a1a1a; }
+.np-lead .np-deck { font-size: calc(var(--hs, 24px) * .42); }
+.np-byline { margin-top: 6px !important; font: 700 7.4px/1 var(--body); text-transform: uppercase; letter-spacing: .02em; border-left: 2.5px solid #111; padding: 1px 0 0 4px; }
+.np-from { margin-top: 3px !important; font: 700 6.6px/1 var(--body); text-transform: uppercase; letter-spacing: .02em; }
+.np-col { position: absolute; overflow: hidden; font: 400 calc(9.2px * var(--ts, 1))/calc(9.8px * var(--ts, 1)) var(--body); color: #1a1a1a; text-align: justify; hyphens: auto; -webkit-hyphens: auto; font-kerning: normal; }
+.np-col p { text-indent: 1.05em; }
+.np-col p.np-first, .np-col p.np-cont { text-indent: 0; }
+.np-col p.np-split { text-align-last: justify; }
+.np-col p.np-sub { font-weight: 700; text-indent: 0; }
+.np-see { position: absolute; font: 700 6.6px/9.8px var(--body); text-align: right; text-transform: uppercase; letter-spacing: .02em; }
+.np-pic { position: absolute; margin: 0; }
+.np-pic img { width: 100%; height: calc(100% - 10px); object-fit: cover; display: block; }
+.np-pic figcaption { font: 700 5.8px/10px var(--body); text-align: right; letter-spacing: .02em; }
+/* A news photo: the picture, its caption in bold, the credit. */
+.np-k-photo .np-pic img { height: 100%; }
+.np-caption { position: absolute; left: 0; right: 0; font: 700 8.6px/10px var(--body); color: #111; }
+.np-credit { position: absolute; right: 0; font: 700 5.8px/9px var(--body); text-transform: uppercase; letter-spacing: .02em; }
+/* IN BRIEF: a ribbon over the column, a bold head over each item. */
+.np-brief-head { position: absolute; left: 0; right: 0; top: 0; height: 22px; display: flex; align-items: center; justify-content: center; }
+.np-brief-head::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid #444; }
+.np-brief-head span { position: relative; background: var(--brief); color: #fff; font: 700 10px/1 var(--body); letter-spacing: .28em; padding: 5px 16px 4px 19px; clip-path: polygon(0 0, 100% 0, calc(100% - 7px) 50%, 100% 100%, 0 100%, 7px 50%); }
 .np-page[data-name="INTERNATIONAL"] { --brief: #7a5aa8; }
 .np-page[data-name="SPORT"] { --brief: #009084; }
-.np-page[data-group="Business"] { --brief: #0078c0; }
-.np-brief { border-top: 0; padding-top: 24px; padding-bottom: 6px; }
-.np-s7 { padding-left: 9px; }
-.np-s9 { padding-right: 9px; }
-.np-s8, .np-s9 { background: linear-gradient(var(--rule), var(--rule)) 0 22px / 1px calc(100% - 30px) no-repeat; }
-.np-kicker { margin: 0 0 2px; font: 300 10.5px/1.1 var(--hed); text-transform: uppercase; letter-spacing: .04em; color: #333; }
-.np-brief h3 { font-size: 17px; line-height: 1.04; }
-.np-brief .np-text { column-count: 1; }
-.np-brief .np-byline { display: none; }
-.np-brief.np-has-fig { display: grid; grid-template-columns: 34% 1fr; grid-template-rows: auto auto 1fr; column-gap: 8px; }
-.np-brief.np-has-fig > .np-fig { grid-column: 1; grid-row: 1 / -1; margin: 0; }
-.np-brief.np-has-fig > :not(.np-fig) { grid-column: 2; }
-.np-brief .np-fig img { max-height: 84px; height: 84px; }
-.np-brief.np-has-fig > .np-text { min-height: 0; overflow: hidden; }
-.np-brief:not(.np-has-fig) .np-text { column-count: 2; }
+.np-page[data-group="Business"] { --brief: #0a6eb4; }
+.np-bitem { padding-bottom: 6px; }
+/* A story set under another in its box, under its own headline. */
+.np-stackhead { border-top: 1px solid #111; padding-top: 5px; margin-top: 7px; cursor: pointer; }
+.np-col > .np-stackhead:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
+.np-stackhead h4 { margin: 0 0 4px; font: 700 calc(16px * var(--ts, 1))/1.04 var(--hed); color: #111; text-align: left; }
+.np-bitem h4 { margin: 3px 0 2px; font: 700 calc(11.6px * var(--ts, 1))/1.04 var(--hed); color: #111; }
+.np-bitem p { text-indent: 0; }
+/* A quote: bold, under the Star's blue square. */
+.np-quote { position: absolute; inset: 0; margin: 0; display: flex; flex-direction: column; justify-content: center; text-align: center; font: 700 18px/1.12 var(--hed); color: #111; padding: 14px 4px 0; }
+.np-quote::before { content: ""; width: 9px; height: 9px; background: #1f6bb5; align-self: center; margin-bottom: 8px; flex: none; }
+/* The editorial page's imprint at its foot. */
+.np-imprint { position: absolute; left: 36px; right: 36px; top: 1516px; display: flex; border-top: 1px solid #9a9a9a; padding-top: 6px; font: 400 6.9px/1.2 var(--body); color: #555; }
+.np-imprint span { flex: 1 1 auto; padding: 0 8px; border-left: 1px solid #111; }
+.np-imprint span:first-child { border-left: 0; padding-left: 0; flex: none; }
+.np-imprint b { color: #111; }
+/* Until the text is set, the page shows no half-set boxes. */
+body:not(.ep-set) .np-box .np-head { visibility: hidden; }
 
 /* All pages at once */
 .ep-allpages .ep-pages { flex-wrap: wrap; gap: 18px; justify-content: center; width: 100%; }
@@ -251,7 +282,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ep-allpages .ep-clip, .ep-allpages .ep-page-share { display: none; }
 .ep-allpages .ep-scale { cursor: pointer; }
 .ep-allpages .np-page:hover { box-shadow: 0 0 0 4px #6aa9ff; }
-.ep-allpages .np-story { pointer-events: none; }
+.ep-allpages .np-box { pointer-events: none; }
 
 /* Full view and sharing */
 .ep-pop { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 40; padding: 16px; }
@@ -287,7 +318,13 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ep-popular small { display: block; font: 11px var(--ui); color: var(--muted); text-transform: uppercase; margin-top: 4px; }
 
 /* Foot of the page */
-.ep-foot { flex: none; background: #2b2b2b; color: #bbb; text-align: center; font: 12px var(--ui); padding: 5px 10px; }
+/* Back to the top: the Star's light blue button at the foot of the window,
+   once the page has scrolled. */
+.ep-totop { position: fixed; right: 15px; bottom: 15px; z-index: 40; width: 41px; height: 38px; border: 1px solid #0dcaf0; border-radius: 6px; background: #0dcaf0; color: #fff; opacity: .5; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+.ep-totop[hidden] { display: none; }
+.ep-totop:hover { opacity: 1; }
+.ep-totop svg { width: 18px; height: 18px; stroke-width: 2.4; }
+.ep-foot { background: #2b2b2b; color: #bbb; text-align: center; font: 12px var(--ui); padding: 5px 10px; }
 
 /* The cookie notice */
 .ep-cookies { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 70; display: flex; align-items: center; justify-content: center; padding: 16px; }
@@ -322,8 +359,6 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
   .ep-side-head { display: none; }
   .ep-cookies-box p { padding: 0; }
   .ep-thumbs { flex-direction: row; overflow-x: auto; padding: 8px; gap: 10px; }
-  .ep-thumb-box { width: 62px; height: 88px; }
-  .ep-thumb-box .np-page { transform: scale(.056); }
   .ep-stage { padding: 8px 30px; }
   .ep-clipview .ep-clip { display: none; }
   .ep-clipview .ep-stage { flex: 1; border-right: 0; }
@@ -337,6 +372,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
   .ep-stage { display: block; padding: 0; overflow: visible; border: 0; }
   .ep-pages { display: block; }
   .ep-scale { display: block !important; width: auto !important; height: auto !important; }
-  .np-page { transform: none !important; width: 297mm !important; height: 420mm !important; box-shadow: none; page-break-after: always; }
+  .np-page { transform: none !important; zoom: 1.02; box-shadow: none; }
+  .ep-scale { page-break-after: always; }
   body.print-one .ep-scale:not(.print-me) { display: none !important; }
 }

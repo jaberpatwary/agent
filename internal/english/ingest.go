@@ -67,6 +67,7 @@ type worker struct {
 	rewrites int             // a day's cap on AI rewrites, shared with nothing else
 	failed   map[string]bool // e-paper stories whose full text could not be had
 	tries    map[string]int  // failed rewrites of an e-paper story
+	plans    *planFetcher    // the Star's page plans of the day (livemap.go)
 }
 
 // run reads every feed once and stores the new stories.
@@ -413,9 +414,14 @@ func (w *worker) loop(ctx context.Context) {
 	}
 	w.reclassify()
 	for {
-		// Today's e-paper first: made (or remade by newer rules) and its
-		// stories given their full text, before new stories take the day's
-		// rewrites.
+		// The Star's page plans of today's paper, once it is out: today's
+		// e-paper is set exactly as it.
+		if w.plans != nil {
+			w.plans.ensurePlan(ctx, w.db, time.Now().In(dhaka))
+		}
+		// Today's e-paper first: made (or remade by newer rules, or on the
+		// day's own plans once they come) and its stories given their full
+		// text, before new stories take the day's rewrites.
 		if err := ensureEdition(w.db, time.Now().In(dhaka)); err != nil {
 			log.Printf("[en] e-paper: %v", err)
 		}
@@ -440,7 +446,8 @@ func (w *worker) loop(ctx context.Context) {
 // when a story has no photo of its own).
 func placeholderImage(u string) bool {
 	l := strings.ToLower(u)
-	return strings.Contains(l, "logo") || strings.Contains(l, "default-image") || strings.Contains(l, "placeholder")
+	return strings.Contains(l, "logo") || strings.Contains(l, "default-image") || strings.Contains(l, "placeholder") ||
+		strings.Contains(l, "no-img") || strings.Contains(l, "no_img") || strings.Contains(l, "no-image")
 }
 
 // advertorial reports paid content an outlet's feed carries among its news

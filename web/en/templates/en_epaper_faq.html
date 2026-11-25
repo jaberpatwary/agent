@@ -6,7 +6,7 @@
   <link rel="icon" href="/en/static/favicon.ico">
   <title>FAQs | Daily Star ePaper</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="/en/static/epaper.css?v=9">
+  <link rel="stylesheet" href="/en/static/epaper.css?v=11">
 </head>
 <body class="ep ep-page-faq">
   {{ template "ep_sidenav" }}
@@ -16,7 +16,8 @@
   </header>
   <nav class="ep-toolbar" aria-label="E-paper">
     <button type="button" class="ep-ico" data-menu title="Menu" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
-    <a class="ep-tb" href="/epaper">Home</a>
+    <a class="ep-logo-sm" href="/epaper" title="The Daily Star"><img src="/en/static/logo.svg" alt="The Daily Star"></a>
+    <a class="ep-tb ep-home" href="/epaper">Home</a>
     <span class="ep-sep"></span>
     <span class="ep-tb">FAQs</span>
   </nav>
@@ -44,7 +45,7 @@
       <p>No. The e-paper is free to read.</p></details>
   </main>
   {{ template "ep_footer" }}
-  <script src="/en/static/epaper.js?v=9"></script>
+  <script src="/en/static/epaper.js?v=11"></script>
   {{ template "ep_cookies" }}
 </body>
 </html>

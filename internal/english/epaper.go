@@ -14,13 +14,6 @@ import (
 // The e-paper: each night after midnight (Dhaka) the day's edition is laid
 // out from the stories of the day before, page by page, as a printed paper.
 
-type pagePlan struct {
-	group string // "" for the Dhaka Edition, else its supplement (Business, Lifestyle)
-	name  string
-	max   int
-	match func(Article) bool
-}
-
 func in(a Article, section string, subs ...string) bool {
 	if a.Section != section {
 		return false
@@ -45,34 +38,6 @@ func homeNews(a Article) bool {
 
 // notSupplement: the Back page takes anything the supplements will not.
 func notSupplement(a Article) bool { return a.Section != "business" && a.Section != "lifestyle" }
-
-// editionPlan is the order of the printed pages, as in The Daily Star's
-// e-paper: the Dhaka Edition (Front, News, City, News, International,
-// Editorial, Opinion, Art&Ent, News, Sport, Back), then the Business and
-// Lifestyle supplements. Front takes the day's leading stories first; every
-// other page takes what is left that fits it.
-var editionPlan = []pagePlan{
-	{"", "Front", 9, notOpinion},
-	{"", "News", 9, func(a Article) bool {
-		return in(a, "news", "politics", "governance", "education", "technology") || in(a, "youth")
-	}},
-	{"", "City", 9, func(a Article) bool {
-		return in(a, "news", "crime-justice", "accidents-and-fires", "healthcare", "environment")
-	}},
-	{"", "News", 9, homeNews},
-	{"", "International", 9, func(a Article) bool { return in(a, "news", "world") }},
-	{"", "Editorial", 6, func(a Article) bool { return in(a, "opinion", "editorial", "views") }},
-	{"", "Opinion", 6, func(a Article) bool { return in(a, "opinion") || in(a, "slow-reads") }},
-	{"", "Art&Ent", 8, func(a Article) bool { return in(a, "culture") }},
-	{"", "News", 9, homeNews},
-	{"", "Sport", 9, func(a Article) bool { return in(a, "sports") }},
-	{"", "Back", 9, notSupplement},
-	{"Business", "BizFront", 9, func(a Article) bool { return in(a, "business") }},
-	{"Business", "BizInner", 9, func(a Article) bool { return in(a, "business") }},
-	{"Business", "BizBack", 9, func(a Article) bool { return in(a, "business") }},
-	{"Lifestyle", "Ls", 8, func(a Article) bool { return in(a, "lifestyle") }},
-	{"Lifestyle", "Ls", 8, func(a Article) bool { return in(a, "lifestyle") }},
-}
 
 // printWeight orders a page's stories for print: whole stories first, then
 // those with a summary, then a bare headline.
@@ -123,51 +88,155 @@ func leadScore(a Article) int {
 	return s
 }
 
-// layoutEdition places stories (newest first) on the planned pages, each
-// piece of news once: when two outlets carry the same story, the fuller one
-// is printed.
-func layoutEdition(stories []Article) []EditionPage {
+// layoutEdition places stories (newest first) on the pages of the Star's
+// paper of the same weekday as day (its Dhaka Edition, then its supplements),
+// as many on each page as the paper's page has places for, each piece of
+// news once: when two outlets carry the same story, the fuller one is
+// printed.
+func layoutEdition(stories []Article, day time.Time) []EditionPage {
 	stories = dropRepeats(stories)
 	used := map[string]bool{}
+	pd := printDayFor(day)
 	var pages []EditionPage
-	for i, plan := range editionPlan {
-		cands := []Article{}
-		for _, a := range stories {
-			if !used[a.ID.String()] && plan.match(a) {
-				cands = append(cands, a)
-			}
-		}
-		// The front page leads with the day's main national news; other pages
-		// take whole stories before bare headlines. Stable: equal scores keep
-		// newest first.
-		score := printWeight
-		if i == 0 {
-			score = leadScore
-		}
-		for x := 1; x < len(cands); x++ {
-			for y := x; y > 0 && score(cands[y]) > score(cands[y-1]); y-- {
-				cands[y], cands[y-1] = cands[y-1], cands[y]
-			}
-		}
-		if len(cands) > plan.max {
-			cands = cands[:plan.max]
-		}
-		// A page with only a story or two would print mostly blank: its stories
-		// wait for a later page (Back takes most) instead.
-		if len(cands) == 0 || (i > 0 && plan.name != "Back" && len(cands) < minPageStories) {
+	var fills []pageFill
+	for ei, e := range pd.Eds {
+		group, ok := edGroup(e.Name)
+		if !ok {
 			continue
 		}
-		p := EditionPage{Name: plan.name, Group: plan.group}
-		for _, a := range cands {
-			used[a.ID.String()] = true
-			p.Stories = append(p.Stories, a.ID.String())
+		for _, lp := range e.Pages {
+			max := lp.capacity()
+			if max == 0 { // a page of advertisements
+				continue
+			}
+			plan := planForTitle(group, lp.Title)
+			front := group == "" && lp.Title == "FRONT"
+			cands := pickStories(stories, used, plan.match, front)
+			if len(cands) < max && plan.loose != nil {
+				taken := map[string]bool{}
+				for _, a := range cands {
+					taken[a.ID.String()] = true
+				}
+				for _, a := range pickStories(stories, used, plan.loose, false) {
+					if !taken[a.ID.String()] {
+						cands = append(cands, a)
+					}
+				}
+			}
+			if len(cands) > max {
+				// The page holds as much text as the paper set on it: when its
+				// stories are shorter, up to four more come as spares, set
+				// under a story too short for its box.
+				need, have, n := lp.textNeed(), 0, max
+				for _, a := range cands[:max] {
+					have += textLen(a)
+				}
+				for n < len(cands) && n < max+4 && have*10 < need*9 {
+					have += textLen(cands[n])
+					n++
+				}
+				cands = cands[:n]
+			}
+			// Every page of the paper is printed, as the Star prints it: a page
+			// short of its own kind of news is filled below from the rest.
+			p := EditionPage{Name: plan.name, Group: group, Layout: layoutKey(pd, ei, lp.No)}
+			have := 0
+			for _, a := range cands {
+				used[a.ID.String()] = true
+				p.Stories = append(p.Stories, a.ID.String())
+				have += textLen(a)
+			}
+			pages = append(pages, p)
+			fills = append(fills, pageFill{plan: plan, group: group, max: max, short: lp.textNeed()*9/10 - have})
 		}
-		pages = append(pages, p)
+	}
+	// A page with fewer stories than its places takes stories of the day no
+	// page has taken, any news of its edition, so none of its places is
+	// empty; then a page still holding less text than the paper set on it
+	// takes more, as spares: of its own kind first, then any news.
+	for i := range pages {
+		f := &fills[i]
+		if any := f.any(); any != nil {
+			for _, a := range pickStories(stories, used, any, false) {
+				if len(pages[i].Stories) >= f.max {
+					break
+				}
+				used[a.ID.String()] = true
+				pages[i].Stories = append(pages[i].Stories, a.ID.String())
+				f.short -= textLen(a)
+			}
+		}
 	}
 	for i := range pages {
-		pages[i].No = i + 1
+		f := fills[i]
+		for _, match := range []func(Article) bool{f.plan.match, f.plan.loose, f.any()} {
+			if match == nil {
+				continue
+			}
+			for _, a := range pickStories(stories, used, match, false) {
+				if f.short <= 0 || len(pages[i].Stories) >= 24 {
+					break
+				}
+				used[a.ID.String()] = true
+				pages[i].Stories = append(pages[i].Stories, a.ID.String())
+				f.short -= textLen(a)
+			}
+		}
 	}
-	return pages
+	// Only a page nothing at all was left for is not printed.
+	out := pages[:0]
+	for _, p := range pages {
+		if len(p.Stories) > 0 {
+			p.No = len(out) + 1
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// pageFill is how much text a laid-out page lacks of the paper's, and how
+// many places it has.
+type pageFill struct {
+	plan  titlePlan
+	group string
+	max   int
+	short int
+}
+
+// any is the news any page of an edition may take: the supplement's own, or
+// for the Dhaka Edition anything but the supplements' and the opinion pages'.
+func (f pageFill) any() func(Article) bool {
+	switch f.group {
+	case "Business":
+		return func(a Article) bool { return in(a, "business") }
+	case "Lifestyle":
+		return func(a Article) bool { return in(a, "lifestyle") || in(a, "culture") }
+	case "Campus", "Rising Star":
+		return func(a Article) bool {
+			return in(a, "youth") || in(a, "news", "education") || in(a, "news", "technology")
+		}
+	case "":
+		return notSupplementOrOpinion
+	}
+	return nil
+}
+
+// pickStories is the stories not yet placed that match, the front page's
+// main national news first, else whole stories before bare headlines;
+// equal ones keep newest first.
+func pickStories(stories []Article, used map[string]bool, match func(Article) bool, front bool) []Article {
+	cands := []Article{}
+	for _, a := range stories {
+		if !used[a.ID.String()] && match(a) {
+			cands = append(cands, a)
+		}
+	}
+	score := printWeight
+	if front {
+		score = leadScore
+	}
+	sort.SliceStable(cands, func(i, j int) bool { return score(cands[i]) > score(cands[j]) })
+	return cands
 }
 
 // dropRepeats keeps one story of each piece of news (by its headline's
@@ -235,12 +304,21 @@ func sameNews(a, b map[string]bool) bool {
 }
 
 // editionLayout is the version of the layout rules. An edition made with
-// other rules is laid out again from the same day's stories. 6: these rules
-// again, after the Star's page plans (5) were taken out on 2026-11-19.
-const editionLayout = 6
+// older rules is laid out again from the same day's stories. 7: the Star's
+// page plans again (5, taken out as 6 on 2026-11-19), now of the very day's
+// paper, the boxes stretched over its advertisements' space. 8: every page
+// of the paper printed.
+const editionLayout = 8
 
-// minPageStories: the fewest stories an inner page is printed with.
-const minPageStories = 4
+// onOwnPlans reports whether an edition was set on the Star's paper of its
+// own date.
+func onOwnPlans(ed Edition) bool {
+	var pages []EditionPage
+	if json.Unmarshal([]byte(ed.Pages), &pages) != nil || len(pages) == 0 {
+		return false
+	}
+	return strings.HasPrefix(pages[0].Layout, ed.Date+"/")
+}
 
 // minEditionStories: below this the night's run waits for more news.
 const minEditionStories = 8
@@ -259,7 +337,9 @@ func ensureEdition(db *gorm.DB, now time.Time) error {
 	// An edition stands once made, except a thin first one a new portal laid
 	// out before it had a day's news, or one made with older layout rules:
 	// those are made again.
-	stale := found && existing.Layout < editionLayout
+	// One set on another day's paper is made again once the plans of its own
+	// day's paper come (and one set on plans since dropped, again).
+	stale := found && (existing.Layout < editionLayout || hasPrintDay(date) != onOwnPlans(existing))
 	if found && !stale && storiesIn(existing) >= fullEditionStories {
 		return nil
 	}
@@ -267,7 +347,7 @@ func ensureEdition(db *gorm.DB, now time.Time) error {
 	if err != nil {
 		return err
 	}
-	pages := layoutEdition(stories)
+	pages := layoutEdition(stories, now)
 	raw, err := json.Marshal(pages)
 	if err != nil {
 		return err
@@ -369,14 +449,15 @@ func replaceInEdition(db *gorm.DB, now time.Time, gone map[string]bool) (int, er
 }
 
 // planFor finds a printed page's plan by its supplement and name.
-func planFor(group, name string) (pagePlan, bool) {
+func planFor(group, name string) (titlePlan, bool) {
 	name = pageName(name)
-	for _, p := range editionPlan {
-		if p.group == group && p.name == name {
+	for _, t := range []string{"FRONT", "NEWS", "CITY", "INTERNATIONAL", "EDITORIAL", "OPINION", "ART&ENT", "SPORT", "BACK",
+		"LAW", "HEALTH", "LITERATURE", "BUSINESS", "ROUNDTABLE", "BIZFRONT", "BIZINNER", "BIZBACK", "LS", "CAMPUS"} {
+		if p := planForTitle(group, t); p.name == name {
 			return p, true
 		}
 	}
-	return pagePlan{}, false
+	return titlePlan{}, false
 }
 
 func repeats(a Article, heads []map[string]bool) bool {
