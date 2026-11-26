@@ -263,6 +263,9 @@ body.ep-sticky .ep-clip-tools { top: 70px; }
 .np-stackhead { border-top: 1px solid #111; padding-top: 5px; margin-top: 7px; cursor: pointer; }
 .np-col > .np-stackhead:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
 .np-stackhead h4 { margin: 0 0 4px; font: 700 calc(16px * var(--ts, 1))/1.04 var(--hed); color: #111; text-align: left; }
+/* Its photo, the column's width. */
+.np-stackfig { margin: 0 0 5px; }
+.np-stackfig img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; display: block; }
 .np-bitem h4 { margin: 3px 0 2px; font: 700 calc(11.6px * var(--ts, 1))/1.04 var(--hed); color: #111; }
 .np-bitem p { text-indent: 0; }
 /* A quote: bold, under the Star's blue square. */

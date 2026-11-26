@@ -4,7 +4,9 @@
 // its six columns, then the frames in the order the browser drew them:
 // fills, photos, rules, text. Each text frame gets the paragraphs' own type;
 // a face the computer lacks is stood in for (see fontsFor in main.go).
-var R = (function () {
+// It runs as one undo step (FAST_ENTIRE_SCRIPT), which makes InDesign set
+// the page several times faster (see the end).
+function makePage() {
   var old = app.scriptPreferences.userInteractionLevel;
   app.scriptPreferences.userInteractionLevel = UserInteractionLevels.NEVER_INTERACT;
   var doc = null, standIns = {}, result;
@@ -30,31 +32,43 @@ var R = (function () {
     try { setMargins(doc.masterSpreads[0].pages[0].marginPreferences); } catch (e) {}
     setMargins(page.marginPreferences);
 
+    // Swatches are kept by name and found again each time: in one undo step
+    // (FAST_ENTIRE_SCRIPT) a reference kept to a new colour goes stale.
     var swatches = {};
     var colour = function (hex) {
       if (!hex) hex = "#111111";
-      if (swatches[hex]) return swatches[hex];
-      var r = parseInt(hex.substr(1, 2), 16), g = parseInt(hex.substr(3, 2), 16), b = parseInt(hex.substr(5, 2), 16), c;
-      if (r < 40 && g < 40 && b < 40) {
-        c = doc.swatches.itemByName("Black"); // near-black prints as black ink
-      } else if (r > 250 && g > 250 && b > 250) {
-        c = doc.swatches.itemByName("Paper");
-      } else {
-        var name = "RGB " + r + " " + g + " " + b;
-        c = doc.colors.itemByName(name);
-        if (!c.isValid) c = doc.colors.add({ name: name, model: ColorModel.PROCESS, space: ColorSpace.RGB, colorValue: [r, g, b] });
+      var name = swatches[hex];
+      if (!name) {
+        var r = parseInt(hex.substr(1, 2), 16), g = parseInt(hex.substr(3, 2), 16), b = parseInt(hex.substr(5, 2), 16);
+        if (r < 40 && g < 40 && b < 40) {
+          name = "Black"; // near-black prints as black ink
+        } else if (r > 250 && g > 250 && b > 250) {
+          name = "Paper";
+        } else {
+          name = "RGB " + r + " " + g + " " + b;
+          if (!doc.colors.itemByName(name).isValid) doc.colors.add({ name: name, model: ColorModel.PROCESS, space: ColorSpace.RGB, colorValue: [r, g, b] });
+        }
+        swatches[hex] = name;
       }
-      swatches[hex] = c;
-      return c;
+      return doc.swatches.itemByName(name);
     };
     var bounds = function (it) { return [it.y * k, it.x * k, (it.y + it.h) * k, (it.x + it.w) * k]; };
     var JUST = { left: Justification.LEFT_ALIGN, right: Justification.RIGHT_ALIGN, center: Justification.CENTER_ALIGN, justify: Justification.LEFT_JUSTIFIED };
 
-    // The first of the paragraph's fonts this computer has.
+    // The first of the paragraph's fonts this computer has (each looked up
+    // once).
+    var fontCache = {};
+    var fontOf = function (name) {
+      if (!fontCache.hasOwnProperty(name)) {
+        var f = app.fonts.itemByName(name);
+        fontCache[name] = f.isValid ? f : null;
+      }
+      return fontCache[name];
+    };
     var applyFont = function (p, s) {
       for (var i = 0; i < s.fonts.length; i++) {
-        var f = app.fonts.itemByName(s.fonts[i]);
-        if (f.isValid) {
+        var f = fontOf(s.fonts[i]);
+        if (f) {
           try { p.appliedFont = f; } catch (e) { continue; }
           if (i > 0) standIns[s.fonts[0].replace("\t", " ") + " -> " + s.fonts[i].replace("\t", " ")] = 1;
           return i;
@@ -166,5 +180,8 @@ var R = (function () {
   }
   app.scriptPreferences.userInteractionLevel = old;
   return result;
-})();
+}
+
+var R;
+app.doScript(function () { R = makePage(); }, ScriptLanguage.JAVASCRIPT, undefined, UndoModes.ENTIRE_SCRIPT, "Daily Star page");
 R;

@@ -11,8 +11,10 @@ package main
 
 import (
 	"context"
+	"crypto/sha1"
 	_ "embed"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -34,9 +36,9 @@ import (
 //go:embed page.jsx
 var pageJSX string
 
-// The e-paper sites allowed to use the bridge (the hosted portal and the
-// local one); -origins adds more.
-var defaultOrigins = "https://bangla-news-portal.onrender.com,http://localhost:8081,http://127.0.0.1:8081"
+// The e-paper sites allowed to use the bridge: the copy run on this computer
+// only (the hosted portal has no Id button); -origins adds more.
+var defaultOrigins = "http://localhost:8081,http://127.0.0.1:8081"
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8095", "where to listen (keep it on 127.0.0.1)")
@@ -44,6 +46,17 @@ func main() {
 	save := flag.String("save", "", "also keep a copy of every .indd made in this folder")
 	verbose := flag.Bool("v", false, "log every request")
 	flag.Parse()
+	// The log goes to a file as well, the bridge mostly running unseen
+	// (%LOCALAPPDATA%\DailyStar\indd-bridge\bridge.log).
+	if os.MkdirAll(dataDir(), 0o755) == nil {
+		if f, err := os.OpenFile(filepath.Join(dataDir(), "bridge.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644); err == nil {
+			if st, err := f.Stat(); err == nil && st.Size() > 2<<20 {
+				f.Truncate(0)
+			}
+			log.SetOutput(io.MultiWriter(f, os.Stderr))
+		}
+	}
+	go cleanCache()
 	b := &bridge{allowed: map[string]bool{}, save: *save, verbose: *verbose}
 	for _, o := range strings.Split(defaultOrigins+","+*origins, ",") {
 		if o = strings.TrimRight(strings.TrimSpace(o), "/"); o != "" {
@@ -52,6 +65,7 @@ func main() {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", b.health)
+	mux.HandleFunc("/warm", b.warm)
 	mux.HandleFunc("/indd", b.indd)
 	log.Printf("InDesign bridge on http://%s for %d sites", *addr, len(b.allowed))
 	srv := &http.Server{Addr: *addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
@@ -100,6 +114,23 @@ func (b *bridge) health(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"ok":true}`))
 }
 
+// warm opens InDesign ahead of a page (the e-paper asks when the pointer
+// comes to its Id button), so the page itself does not wait for it. It
+// answers at once: "ready" when InDesign is open, else "starting".
+func (b *bridge) warm(w http.ResponseWriter, r *http.Request) {
+	if !b.cors(w, r) {
+		return
+	}
+	state := "ready"
+	select {
+	case <-startInDesign():
+	default:
+		state = "starting"
+	}
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"ok":true,"indesign":%q}`, state)
+}
+
 func (b *bridge) indd(w http.ResponseWriter, r *http.Request) {
 	if !b.cors(w, r) {
 		return
@@ -125,9 +156,24 @@ func (b *bridge) indd(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.RemoveAll(dir)
 	start := time.Now()
-	convert := fetchImages(r.Context(), &lay, dir)
+	// InDesign, if it is not open, starts while the photos come.
+	warm := startInDesign()
+	convert, photos := fetchImages(r.Context(), &lay, dir)
+	tPhotos := time.Since(start)
+	<-warm
+	tWarm := time.Since(start)
 	b.mu.Lock()
-	out, err := makeINDD(r.Context(), &lay, dir, convert)
+	out, times, err := makeINDD(r.Context(), &lay, dir, convert)
+	if err != nil && inDesignGone(err) {
+		// InDesign was closing (or closed) as the page came: open it and try
+		// once more.
+		log.Printf("%s: %v; trying again", lay.Name, err)
+		for i := 0; i < 20 && inDesignRunning(); i++ { // let it finish closing
+			time.Sleep(500 * time.Millisecond)
+		}
+		<-startInDesign()
+		out, times, err = makeINDD(r.Context(), &lay, dir, convert)
+	}
 	b.mu.Unlock()
 	if err != nil {
 		log.Printf("%s: %v", lay.Name, err)
@@ -139,7 +185,8 @@ func (b *bridge) indd(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	log.Printf("%s.indd: %d frames, %d KB, %s", lay.Name, len(lay.Items), len(data)/1024, time.Since(start).Round(time.Second))
+	log.Printf("%s.indd: %d frames, %d KB in %.1fs (photos %.1fs: %s; InDesign ready at %.1fs; %s)",
+		lay.Name, len(lay.Items), len(data)/1024, time.Since(start).Seconds(), tPhotos.Seconds(), photos, tWarm.Seconds(), times)
 	if b.save != "" {
 		if err := os.MkdirAll(b.save, 0o755); err == nil {
 			os.WriteFile(filepath.Join(b.save, lay.Name+".indd"), data, 0o644)
@@ -345,16 +392,36 @@ func fontsFor(family string, weight int, italic bool) ([]string, int, float64) {
 
 // --- photos -------------------------------------------------------------------
 
+// photoCache keeps the photos fetched, so a page made again, or another
+// page with the same photo, does not wait for the outlet's site again.
+var photoCache = filepath.Join(dataDir(), "photos")
+
+// dataDir is where the bridge keeps its log and its photos.
+func dataDir() string {
+	base := os.Getenv("LOCALAPPDATA")
+	if base == "" {
+		base = os.TempDir()
+	}
+	return filepath.Join(base, "DailyStar", "indd-bridge")
+}
+
 // fetchImages saves the page's photos and drawings beside the document.
 // InDesign takes JPEG, PNG and GIF; a photo in another format (WebP, AVIF)
-// is listed to be turned into JPEG by Windows first. A photo that cannot
-// be had leaves its frame empty.
-func fetchImages(ctx context.Context, l *layout, dir string) []string {
+// is listed to be turned into JPEG by Windows first. Photos come from the
+// cache when they can, else from the web, eight at a time; a photo whose
+// site takes more than 10 seconds, or that cannot be had, leaves its frame
+// grey rather than hold up the page (all of them get 15 seconds at most).
+func fetchImages(ctx context.Context, l *layout, dir string) ([]string, string) {
 	var convert []string
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	slots := make(chan struct{}, 6)
-	client := &http.Client{Timeout: 40 * time.Second}
+	slots := make(chan struct{}, 8)
+	client := &http.Client{Timeout: 10 * time.Second}
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	n, cached, failed := 0, 0, 0
+	var slowest time.Duration
+	slowHost := ""
 	for i := range l.Items {
 		it := &l.Items[i]
 		if it.K != "img" {
@@ -369,48 +436,61 @@ func fetchImages(ctx context.Context, l *layout, dir string) []string {
 			it.Data = ""
 			continue
 		}
+		n++
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			slots <- struct{}{}
 			defer func() { <-slots }()
-			file, odd, err := download(ctx, client, it.Src, base)
+			t := time.Now()
+			file, odd, hit, err := download(ctx, client, it.Src, base)
+			d := time.Since(t)
+			mu.Lock()
+			defer mu.Unlock()
+			if hit {
+				cached++
+			} else if d > slowest {
+				slowest = d
+				if u, e := url.Parse(it.Src); e == nil {
+					slowHost = u.Host
+				}
+			}
 			if err != nil {
+				failed++
 				log.Printf("photo %s: %v", it.Src, err)
 				return
 			}
 			it.File = file
 			if odd {
 				it.File = base + ".jpg" // what Windows turns it into
-				mu.Lock()
 				convert = append(convert, file)
-				mu.Unlock()
 			}
 		}()
 	}
 	wg.Wait()
-	return convert
+	s := fmt.Sprintf("%d photos, %d from the cache, %d failed", n, cached, failed)
+	if slowHost != "" {
+		s += fmt.Sprintf(", slowest %.1fs %s", slowest.Seconds(), slowHost)
+	}
+	return convert, s
 }
 
-func download(ctx context.Context, client *http.Client, src, base string) (file string, odd bool, err error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, src, nil)
-	if err != nil {
-		return "", false, err
-	}
-	// Ask for a format InDesign can place.
-	req.Header.Set("Accept", "image/jpeg,image/png,image/gif;q=0.9,*/*;q=0.2")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) indd-bridge/1.0")
-	res, err := client.Do(req)
-	if err != nil {
-		return "", false, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return "", false, fmt.Errorf("status %d", res.StatusCode)
-	}
-	raw, err := io.ReadAll(io.LimitReader(res.Body, 30<<20))
-	if err != nil {
-		return "", false, err
+// download saves a photo as base plus its type's extension, from the cache
+// when it is there (hit), else from the web, keeping it in the cache.
+func download(ctx context.Context, client *http.Client, src, base string) (file string, odd, hit bool, err error) {
+	sum := sha1.Sum([]byte(src))
+	cached := filepath.Join(photoCache, hex.EncodeToString(sum[:]))
+	raw, err := os.ReadFile(cached)
+	if err == nil && len(raw) > 0 {
+		hit = true
+	} else {
+		raw, err = fetchPhoto(ctx, client, src)
+		if err != nil {
+			return "", false, false, err
+		}
+		if os.MkdirAll(photoCache, 0o755) == nil {
+			os.WriteFile(cached, raw, 0o644)
+		}
 	}
 	ext := ".jpg"
 	switch http.DetectContentType(raw) {
@@ -424,43 +504,141 @@ func download(ctx context.Context, client *http.Client, src, base string) (file 
 		ext = ".src"
 	}
 	file = base + ext
-	return file, odd, os.WriteFile(file, raw, 0o600)
+	return file, odd, hit, os.WriteFile(file, raw, 0o600)
+}
+
+func fetchPhoto(ctx context.Context, client *http.Client, src string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, src, nil)
+	if err != nil {
+		return nil, err
+	}
+	// Ask for a format InDesign can place.
+	req.Header.Set("Accept", "image/jpeg,image/png,image/gif;q=0.9,*/*;q=0.2")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) indd-bridge/1.0")
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("status %d", res.StatusCode)
+	}
+	return io.ReadAll(io.LimitReader(res.Body, 30<<20))
+}
+
+// cleanCache drops photos kept more than a week.
+func cleanCache() {
+	entries, _ := os.ReadDir(photoCache)
+	for _, e := range entries {
+		if info, err := e.Info(); err == nil && time.Since(info.ModTime()) > 7*24*time.Hour {
+			os.Remove(filepath.Join(photoCache, e.Name()))
+		}
+	}
 }
 
 // --- InDesign -----------------------------------------------------------------
 
-// makeINDD has InDesign build the page and save it, and returns the file.
-func makeINDD(ctx context.Context, l *layout, dir string, convert []string) (string, error) {
+// inDesignRunning reports whether InDesign is open on this computer.
+func inDesignRunning() bool {
+	out, err := exec.Command("tasklist", "/FI", "IMAGENAME eq InDesign.exe", "/NH").Output()
+	return err == nil && strings.Contains(strings.ToLower(string(out)), "indesign.exe")
+}
+
+var starting struct {
+	sync.Mutex
+	done chan struct{}
+}
+
+// startInDesign opens InDesign if it is not open (it takes half a minute or
+// more), and returns a channel closed once it is open. Only one start runs
+// at a time; InDesign is left open afterwards, so the next page is quick.
+func startInDesign() <-chan struct{} {
+	starting.Lock()
+	defer starting.Unlock()
+	if starting.done != nil {
+		select {
+		case <-starting.done:
+		default:
+			return starting.done // already starting
+		}
+	}
+	done := make(chan struct{})
+	starting.done = done
+	if inDesignRunning() {
+		close(done)
+		return done
+	}
+	log.Printf("opening InDesign")
+	go func() {
+		defer close(done)
+		t := time.Now()
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer cancel()
+		script := `foreach ($p in @('InDesign.Application', 'InDesign.Application.CC.2018')) { try { $id = New-Object -ComObject $p; 'ok'; break } catch {} }`
+		out, err := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script).CombinedOutput()
+		log.Printf("InDesign opened in %.1fs %s %v", time.Since(t).Seconds(), strings.TrimSpace(string(out)), errOrNil(err))
+	}()
+	return done
+}
+
+// inDesignGone reports an error of talking to an InDesign that is closing or
+// has closed (its COM object has no methods left, or the call is refused).
+func inDesignGone(err error) bool {
+	s := err.Error()
+	for _, m := range []string{"MethodNotFound", "RPC server", "RPC_E_", "rejected by callee", "0x800706BA", "0x80010001", "not installed"} {
+		if strings.Contains(s, m) {
+			return true
+		}
+	}
+	return false
+}
+
+func errOrNil(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+// makeINDD has InDesign build the page and save it, and returns the file and
+// how long each step took.
+func makeINDD(ctx context.Context, l *layout, dir string, convert []string) (string, string, error) {
 	l.Out = filepath.Join(dir, l.Name+".indd")
 	l.MM = 297 / l.Width // the page is A3, 297 mm wide
 	data, err := json.Marshal(l)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	jsx := filepath.Join(dir, "page.jsx")
 	// The page goes in as data (JSON is a JavaScript literal), ahead of the
 	// script that lays it out.
 	if err := os.WriteFile(jsx, []byte("var L = "+string(data)+";\n"+pageJSX), 0o600); err != nil {
-		return "", err
+		return "", "", err
 	}
 	ps := filepath.Join(dir, "run.ps1")
 	if err := os.WriteFile(ps, []byte(runScript(jsx, convert)), 0o600); err != nil {
-		return "", err
+		return "", "", err
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", ps).CombinedOutput()
 	res := strings.TrimSpace(string(out))
+	times := ""
+	for _, line := range strings.Split(res, "\n") {
+		if strings.HasPrefix(line, "TIMES ") {
+			times = strings.TrimSpace(strings.TrimPrefix(line, "TIMES "))
+		}
+	}
 	if err != nil || !strings.HasSuffix(res, "OK") {
 		if res == "" && err != nil {
 			res = err.Error()
 		}
-		return "", fmt.Errorf("InDesign: %s", lastLine(res))
+		return "", times, fmt.Errorf("InDesign: %s", lastLine(res))
 	}
 	if _, err := os.Stat(l.Out); err != nil {
-		return "", errors.New("InDesign did not save the page")
+		return "", times, errors.New("InDesign did not save the page")
 	}
-	return l.Out, nil
+	return l.Out, times, nil
 }
 
 func lastLine(s string) string {
@@ -481,6 +659,7 @@ func runScript(jsx string, convert []string) string {
 		list = append(list, q(c))
 	}
 	return `$ErrorActionPreference = 'Stop'
+$sw = [Diagnostics.Stopwatch]::StartNew()
 $convert = @(` + strings.Join(list, ",") + `)
 if ($convert.Count -gt 0) {
   Add-Type -AssemblyName PresentationCore
@@ -498,12 +677,16 @@ if ($convert.Count -gt 0) {
     } catch { if ($in) { $in.Close() } }
   }
 }
+$tConvert = $sw.Elapsed.TotalSeconds
 $id = $null
 foreach ($p in @('InDesign.Application', 'InDesign.Application.CC.2018')) {
   try { $id = New-Object -ComObject $p; break } catch {}
 }
 if (-not $id) { 'Adobe InDesign is not installed on this computer'; exit 1 }
+$tAttach = $sw.Elapsed.TotalSeconds
 $src = [IO.File]::ReadAllText(` + q(jsx) + `, [Text.Encoding]::UTF8)
-$id.DoScript($src, 1246973031)
+$r = $id.DoScript($src, 1246973031)
+'TIMES photos converted {0:N1}s, InDesign reached {1:N1}s, page made {2:N1}s' -f $tConvert, ($tAttach - $tConvert), ($sw.Elapsed.TotalSeconds - $tAttach)
+$r
 `
 }

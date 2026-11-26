@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -299,7 +300,30 @@ func (s *site) epaper(c *gin.Context) {
 		"PrevDate": neighbour(dates, ed.Date, 1), "NextDate": neighbour(dates, ed.Date, -1),
 		"MinDate": last(dates), "MaxDate": first(dates), "AID": c.Query("aid"),
 		"Ticker": s.latest(12), "BanglaDate": banglaDate(day), "PageCount": main,
+		"InDesign": onThisComputer(c.Request),
 	})
+}
+
+// onThisComputer tells whether the page was asked for by a browser on the
+// computer the portal runs on (http://localhost:8081, http://127.0.0.1:8081).
+// Only there does the e-paper have its Id button: the InDesign bridge that
+// button talks to runs on that computer (cmd/indd-bridge), and the hosted
+// site leaves it out. On Render (which sets RENDER=true) it is never shown,
+// whatever Host its proxy passes on.
+func onThisComputer(r *http.Request) bool {
+	if os.Getenv("RENDER") != "" {
+		return false
+	}
+	host := r.Host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.Trim(host, "[]")
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // drawPages sets an edition's pages for the template: each page's stories in
@@ -363,10 +387,31 @@ func drawPages(date string, pages []EditionPage, byID map[string]Article) ([]dra
 		}
 	}
 	// No room on a page is left empty: a box kept for a story's rest that none
-	// came to takes its own story; a box no story was left for gives its room
-	// to the boxes beside it.
+	// came to takes its own story; a photo box the paper set a story inside
+	// (whose own photo sits beside that story, its top left bare) gives its
+	// room to that story, its photo story joining the page's spares; a box no
+	// story was left for gives its room to the boxes beside it.
 	for i := range drawn {
 		d := &drawn[i]
+		for bi := range d.Boxes {
+			o := &d.Boxes[bi]
+			if o.Kind != "photo" || !o.Has {
+				continue
+			}
+			for bj := range d.Boxes {
+				b := &d.Boxes[bj]
+				if bj == bi || !b.Has || (b.Kind != "story" && b.Kind != "jump") || b.W*b.H >= o.W*o.H {
+					continue
+				}
+				w := min(b.X+b.W, o.X+o.W) - max(b.X, o.X)
+				h := min(b.Y+b.H, o.Y+o.H) - max(b.Y, o.Y)
+				if w > 0 && h > 0 && w*h*100 > b.W*b.H*85 {
+					o.Has = false
+					d.Spares = append(d.Spares, o.Story)
+					break
+				}
+			}
+		}
 		var g []*geom
 		for bi := range d.Boxes {
 			b := &d.Boxes[bi]

@@ -1,8 +1,11 @@
 # InDesign bridge: e-paper pages as `.indd`
 
 The e-paper's **Id** button (in the tool bar) downloads the page on screen as
-an Adobe InDesign document (`.indd`). Only InDesign itself can write a
-`.indd`, so the file is made on the reader's own Windows computer, by the
+an Adobe InDesign document (`.indd`). The button is there only when the
+e-paper is opened on the computer the portal runs on
+(`http://localhost:8081/epaper` or `127.0.0.1:8081`); the hosted site
+(bangla-news-portal.onrender.com) does not show it. Only InDesign itself can
+write a `.indd`, so the file is made on that Windows computer, by the
 InDesign installed there:
 
 ```
@@ -30,12 +33,27 @@ and drawn rules.
 3. Start it and keep it running while using the e-paper (double-click
    `indd-bridge.exe`, or start it from `start-indd-bridge.bat` in the Windows
    Startup folder to run it at sign-in).
-4. Open the e-paper, go to a page, press **Id**. The first time, Chrome may
-   ask to let the site reach this computer: allow it.
+4. Open the e-paper on this computer (`http://localhost:8081/epaper`), go to
+   a page, press **Id**.
 
 Options: `-addr` (default `127.0.0.1:8095`), `-origins` (more e-paper sites
-allowed besides the hosted portal and `localhost:8081`), `-save <folder>`
-(keep a copy of every file made).
+allowed besides `http://localhost:8081` and `http://127.0.0.1:8081`),
+`-save <folder>` (keep a copy of every file made).
+
+## How long it takes
+
+- InDesign already open: about 4–6 seconds a page.
+- InDesign closed: it has to open first (about 10 seconds on this computer),
+  so the first page takes about 13–16 seconds. To save that wait the
+  e-paper asks the bridge to open InDesign as soon as the pointer comes to the
+  **Id** button, and, once the button has been used in that browser, as soon
+  as the e-paper opens. InDesign is left open afterwards.
+- Photos are fetched from the outlets' sites once and kept for a week
+  (`%LOCALAPPDATA%\DailyStar\indd-bridge\photos`); a site that takes more
+  than 10 seconds leaves its photo frame grey rather than hold up the page.
+- While the page is made, the e-paper shows what is happening and the
+  seconds gone; the bridge logs each page's timings to
+  `%LOCALAPPDATA%\DailyStar\indd-bridge\bridge.log`.
 
 ## Fonts
 
@@ -48,8 +66,8 @@ afterwards brings the real one back.
 
 ## Notes
 
-- The bridge listens on 127.0.0.1 only and answers only the e-paper's own
-  sites; it runs nothing but the page script it carries.
+- The bridge listens on 127.0.0.1 only and answers only the e-paper opened
+  on this computer; it runs nothing but the page script it carries.
 - Photos come from the outlets' sites ("Photo: Collected"); check the rights
   before printing them.
 - A story cut short on the e-paper is cut short in the frame too, so InDesign

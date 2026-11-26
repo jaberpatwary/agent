@@ -89,16 +89,28 @@ func leadScore(a Article) int {
 }
 
 // layoutEdition places stories (newest first) on the pages of the Star's
-// paper of the same weekday as day (its Dhaka Edition, then its supplements),
-// as many on each page as the paper's page has places for, each piece of
-// news once: when two outlets carry the same story, the fuller one is
-// printed.
+// paper of day (its Dhaka Edition, then its supplements), each piece of news
+// once: when two outlets carry the same story, the fuller one is printed.
+// Every page of the paper is printed while there is news for it:
+//
+//  1. each page takes its own kind of news, as many as it has places: the
+//     front page first (the day's lead), then the supplements' pages (their
+//     news is theirs alone), then the Dhaka Edition's pages in order;
+//  2. a page with places left takes any news of its edition;
+//  3. a page still without a story takes whatever of the day is left;
+//  4. a page holding less text than the paper set on it takes more, as
+//     spares set under a story too short for its box: of its own kind
+//     first, then any news of its edition.
 func layoutEdition(stories []Article, day time.Time) []EditionPage {
 	stories = dropRepeats(stories)
 	used := map[string]bool{}
 	pd := printDayFor(day)
-	var pages []EditionPage
-	var fills []pageFill
+	type slot struct {
+		page  EditionPage
+		fill  pageFill
+		front bool
+	}
+	var slots []*slot
 	for ei, e := range pd.Eds {
 		group, ok := edGroup(e.Name)
 		if !ok {
@@ -110,85 +122,81 @@ func layoutEdition(stories []Article, day time.Time) []EditionPage {
 				continue
 			}
 			plan := planForTitle(group, lp.Title)
-			front := group == "" && lp.Title == "FRONT"
-			cands := pickStories(stories, used, plan.match, front)
-			if len(cands) < max && plan.loose != nil {
-				taken := map[string]bool{}
-				for _, a := range cands {
-					taken[a.ID.String()] = true
-				}
-				for _, a := range pickStories(stories, used, plan.loose, false) {
-					if !taken[a.ID.String()] {
-						cands = append(cands, a)
-					}
-				}
-			}
-			if len(cands) > max {
-				// The page holds as much text as the paper set on it: when its
-				// stories are shorter, up to four more come as spares, set
-				// under a story too short for its box.
-				need, have, n := lp.textNeed(), 0, max
-				for _, a := range cands[:max] {
-					have += textLen(a)
-				}
-				for n < len(cands) && n < max+4 && have*10 < need*9 {
-					have += textLen(cands[n])
-					n++
-				}
-				cands = cands[:n]
-			}
-			// Every page of the paper is printed, as the Star prints it: a page
-			// short of its own kind of news is filled below from the rest.
-			p := EditionPage{Name: plan.name, Group: group, Layout: layoutKey(pd, ei, lp.No)}
-			have := 0
-			for _, a := range cands {
-				used[a.ID.String()] = true
-				p.Stories = append(p.Stories, a.ID.String())
-				have += textLen(a)
-			}
-			pages = append(pages, p)
-			fills = append(fills, pageFill{plan: plan, group: group, max: max, short: lp.textNeed()*9/10 - have})
+			slots = append(slots, &slot{
+				page:  EditionPage{Name: plan.name, Group: group, Layout: layoutKey(pd, ei, lp.No)},
+				fill:  pageFill{plan: plan, group: group, max: max, short: lp.textNeed() * 9 / 10},
+				front: group == "" && lp.Title == "FRONT",
+			})
 		}
 	}
-	// A page with fewer stories than its places takes stories of the day no
-	// page has taken, any news of its edition, so none of its places is
-	// empty; then a page still holding less text than the paper set on it
-	// takes more, as spares: of its own kind first, then any news.
-	for i := range pages {
-		f := &fills[i]
-		if any := f.any(); any != nil {
-			for _, a := range pickStories(stories, used, any, false) {
-				if len(pages[i].Stories) >= f.max {
-					break
-				}
-				used[a.ID.String()] = true
-				pages[i].Stories = append(pages[i].Stories, a.ID.String())
-				f.short -= textLen(a)
+	add := func(s *slot, a Article) bool {
+		if used[a.ID.String()] {
+			return false
+		}
+		used[a.ID.String()] = true
+		s.page.Stories = append(s.page.Stories, a.ID.String())
+		s.fill.short -= textLen(a)
+		return true
+	}
+	upTo := func(s *slot, n int, match func(Article) bool, lead bool) {
+		if match == nil {
+			return
+		}
+		for _, a := range pickStories(stories, used, match, lead) {
+			if len(s.page.Stories) >= n {
+				return
+			}
+			add(s, a)
+		}
+	}
+	// 1.
+	var order []*slot
+	for _, pass := range []func(*slot) bool{
+		func(s *slot) bool { return s.front },
+		func(s *slot) bool { return s.fill.group != "" },
+		func(s *slot) bool { return !s.front && s.fill.group == "" },
+	} {
+		for _, s := range slots {
+			if pass(s) {
+				order = append(order, s)
 			}
 		}
 	}
-	for i := range pages {
-		f := fills[i]
-		for _, match := range []func(Article) bool{f.plan.match, f.plan.loose, f.any()} {
+	for _, s := range order {
+		upTo(s, s.fill.max, s.fill.plan.match, s.front)
+		upTo(s, s.fill.max, s.fill.plan.loose, false)
+	}
+	// 2.
+	for _, s := range order {
+		upTo(s, s.fill.max, s.fill.any(), false)
+	}
+	// 3. (the country's news first, then any)
+	for _, s := range slots {
+		if len(s.page.Stories) == 0 {
+			upTo(s, s.fill.max, homeNews, false)
+			upTo(s, s.fill.max, notOpinion, false)
+		}
+	}
+	// 4.
+	for _, s := range slots {
+		for _, match := range []func(Article) bool{s.fill.plan.match, s.fill.plan.loose, s.fill.any()} {
 			if match == nil {
 				continue
 			}
 			for _, a := range pickStories(stories, used, match, false) {
-				if f.short <= 0 || len(pages[i].Stories) >= 24 {
+				if s.fill.short <= 0 || len(s.page.Stories) >= s.fill.max+12 {
 					break
 				}
-				used[a.ID.String()] = true
-				pages[i].Stories = append(pages[i].Stories, a.ID.String())
-				f.short -= textLen(a)
+				add(s, a)
 			}
 		}
 	}
 	// Only a page nothing at all was left for is not printed.
-	out := pages[:0]
-	for _, p := range pages {
-		if len(p.Stories) > 0 {
-			p.No = len(out) + 1
-			out = append(out, p)
+	var out []EditionPage
+	for _, s := range slots {
+		if len(s.page.Stories) > 0 {
+			s.page.No = len(out) + 1
+			out = append(out, s.page)
 		}
 	}
 	return out
@@ -307,8 +315,9 @@ func sameNews(a, b map[string]bool) bool {
 // older rules is laid out again from the same day's stories. 7: the Star's
 // page plans again (5, taken out as 6 on 2026-11-19), now of the very day's
 // paper, the boxes stretched over its advertisements' space. 8: every page
-// of the paper printed.
-const editionLayout = 8
+// of the paper printed. 9: pages take their places before any page its
+// spares, so a supplement's pages are not left without news.
+const editionLayout = 9
 
 // onOwnPlans reports whether an edition was set on the Star's paper of its
 // own date.

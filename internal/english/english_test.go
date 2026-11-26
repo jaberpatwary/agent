@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -205,9 +206,10 @@ func TestEPaperDraws(t *testing.T) {
 		byID[a.ID.String()] = a
 	}
 	drawn, groups, main := drawPages("2026-11-17", pages, byID)
-	out := draw(t, "en_epaper.html", map[string]any{"Date": "2026-11-17", "Day": tuesday,
+	data := map[string]any{"Date": "2026-11-17", "Day": tuesday,
 		"Pages": drawn, "Groups": groups, "Page": 1, "View": 2, "Dates": []string{"2026-11-17", "2026-11-16"},
-		"BanglaDate": banglaDate(tuesday), "PageCount": main, "Ticker": all[:3]})
+		"BanglaDate": banglaDate(tuesday), "PageCount": main, "Ticker": all[:3]}
+	out := draw(t, "en_epaper.html", data)
 	for _, want := range []string{"np-front", "Journalism Without Fear or Favour", "DHAKA TUESDAY NOVEMBER 17, 2026", "AGRAHAYAN 2, 1433 BS",
 		"data-story=", `<template id="st-`, "Dhaka Edition", `value="2026-11-17"`, "YOUR RIGHT", "REGD. NO. DA 781", "VOL. XXXVI NO. 293",
 		"JAMADIUS SANI 6, 1448 HIJRI", "PLUS LIFE STYLE: TK 15.00", "PHOTO: COLLECTED", "SEE PAGE 2 COL", "FROM PAGE 1", "np-k-photo", "np-k-jump",
@@ -228,6 +230,15 @@ func TestEPaperDraws(t *testing.T) {
 	}
 	if n := strings.Count(out, `<figure class="np-pic"`); n < len(pages) {
 		t.Errorf("only %d photos on %d pages", n, len(pages))
+	}
+	// The Id button (a page as an InDesign file) is only on the copy opened
+	// on the computer it runs on, never on the hosted site.
+	if strings.Contains(out, "data-indd") {
+		t.Error("the hosted e-paper has the InDesign button")
+	}
+	data["InDesign"] = true
+	if !strings.Contains(draw(t, "en_epaper.html", data), "data-indd") {
+		t.Error("the e-paper on this computer has no InDesign button")
 	}
 	draw(t, "en_epaper.html", map[string]any{"NoEdition": true, "View": 1, "Page": 1})
 	faq := draw(t, "en_epaper_faq.html", map[string]any{})
@@ -432,5 +443,20 @@ func TestBanglaDate(t *testing.T) {
 		if got := banglaDate(d); got != want {
 			t.Errorf("%s => %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestOnlyThisComputerGetsTheInDesignButton(t *testing.T) {
+	for host, want := range map[string]bool{
+		"localhost:8081": true, "127.0.0.1:8081": true, "[::1]:8081": true, "LOCALHOST": true, "localhost": true,
+		"bangla-news-portal.onrender.com": false, "192.168.1.20:8081": false, "localhost.example.com": false, "": false,
+	} {
+		if got := onThisComputer(&http.Request{Host: host}); got != want {
+			t.Errorf("%q: Id button %v, want %v", host, got, want)
+		}
+	}
+	t.Setenv("RENDER", "true") // the hosted site, whatever Host its proxy passes on
+	if onThisComputer(&http.Request{Host: "localhost:8081"}) {
+		t.Error("the site on Render shows the Id button")
 	}
 }

@@ -311,10 +311,38 @@
     var list = box.classList.contains('np-k-jump') ? (jumps[box.dataset.jump] || []).map(function (n) { return n.cloneNode(true); }) : textItems(box.querySelector('.np-src'));
     if (!list.length) return;
     // Stories set under this one (fillBox): each under its own headline.
+    // In the IN BRIEF column each is a brief: its headline and first lines.
+    // Elsewhere a story set under another has its headline, its photo (the
+    // column's width) and its text.
+    var brief = box.classList.contains('np-k-brief');
     (box._stack || []).forEach(function (t) {
-      var h = t.content.querySelector('.np-stackhead');
+      var h = t.content.querySelector('.np-stackhead'), text = textItems(t.content.querySelector('.np-src'));
+      if (brief) {
+        var item = document.createElement('div');
+        item.className = 'np-bitem';
+        item.dataset.story = t.dataset.story;
+        var h4 = document.createElement('h4');
+        h4.textContent = h ? h.textContent.trim() : '';
+        var p = document.createElement('p');
+        var first = text.length ? text[0].textContent : '';
+        p.textContent = first.length > 320 ? first.slice(0, first.lastIndexOf(' ', 320)) + ' …' : first;
+        item.appendChild(h4);
+        item.appendChild(p);
+        list.push(item);
+        return;
+      }
       if (h) list.push(h.cloneNode(true));
-      list = list.concat(textItems(t.content.querySelector('.np-src')));
+      if (t.dataset.img) {
+        var fig = document.createElement('figure');
+        fig.className = 'np-stackfig';
+        var img = document.createElement('img');
+        img.alt = '';
+        img.src = t.dataset.img;
+        img.onerror = function () { fig.remove(); };
+        fig.appendChild(img);
+        list.push(fig);
+      }
+      list = list.concat(text);
     });
     if (!box.classList.contains('np-k-jump') && list[0].tagName === 'P') list[0].classList.add('np-first');
     var lh = LH * (+box.dataset.ts || 1);
@@ -432,8 +460,8 @@
       if (added && pic.offsetHeight < 50) { added.remove(); relay(box); }
       if (emptyShare(box) < 0.04) return;
     }
-    if (story || jump) {
-      for (var n = 0; n < 3 && fits(box) && emptyShare(box) >= 0.2; n++) {
+    if (story || jump || box.classList.contains('np-k-brief')) {
+      for (var n = 0; n < 10 && fits(box) && emptyShare(box) >= (story || jump ? 0.2 : 0.12); n++) {
         var t = nextSpare(box, anyPage);
         if (!t) break;
         t.dataset.used = '1';
@@ -953,21 +981,41 @@
       if (m) it.hscale = +m[1] * 100;
       if (!hidden(el, it)) texts.push(it);
     });
-    // The text, column by column as it is set here: each column a frame,
-    // its paragraphs (a brief's headline and text) in their own type.
+    // The text, column by column as it is set here, its paragraphs (a brief's
+    // headline and text) in their own type. A column holding more than one
+    // story (a story set under another, with its headline and photo) gives
+    // a frame to each run of text between them, where the browser set it,
+    // so InDesign's lines keep clear of the photo and the rule.
     $$('.np-col', pg).forEach(function (el) {
       var r = shown(el, pg, el.getBoundingClientRect());
       if (!r) return;
-      var b = box(r), paras = [];
+      var cb = box(r), runs = [], cur = null;
+      var flush = function () { if (cur && cur.paras.length) runs.push(cur); cur = null; };
       $$(':scope > *', el).forEach(function (n) {
-        var parts = n.classList.contains('np-bitem') ? $$(':scope > *', n) : [n];
+        if (n.tagName === 'FIGURE') { flush(); return; } // a photo: its own frame (above)
+        var head = n.classList.contains('np-stackhead');
+        if (head) flush();
+        var nr = n.getBoundingClientRect();
+        if (!cur) cur = { top: nr.top, bottom: nr.bottom, paras: [] };
+        cur.bottom = Math.max(cur.bottom, nr.bottom);
+        var parts = n.classList.contains('np-bitem') || head ? $$(':scope > *', n) : [n];
+        if (head && !parts.length) parts = [n];
         parts.forEach(function (q) {
           var t = q.innerText.replace(/\s+/g, ' ').trim();
-          if (t) paras.push(paraOf(getComputedStyle(q), t));
+          if (t) cur.paras.push(paraOf(getComputedStyle(q), t));
         });
+        if (head) flush();
       });
-      var it = { k: 'text', x: b.x, y: b.y, w: b.w + 1, h: b.h + 1, cols: 1, paras: paras };
-      if (paras.length && !hidden(el, it)) texts.push(it);
+      flush();
+      var yOf = function (clientY) { return (clientY - pr.top) * k; };
+      runs.forEach(function (run, i) {
+        // Each run starts where the browser set it (under a photo at the
+        // column's top too); the last ends at the column's foot.
+        var top = Math.max(cb.y, yOf(run.top));
+        var bottom = i === runs.length - 1 ? cb.y + cb.h : Math.min(cb.y + cb.h, yOf(run.bottom));
+        var it = { k: 'text', x: cb.x, y: top, w: cb.w + 1, h: Math.max(4, bottom - top) + 1, cols: 1, paras: run.paras };
+        if (!hidden(el, it)) texts.push(it);
+      });
     });
     sel.forEach(function (s) { s.classList.add('sel'); });
     return {
@@ -984,20 +1032,54 @@
       '<p>An InDesign file can only be made by Adobe InDesign itself. To download e-paper pages as <code>.indd</code> on this computer:</p>' +
       '<ol><li>Adobe InDesign must be installed here.</li>' +
       '<li>Start The Daily Star InDesign bridge, <code>indd-bridge.exe</code>, and keep it running.</li>' +
-      '<li>Press the <b>Id</b> button again. The first time, Chrome asks to let this site use apps on this device: press <b>Allow</b>. ' +
-      'If it was blocked, click the icon left of the address, turn the permission on, and reload.</li></ol>' +
+      '<li>Press the <b>Id</b> button again.</li></ol>' +
       '<p>Ask IT to set it up if it is not on your computer.</p>';
     popBody.innerHTML = '';
     popBody.appendChild(box);
     pop.hidden = false;
   }
-  on($('[data-indd]'), 'click', function () {
-    var btn = $('[data-indd]');
+  // InDesign takes about ten seconds to open: the bridge is asked to open it
+  // as soon as the pointer comes to the Id button (and when the page opens,
+  // on a computer where the button has been used), so it is ready by the
+  // click. inddState is what the bridge last said: "ready" or "starting".
+  // The Id button is only on the copy opened on the computer it runs on (the
+  // hosted site leaves it out); without it the page never calls the bridge.
+  var inddState = '', warmed = 0;
+  function warmInDesign() {
+    if (Date.now() - warmed < 20000) return;
+    warmed = Date.now();
+    fetch(BRIDGE + '/warm').then(function (r) { return r.json(); })
+      .then(function (j) { inddState = j.indesign || ''; }).catch(function () {});
+  }
+  var inddBtn = $('[data-indd]');
+  on(inddBtn, 'mouseenter', warmInDesign);
+  on(inddBtn, 'focus', warmInDesign);
+  if (inddBtn) {
+    try { if (localStorage.getItem('ep-indd') === '1') warmInDesign(); } catch (e) {}
+  }
+  // While the page is made, the note says what is happening and for how long.
+  function progress(msg) {
+    var t = $('[data-toast]'), t0 = Date.now();
+    if (!t) return function () {};
+    clearTimeout(toast.t);
+    var tick = function () { t.textContent = msg() + ' ' + Math.round((Date.now() - t0) / 1000) + ' s'; };
+    tick();
+    t.classList.add('show');
+    var iv = setInterval(tick, 1000);
+    return function () { clearInterval(iv); t.classList.remove('show'); };
+  }
+  on(inddBtn, 'click', function () {
+    var btn = inddBtn;
     if (btn.classList.contains('busy')) return;
     var lay;
     try { lay = pageLayout(pages[state.page - 1]); } catch (e) { toast('This page could not be read'); return; }
     btn.classList.add('busy');
-    toast('InDesign is making this page …');
+    var t0 = Date.now();
+    var stop = progress(function () {
+      // Opening InDesign is the long part; the bridge's answer to the warm-up
+      // says whether it was open.
+      return inddState === 'starting' && Date.now() - t0 < 40000 ? 'Opening InDesign, then making this page …' : 'InDesign is making this page …';
+    });
     fetch(BRIDGE + '/indd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(lay) })
       .then(function (r) {
         if (!r.ok) return r.text().then(function (t) { throw new Error(t || ('error ' + r.status)); });
@@ -1011,9 +1093,13 @@
         a.click();
         a.remove();
         setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);
-        toast('Downloaded ' + lay.name + '.indd');
+        inddState = 'ready';
+        try { localStorage.setItem('ep-indd', '1'); } catch (e) {}
+        stop();
+        toast('Downloaded ' + lay.name + '.indd (' + Math.round((Date.now() - t0) / 1000) + ' s)');
       })
       .catch(function (e) {
+        stop();
         if (e instanceof TypeError) inddHelp(); // the bridge is not running here
         else toast('InDesign: ' + e.message);
       })
