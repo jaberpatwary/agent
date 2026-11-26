@@ -68,6 +68,7 @@ type worker struct {
 	failed   map[string]bool // e-paper stories whose full text could not be had
 	tries    map[string]int  // failed rewrites of an e-paper story
 	plans    *planFetcher    // the Star's page plans of the day (livemap.go)
+	mirrored bool            // the e-paper is copied from the hosted site (EN_MIRROR): lay out none here
 }
 
 // run reads every feed once and stores the new stories.
@@ -414,25 +415,31 @@ func (w *worker) loop(ctx context.Context) {
 	}
 	w.reclassify()
 	for {
-		// The Star's page plans of today's paper, once it is out: today's
-		// e-paper is set exactly as it.
-		if w.plans != nil {
-			w.plans.ensurePlan(ctx, w.db, time.Now().In(dhaka))
+		// A copy that takes the hosted site's e-paper (mirror.go) makes none
+		// of its own and fetches no page plans: they come with the editions.
+		if !w.mirrored {
+			// The Star's page plans of today's paper, once it is out: today's
+			// e-paper is set exactly as it.
+			if w.plans != nil {
+				w.plans.ensurePlan(ctx, w.db, time.Now().In(dhaka))
+			}
+			// Today's e-paper first: made (or remade by newer rules, or on the
+			// day's own plans once they come) and its stories given their full
+			// text, before new stories take the day's rewrites.
+			if err := ensureEdition(w.db, time.Now().In(dhaka)); err != nil {
+				log.Printf("[en] e-paper: %v", err)
+			}
+			fillCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+			w.fillEdition(fillCtx, time.Now().In(dhaka))
+			cancel()
 		}
-		// Today's e-paper first: made (or remade by newer rules, or on the
-		// day's own plans once they come) and its stories given their full
-		// text, before new stories take the day's rewrites.
-		if err := ensureEdition(w.db, time.Now().In(dhaka)); err != nil {
-			log.Printf("[en] e-paper: %v", err)
-		}
-		fillCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
-		w.fillEdition(fillCtx, time.Now().In(dhaka))
-		cancel()
 		runCtx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 		w.run(runCtx)
 		cancel()
-		if err := ensureEdition(w.db, time.Now().In(dhaka)); err != nil {
-			log.Printf("[en] e-paper: %v", err)
+		if !w.mirrored {
+			if err := ensureEdition(w.db, time.Now().In(dhaka)); err != nil {
+				log.Printf("[en] e-paper: %v", err)
+			}
 		}
 		select {
 		case <-ctx.Done():

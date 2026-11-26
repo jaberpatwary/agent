@@ -2,6 +2,7 @@ package english
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -458,5 +459,40 @@ func TestOnlyThisComputerGetsTheInDesignButton(t *testing.T) {
 	t.Setenv("RENDER", "true") // the hosted site, whatever Host its proxy passes on
 	if onThisComputer(&http.Request{Host: "localhost:8081"}) {
 		t.Error("the site on Render shows the Id button")
+	}
+}
+
+// A local copy reads the hosted site's export back whole: the same story ids,
+// text, pages and the page plans they are set on.
+func TestEditionExportReadsBack(t *testing.T) {
+	a := story("news", "politics", 1, true)
+	now := time.Now().UTC().Truncate(time.Second)
+	a.RewrittenAt = &now
+	pages := []EditionPage{
+		{No: 1, Name: "Front", Layout: "2026-11-26/0/1", Stories: []string{a.ID.String()}},
+		{No: 2, Name: "BizFront", Group: "Business", Layout: "2026-11-26/1/1"},
+		{No: 3, Name: "News", Layout: "2026-11-19/0/2"},
+	}
+	if got := planDays(pages); len(got) != 2 || got[0] != "2026-11-19" || got[1] != "2026-11-26" {
+		t.Errorf("plan days %v", got)
+	}
+	raw, _ := json.Marshal(pages)
+	plan := PrintPlan{Date: "2026-11-26", Plan: `{"date":"2026-11-26","wd":4,"eds":[]}`}
+	out, err := json.Marshal(edExport{Date: "2026-11-26", Layout: editionLayout, Pages: raw, Articles: []Article{a},
+		Plans: []PrintPlan{plan}, Dates: []string{"2026-11-26"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back edExport
+	if err := json.Unmarshal(out, &back); err != nil {
+		t.Fatal(err)
+	}
+	var got []EditionPage
+	json.Unmarshal(back.Pages, &got)
+	b := back.Articles[0]
+	if b.ID != a.ID || b.Content != a.Content || b.SourceURL != a.SourceURL || b.RewrittenAt == nil || !b.RewrittenAt.Equal(now) ||
+		len(got) != 3 || got[0].Layout != pages[0].Layout || got[0].Stories[0] != a.ID.String() || back.Layout != editionLayout ||
+		len(back.Plans) != 1 || back.Plans[0].Date != plan.Date || back.Plans[0].Plan != plan.Plan {
+		t.Errorf("read back %+v / %+v / %+v", b, got, back.Plans)
 	}
 }

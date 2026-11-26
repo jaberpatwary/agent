@@ -39,6 +39,11 @@ services:
       # the hosted site uses.
       EN_WORKER: "${EN_WORKER:-true}"
       EN_DAILY_REWRITES: "${EN_DAILY_REWRITES:--1}"
+      # The e-paper here is the hosted site's own: its editions, their
+      # stories and page plans are copied from it every 20 minutes and drawn
+      # with this copy's templates and styles (set EN_MIRROR empty in .env to
+      # lay out this copy's own e-paper instead).
+      EN_MIRROR: "${EN_MIRROR-https://bangla-news-portal.onrender.com}"
       # Shared secret for /api/n8n/* (set in .env). Empty disables that API.
       N8N_API_KEY: "${N8N_API_KEY:-}"
       APP_ENV: "development"

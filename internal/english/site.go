@@ -48,6 +48,11 @@ func Mount(r *gin.Engine, db *gorm.DB, cfg *config.Config, backup imagestore.Bac
 	s := &site{db: db, tpl: tpl}
 	s.routes(r)
 
+	// A local copy can show the hosted site's e-paper (see mirror.go).
+	mirrorFrom := strings.TrimSpace(os.Getenv("EN_MIRROR"))
+	if mirrorFrom != "" {
+		startMirror(db, mirrorFrom)
+	}
 	if strings.EqualFold(os.Getenv("EN_WORKER"), "true") || (cfg.AppEnv == "production" && !strings.EqualFold(os.Getenv("EN_WORKER"), "false")) {
 		var images *imagestore.Store
 		// English photos are shown from their outlets by default: keeping a copy
@@ -62,7 +67,8 @@ func Mount(r *gin.Engine, db *gorm.DB, cfg *config.Config, backup imagestore.Bac
 			// desk's free quotas (Gemini, then Groq, Cohere, Cloudflare) take it.
 			rewrites = 150
 		}
-		w := &worker{db: db, rss: rss.NewClient(), images: images, ai: ai.NewGateway(cfg), rewrites: rewrites, failed: map[string]bool{}, tries: map[string]int{}, plans: newPlanFetcher()}
+		w := &worker{db: db, rss: rss.NewClient(), images: images, ai: ai.NewGateway(cfg), rewrites: rewrites, failed: map[string]bool{}, tries: map[string]int{}, plans: newPlanFetcher(),
+			mirrored: mirrorFrom != ""}
 		go w.loop(context.Background())
 		log.Printf("[en] English feeds are read every 20 minutes (%d rewrites a day)", rewrites)
 	}
@@ -84,6 +90,7 @@ func (s *site) routes(r *gin.Engine) {
 	r.GET("/epaper/DhakaEdition", s.epaper)
 	r.GET("/epaper/faq", s.epaperFAQ)
 	r.GET("/epaper/popular", s.epaperPopular)
+	r.GET("/epaper/export", s.epaperExport)
 	r.POST("/epaper/read/:id", s.epaperRead)
 }
 
@@ -299,7 +306,7 @@ func (s *site) epaper(c *gin.Context) {
 		"Date": ed.Date, "Day": day, "Pages": drawn, "Groups": groups, "Page": pg, "View": view, "Dates": dates,
 		"PrevDate": neighbour(dates, ed.Date, 1), "NextDate": neighbour(dates, ed.Date, -1),
 		"MinDate": last(dates), "MaxDate": first(dates), "AID": c.Query("aid"),
-		"Ticker": s.latest(12), "BanglaDate": banglaDate(day), "PageCount": main,
+		"Ticker": s.tickerOf(), "BanglaDate": banglaDate(day), "PageCount": main,
 		"InDesign": onThisComputer(c.Request),
 	})
 }
@@ -527,6 +534,9 @@ func (s *site) epaperRead(c *gin.Context) {
 // epaperPopular lists a day's most opened e-paper stories (then the order
 // they were printed in, while few have been read).
 func (s *site) epaperPopular(c *gin.Context) {
+	if popularFromMirror(c) { // a copy shows the hosted site's list
+		return
+	}
 	ed, pages, err := editionFor(s.db, c.Query("date"))
 	if err != nil {
 		c.JSON(http.StatusOK, []any{})
